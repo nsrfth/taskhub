@@ -4,6 +4,32 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] — 2026-05-22
+
+Quality pass on v1.2.0 — no user-visible behavior change, just loose ends.
+
+- Rewrote [prisma/seed.ts](backend/prisma/seed.ts) to match the v1.2.0 model:
+  `admin@taskhub.local` / `admin`, three additional demo users, 1 team, 3
+  projects, 18 tasks with labels, all dates `Date.UTC(...)`-anchored. Dataset
+  is designed to hit deliberate Timeliness numbers on a fresh install (7d:
+  50% on-time / +0.5d avg / 3 behind plan; 30d: 50% / +0.83d / 3). Seed is
+  idempotent — re-runs no-op if admin + projects already exist.
+- One-time `UPDATE` on the running dev DB to truncate `completedAt` to UTC
+  midnight, closing the time-of-day pollution from pre-v1.2 seeded rows.
+- New shared test bootstrap [backend/tests/setup.ts](backend/tests/setup.ts)
+  wired in via `setupFiles` in [vitest.config.ts](backend/vitest.config.ts).
+  Sets `AUTH_RATE_LIMIT_MAX ??= '10000'` and friends so the suite no longer
+  needs explicit env overrides at the runner. Per-file `beforeAll` blocks
+  can keep their own JWT/CORS defaults; the `??=` makes the shared file
+  yield to any caller that's already set them.
+- New integration test
+  [backend/tests/integration/timeliness.test.ts](backend/tests/integration/timeliness.test.ts)
+  with 5 cases (zero state, single on-time, mixed-variance batch, window
+  exclusion, behind-plan filtering). Total suite count is now 117/117.
+- New [BACKUP.md](BACKUP.md) covering Postgres logical dumps, the uploads
+  volume (tarball via throwaway alpine), Redis AOF/RDB (optional), and a
+  short verification ritual.
+
 ## [1.2.0] — 2026-05-22
 
 Three-date model for tasks and a new Timeliness report. Distinguishes the hard
