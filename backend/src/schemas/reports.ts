@@ -14,7 +14,7 @@ export const doneTaskRow = z.object({
   projectName: z.string(),
   assigneeId: z.string().nullable(),
   assigneeName: z.string().nullable(),
-  doneAt: z.string(),
+  completedAt: z.string(),
 });
 
 export const doneReportResponse = z.object({
@@ -69,4 +69,22 @@ export const summaryResponse = z.object({
   }),
 });
 
+// Timeliness — planned vs actual. `days` is the trailing window; we compute
+// on-time rate + average variance over completed-in-window tasks, plus a
+// snapshot count of open tasks already past their plannedDate.
+export const timelinessQuery = z.object({
+  days: z.coerce.number().int().positive().max(365).default(30),
+});
+
+export const timelinessResponse = z.object({
+  windowDays: z.number().int().positive(),
+  evaluatedCount: z.number().int().nonnegative(),
+  // 0..1; 0 if no tasks have both plannedDate and completedAt in window.
+  onTimeRate: z.number().min(0).max(1),
+  // Days. Positive = completed after planned (late); negative = early.
+  avgVarianceDays: z.number(),
+  behindPlanCount: z.number().int().nonnegative(),
+});
+
 export type DoneTasksQuery = z.infer<typeof doneTasksQuery>;
+export type TimelinessQuery = z.infer<typeof timelinessQuery>;

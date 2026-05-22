@@ -25,6 +25,57 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+interface DatePickerFieldProps {
+  label: string;
+  helper: string;
+  value: string | null;
+  storedValue: string | null;
+  pending: boolean;
+  onSave: () => void;
+  onClear: () => void;
+  onChange: (v: string | null) => void;
+}
+
+function DatePickerField({
+  label,
+  helper,
+  value,
+  storedValue,
+  pending,
+  onSave,
+  onClear,
+  onChange,
+}: DatePickerFieldProps): JSX.Element {
+  const dirty = value !== storedValue;
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-slate-700">{label}</label>
+      <ShamsiDatePicker value={value} onChange={onChange} />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={pending || !dirty}
+          className="bg-slate-900 text-white rounded px-2 py-0.5 text-xs font-medium disabled:opacity-40"
+        >
+          Save
+        </button>
+        {storedValue && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={pending}
+            className="text-xs text-red-600 hover:underline disabled:opacity-40"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-400">{helper}</p>
+    </div>
+  );
+}
+
 function describeActivity(a: activityApi.ActivityEntry): string {
   const meta = (a.meta ?? {}) as Record<string, unknown>;
   switch (a.action) {
@@ -79,12 +130,16 @@ export default function TaskDetailPage(): JSX.Element {
   const [newComment, setNewComment] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
 
-  // doneAt is tracked as an ISO string (or null). The ShamsiDatePicker takes
-  // ISO + emits ISO so we can compare equality without a conversion dance.
-  const [doneAtInput, setDoneAtInput] = useState<string | null>(null);
+  // Three date inputs are tracked as ISO strings (or null). The picker takes
+  // ISO + emits ISO so equality checks against the stored values are direct.
+  const [dueDateInput, setDueDateInput] = useState<string | null>(null);
+  const [plannedDateInput, setPlannedDateInput] = useState<string | null>(null);
+  const [completedAtInput, setCompletedAtInput] = useState<string | null>(null);
   useEffect(() => {
-    setDoneAtInput(task?.doneAt ?? null);
-  }, [task?.doneAt]);
+    setDueDateInput(task?.dueDate ?? null);
+    setPlannedDateInput(task?.plannedDate ?? null);
+    setCompletedAtInput(task?.completedAt ?? null);
+  }, [task?.dueDate, task?.plannedDate, task?.completedAt]);
 
   const updateTaskMut = useMutation({
     mutationFn: (patch: Partial<tasksApi.Task>) =>
@@ -164,7 +219,17 @@ export default function TaskDetailPage(): JSX.Element {
               <span className="uppercase tracking-wide">Priority: {task.priority}</span>
               {task.dueDate && (
                 <span>
-                  Due <span dir="rtl">{formatShamsiCalendarLong(task.dueDate)}</span>
+                  Due by <span dir="rtl">{formatShamsiCalendarLong(task.dueDate)}</span>
+                </span>
+              )}
+              {task.plannedDate && (
+                <span className="text-sky-700">
+                  Planned <span dir="rtl">{formatShamsiCalendarLong(task.plannedDate)}</span>
+                </span>
+              )}
+              {task.completedAt && (
+                <span className="text-emerald-700">
+                  Completed <span dir="rtl">{formatShamsiCalendarLong(task.completedAt)}</span>
                 </span>
               )}
               <span>
@@ -216,39 +281,43 @@ export default function TaskDetailPage(): JSX.Element {
               />
             </div>
 
-            <div className="mt-5 pt-4 border-t flex flex-wrap items-end gap-3">
-              <label className="block">
-                <span className="text-xs font-medium text-slate-600">Done date</span>
-                <div className="mt-1">
-                  <ShamsiDatePicker value={doneAtInput} onChange={setDoneAtInput} />
-                </div>
-                {doneAtInput && (
-                  <span className="block mt-1 text-xs text-slate-500" dir="rtl">
-                    {formatShamsiCalendarLong(doneAtInput)}
-                  </span>
-                )}
-              </label>
-              <button
-                type="button"
-                disabled={updateTaskMut.isPending || doneAtInput === task.doneAt}
-                onClick={() => updateTaskMut.mutate({ doneAt: doneAtInput })}
-                className="bg-slate-900 text-white rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
-              >
-                {updateTaskMut.isPending ? 'Saving…' : 'Save done date'}
-              </button>
-              {task.doneAt && (
-                <button
-                  type="button"
-                  disabled={updateTaskMut.isPending}
-                  onClick={() => updateTaskMut.mutate({ doneAt: null })}
-                  className="text-xs underline disabled:opacity-50"
-                >
-                  Clear
-                </button>
-              )}
-              <p className="basis-full text-xs text-slate-400">
-                Auto-filled when status moves to DONE; pick any date to backdate.
-              </p>
+            <div className="mt-5 pt-4 border-t">
+              <h3 className="text-xs font-medium text-slate-600 mb-2">Dates</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Due by — the hard deadline. Powers TASK_DUE notifications. */}
+                <DatePickerField
+                  label="Due by"
+                  helper="Hard deadline. Triggers reminders."
+                  value={dueDateInput}
+                  storedValue={task.dueDate}
+                  pending={updateTaskMut.isPending}
+                  onSave={() => updateTaskMut.mutate({ dueDate: dueDateInput })}
+                  onClear={() => updateTaskMut.mutate({ dueDate: null })}
+                  onChange={setDueDateInput}
+                />
+                {/* Planned on — team's target completion. Powers Timeliness. */}
+                <DatePickerField
+                  label="Planned on"
+                  helper="When we aim to be done."
+                  value={plannedDateInput}
+                  storedValue={task.plannedDate}
+                  pending={updateTaskMut.isPending}
+                  onSave={() => updateTaskMut.mutate({ plannedDate: plannedDateInput })}
+                  onClear={() => updateTaskMut.mutate({ plannedDate: null })}
+                  onChange={setPlannedDateInput}
+                />
+                {/* Completed on — actual finish. Auto-fills on status→DONE. */}
+                <DatePickerField
+                  label="Completed on"
+                  helper="Auto-fills on status→DONE. Backdate freely."
+                  value={completedAtInput}
+                  storedValue={task.completedAt}
+                  pending={updateTaskMut.isPending}
+                  onSave={() => updateTaskMut.mutate({ completedAt: completedAtInput })}
+                  onClear={() => updateTaskMut.mutate({ completedAt: null })}
+                  onChange={setCompletedAtInput}
+                />
+              </div>
             </div>
           </section>
 

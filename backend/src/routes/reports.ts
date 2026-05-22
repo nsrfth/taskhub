@@ -9,6 +9,8 @@ import {
   doneTasksQuery,
   overdueResponse,
   summaryResponse,
+  timelinessQuery,
+  timelinessResponse,
   workloadResponse,
 } from '../schemas/reports.js';
 
@@ -66,5 +68,18 @@ export async function reportsRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.summary,
+  });
+
+  r.get('/timeliness', {
+    schema: {
+      tags: ['reports'],
+      summary:
+        'On-time rate + avg variance over tasks with both plannedDate and completedAt; plus behind-plan open-task count',
+      params: z.object({ teamId: z.string() }),
+      querystring: timelinessQuery,
+      response: { 200: timelinessResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.timeliness,
   });
 }

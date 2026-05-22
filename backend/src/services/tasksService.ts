@@ -42,7 +42,8 @@ export interface TaskView {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: Date | null;
-  doneAt: Date | null;
+  plannedDate: Date | null;
+  completedAt: Date | null;
   position: number;
   createdAt: Date;
   updatedAt: Date;
@@ -70,7 +71,8 @@ function toView(row: Prisma.TaskGetPayload<{ include: typeof TASK_INCLUDE }>): T
     status: row.status,
     priority: row.priority,
     dueDate: row.dueDate,
-    doneAt: row.doneAt,
+    plannedDate: row.plannedDate,
+    completedAt: row.completedAt,
     position: row.position,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -105,7 +107,8 @@ export class TasksService {
       priority?: TaskPriority;
       assigneeId?: string | null;
       dueDate?: string | null;
-      doneAt?: string | null;
+      plannedDate?: string | null;
+      completedAt?: string | null;
     },
   ): Promise<TaskView> {
     await this.ensureProjectInTeam(teamId, projectId);
@@ -130,15 +133,15 @@ export class TasksService {
     });
     const position = (last?.position ?? 0) + POSITION_GAP;
 
-    // doneAt resolution at create time:
+    // completedAt resolution at create time:
     //   - explicit input wins (member backdates)
     //   - else, if creating directly into status=DONE, stamp now
     //   - else, null
-    const doneAt =
-      input.doneAt !== undefined
-        ? input.doneAt === null
+    const completedAt =
+      input.completedAt !== undefined
+        ? input.completedAt === null
           ? null
-          : new Date(input.doneAt)
+          : new Date(input.completedAt)
         : status === 'DONE'
           ? new Date()
           : null;
@@ -155,7 +158,8 @@ export class TasksService {
           status,
           priority: input.priority ?? 'MEDIUM',
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
-          doneAt,
+          plannedDate: input.plannedDate ? new Date(input.plannedDate) : null,
+          completedAt,
           position,
         },
         include: TASK_INCLUDE,
@@ -219,7 +223,8 @@ export class TasksService {
       priority?: TaskPriority;
       assigneeId?: string | null;
       dueDate?: string | null;
-      doneAt?: string | null;
+      plannedDate?: string | null;
+      completedAt?: string | null;
     },
   ): Promise<TaskView> {
     const existing = await this.get(teamId, projectId, taskId);
@@ -245,31 +250,39 @@ export class TasksService {
       nextPosition = (last?.position ?? 0) + POSITION_GAP;
     }
 
-    // doneAt resolution on update:
+    // completedAt resolution on update:
     //   - explicit input wins (allows manual set, clear, or backdate)
-    //   - else, if transitioning to DONE and doneAt was null, auto-fill now
+    //   - else, if transitioning to DONE and completedAt was null, auto-fill now
     //   - else, leave as-is
-    let resolvedDoneAt: Date | null | undefined;
-    if (input.doneAt !== undefined) {
-      resolvedDoneAt = input.doneAt === null ? null : new Date(input.doneAt);
-    } else if (statusChanged && input.status === 'DONE' && existing.doneAt === null) {
-      resolvedDoneAt = new Date();
+    let resolvedCompletedAt: Date | null | undefined;
+    if (input.completedAt !== undefined) {
+      resolvedCompletedAt = input.completedAt === null ? null : new Date(input.completedAt);
+    } else if (statusChanged && input.status === 'DONE' && existing.completedAt === null) {
+      resolvedCompletedAt = new Date();
     } else {
-      resolvedDoneAt = undefined; // skip update
+      resolvedCompletedAt = undefined; // skip update
     }
 
     // Build the list of non-status fields the user explicitly changed so the
-    // audit entry stays compact (no-op PATCHes emit nothing). Crucially, for
-    // doneAt we look at input.doneAt (explicit edit), NOT the auto-filled
-    // resolvedDoneAt — auto-fill on TODO→DONE is a side-effect of the
-    // status_changed event, not a separate "the user edited doneAt" event.
-    const NON_STATUS_FIELDS = ['title', 'description', 'priority', 'assigneeId', 'dueDate', 'doneAt'] as const;
+    // audit entry stays compact (no-op PATCHes emit nothing). For completedAt
+    // we look at input.completedAt (explicit edit), NOT the auto-filled
+    // resolvedCompletedAt — auto-fill on TODO→DONE is a side-effect of the
+    // status_changed event, not a separate "the user edited completedAt" event.
+    const NON_STATUS_FIELDS = [
+      'title',
+      'description',
+      'priority',
+      'assigneeId',
+      'dueDate',
+      'plannedDate',
+      'completedAt',
+    ] as const;
+    const DATE_FIELDS = new Set(['dueDate', 'plannedDate', 'completedAt']);
     const changedNonStatusFields = NON_STATUS_FIELDS.filter((f) => {
       const incoming = (input as Record<string, unknown>)[f];
       if (incoming === undefined) return false;
       const current = (existing as unknown as Record<string, unknown>)[f];
-      // Date fields: compare ISO strings. Date objects compare by reference otherwise.
-      if (f === 'dueDate' || f === 'doneAt') {
+      if (DATE_FIELDS.has(f)) {
         const a = current instanceof Date ? current.toISOString() : null;
         const b =
           typeof incoming === 'string' ? new Date(incoming).toISOString() : incoming === null ? null : null;
@@ -294,7 +307,10 @@ export class TasksService {
               // so the scheduler treats the new date as fresh and notifies again.
               dueNotifiedAt: null,
             }),
-            ...(resolvedDoneAt !== undefined && { doneAt: resolvedDoneAt }),
+            ...(input.plannedDate !== undefined && {
+              plannedDate: input.plannedDate === null ? null : new Date(input.plannedDate),
+            }),
+            ...(resolvedCompletedAt !== undefined && { completedAt: resolvedCompletedAt }),
           },
           include: TASK_INCLUDE,
         });

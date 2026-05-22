@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ReportsService } from '../services/reportsService.js';
-import type { DoneTasksQuery } from '../schemas/reports.js';
+import type { DoneTasksQuery, TimelinessQuery } from '../schemas/reports.js';
 
 type TeamParams = { teamId: string };
 
@@ -14,7 +14,7 @@ export class ReportsController {
     const rows = await this.svc.listDoneTasks(req.params.teamId, req.query.days);
     return reply.send({
       windowDays: req.query.days,
-      items: rows.map((r) => ({ ...r, doneAt: r.doneAt.toISOString() })),
+      items: rows.map((r) => ({ ...r, completedAt: r.completedAt.toISOString() })),
     });
   };
 
@@ -33,5 +33,13 @@ export class ReportsController {
   summary = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {
     const s = await this.svc.summary(req.params.teamId);
     return reply.send(s);
+  };
+
+  timeliness = async (
+    req: FastifyRequest<{ Params: TeamParams; Querystring: TimelinessQuery }>,
+    reply: FastifyReply,
+  ) => {
+    const r = await this.svc.timeliness(req.params.teamId, req.query.days);
+    return reply.send(r);
   };
 }

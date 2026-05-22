@@ -8,7 +8,7 @@ export interface DoneTaskRow {
   projectName: string;
   assigneeId: string | null;
   assigneeName: string | null;
-  doneAt: Date;
+  completedAt: Date;
 }
 
 export interface WorkloadRow {
@@ -37,24 +37,41 @@ export interface SummaryReport {
   byStatus: { TODO: number; IN_PROGRESS: number; REVIEW: number; DONE: number };
 }
 
+// "How did we do against the plan?" — three numbers a manager wants to see:
+//   onTimeRate: % of tasks completed inside their plannedDate (of those with
+//               a plannedDate set)
+//   avgVarianceDays: mean of (completedAt − plannedDate) in days. Positive
+//                    means chronically late; negative means we beat the plan.
+//   behindPlanCount: open tasks whose plannedDate is already in the past.
+// All three are scoped to a trailing window of N days (default 30) so old
+// data doesn't drown out recent trends.
+export interface TimelinessReport {
+  windowDays: number;
+  evaluatedCount: number;
+  onTimeRate: number; // 0..1
+  avgVarianceDays: number;
+  behindPlanCount: number;
+}
+
 const OPEN_STATUSES: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW'];
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export class ReportsService {
-  // Returns every task in this team whose doneAt is within the trailing N
-  // days. Sorted newest-first so the typical "what happened this week" view
+  // Returns every task in this team whose completedAt is within the trailing
+  // N days. Sorted newest-first so the typical "what happened this week" view
   // reads naturally. Caller (route layer) already enforces team membership.
   async listDoneTasks(teamId: string, days: number): Promise<DoneTaskRow[]> {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const since = new Date(Date.now() - days * MS_PER_DAY);
     const rows = await prisma.task.findMany({
-      where: { teamId, doneAt: { gte: since } },
+      where: { teamId, completedAt: { gte: since } },
       include: {
         project: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
       },
-      orderBy: { doneAt: 'desc' },
+      orderBy: { completedAt: 'desc' },
     });
     return rows
-      .filter((r): r is typeof r & { doneAt: Date } => r.doneAt !== null)
+      .filter((r): r is typeof r & { completedAt: Date } => r.completedAt !== null)
       .map((r) => ({
         taskId: r.id,
         taskTitle: r.title,
@@ -62,7 +79,7 @@ export class ReportsService {
         projectName: r.project.name,
         assigneeId: r.assignee?.id ?? null,
         assigneeName: r.assignee?.name ?? null,
-        doneAt: r.doneAt,
+        completedAt: r.completedAt,
       }));
   }
 
@@ -88,8 +105,6 @@ export class ReportsService {
         buckets.set(key, b);
       }
       b.total += 1;
-      // The status is one of OPEN_STATUSES by construction, so the keyed
-      // access is always defined.
       b.byStatus[r.status as 'TODO' | 'IN_PROGRESS' | 'REVIEW'] += 1;
     }
     return [...buckets.values()].sort((a, b) => b.total - a.total);
@@ -120,7 +135,7 @@ export class ReportsService {
         assigneeId: r.assignee?.id ?? null,
         assigneeName: r.assignee?.name ?? null,
         dueDate: r.dueDate,
-        daysOverdue: Math.floor((now.getTime() - r.dueDate.getTime()) / (24 * 60 * 60 * 1000)),
+        daysOverdue: Math.floor((now.getTime() - r.dueDate.getTime()) / MS_PER_DAY),
       }));
   }
 
@@ -128,11 +143,10 @@ export class ReportsService {
   // so the widget doesn't have to hit four others on every navigation.
   async summary(teamId: string): Promise<SummaryReport> {
     const now = new Date();
-    const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const since7d = new Date(now.getTime() - 7 * MS_PER_DAY);
 
-    // Three counts in parallel — groupBy gives byStatus + total in one query.
     const [doneLast7Days, overdueCount, statusCounts] = await Promise.all([
-      prisma.task.count({ where: { teamId, doneAt: { gte: since7d } } }),
+      prisma.task.count({ where: { teamId, completedAt: { gte: since7d } } }),
       prisma.task.count({
         where: {
           teamId,
@@ -156,6 +170,54 @@ export class ReportsService {
       overdueCount,
       openCount: byStatus.TODO + byStatus.IN_PROGRESS + byStatus.REVIEW,
       byStatus,
+    };
+  }
+
+  // Timeliness: planned vs. actual. Only counts tasks with BOTH a plannedDate
+  // and a completedAt (or open + plannedDate for behind-plan). Tasks with no
+  // planned target can't be measured against it.
+  async timeliness(teamId: string, days: number): Promise<TimelinessReport> {
+    const now = new Date();
+    const since = new Date(now.getTime() - days * MS_PER_DAY);
+
+    const [completedWithPlan, behindPlanCount] = await Promise.all([
+      // Completed in window AND had a planned target. These are the rows we
+      // can compute on-time + variance from.
+      prisma.task.findMany({
+        where: {
+          teamId,
+          completedAt: { gte: since },
+          plannedDate: { not: null },
+        },
+        select: { plannedDate: true, completedAt: true },
+      }),
+      // Open tasks whose plannedDate is already in the past — "behind plan
+      // but not yet overdue (which is past dueDate, a stricter signal)".
+      prisma.task.count({
+        where: {
+          teamId,
+          status: { in: OPEN_STATUSES },
+          plannedDate: { lt: now, not: null },
+        },
+      }),
+    ]);
+
+    let onTime = 0;
+    let totalVarianceMs = 0;
+    for (const r of completedWithPlan) {
+      if (!r.plannedDate || !r.completedAt) continue;
+      const variance = r.completedAt.getTime() - r.plannedDate.getTime();
+      totalVarianceMs += variance;
+      if (variance <= 0) onTime += 1;
+    }
+    const evaluatedCount = completedWithPlan.length;
+    return {
+      windowDays: days,
+      evaluatedCount,
+      onTimeRate: evaluatedCount === 0 ? 0 : onTime / evaluatedCount,
+      avgVarianceDays:
+        evaluatedCount === 0 ? 0 : totalVarianceMs / evaluatedCount / MS_PER_DAY,
+      behindPlanCount,
     };
   }
 }

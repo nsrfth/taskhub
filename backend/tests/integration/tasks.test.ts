@@ -201,7 +201,7 @@ describe('GET /api/teams/:teamId/projects/:projectId/tasks', () => {
   });
 });
 
-describe('task doneAt field', () => {
+describe('task completedAt field', () => {
   it('is null for a new TODO task', async () => {
     const { token } = await registerUser('a@example.com');
     const team = await createTeam(token, 'acme');
@@ -212,10 +212,10 @@ describe('task doneAt field', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { title: 'fresh' },
     });
-    expect(res.json().doneAt).toBeNull();
+    expect(res.json().completedAt).toBeNull();
   });
 
-  it('auto-fills doneAt when a task is created directly in DONE', async () => {
+  it('auto-fills completedAt when a task is created directly in DONE', async () => {
     const { token } = await registerUser('a@example.com');
     const team = await createTeam(token, 'acme');
     const project = await createProject(token, team.id);
@@ -225,10 +225,10 @@ describe('task doneAt field', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { title: 'born done', status: 'DONE' },
     });
-    expect(res.json().doneAt).toBeTypeOf('string');
+    expect(res.json().completedAt).toBeTypeOf('string');
   });
 
-  it('auto-fills doneAt when status transitions to DONE and doneAt was null', async () => {
+  it('auto-fills completedAt when status transitions to DONE and completedAt was null', async () => {
     const { token } = await registerUser('a@example.com');
     const team = await createTeam(token, 'acme');
     const project = await createProject(token, team.id);
@@ -240,17 +240,17 @@ describe('task doneAt field', () => {
         payload: { title: 'will finish' },
       })
     ).json();
-    expect(task.doneAt).toBeNull();
+    expect(task.completedAt).toBeNull();
     const moved = await inject({
       method: 'PATCH',
       url: `/api/teams/${team.id}/projects/${project.id}/tasks/${task.id}`,
       headers: { authorization: `Bearer ${token}` },
       payload: { status: 'DONE' },
     });
-    expect(moved.json().doneAt).toBeTypeOf('string');
+    expect(moved.json().completedAt).toBeTypeOf('string');
   });
 
-  it('accepts an explicit backdated doneAt and overrides the auto-fill', async () => {
+  it('accepts an explicit backdated completedAt and overrides the auto-fill', async () => {
     const { token } = await registerUser('a@example.com');
     const team = await createTeam(token, 'acme');
     const project = await createProject(token, team.id);
@@ -267,12 +267,12 @@ describe('task doneAt field', () => {
       method: 'PATCH',
       url: `/api/teams/${team.id}/projects/${project.id}/tasks/${task.id}`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { status: 'DONE', doneAt: backdate },
+      payload: { status: 'DONE', completedAt: backdate },
     });
-    expect(res.json().doneAt).toBe(backdate);
+    expect(res.json().completedAt).toBe(backdate);
   });
 
-  it('preserves a previously set doneAt when status changes to DONE again', async () => {
+  it('preserves a previously set completedAt when status changes to DONE again', async () => {
     const { token } = await registerUser('a@example.com');
     const team = await createTeam(token, 'acme');
     const project = await createProject(token, team.id);
@@ -282,11 +282,11 @@ describe('task doneAt field', () => {
         method: 'POST',
         url: `/api/teams/${team.id}/projects/${project.id}/tasks`,
         headers: { authorization: `Bearer ${token}` },
-        payload: { title: 'with doneAt', doneAt: backdate },
+        payload: { title: 'with completedAt', completedAt: backdate },
       })
     ).json();
-    expect(task.doneAt).toBe(backdate);
-    // Move it through statuses and back to DONE — original doneAt should survive.
+    expect(task.completedAt).toBe(backdate);
+    // Move it through statuses and back to DONE — original completedAt should survive.
     await inject({
       method: 'PATCH',
       url: `/api/teams/${team.id}/projects/${project.id}/tasks/${task.id}`,
@@ -299,11 +299,11 @@ describe('task doneAt field', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { status: 'DONE' },
     });
-    // doneAt was non-null prior to this transition, so the auto-fill is skipped.
-    expect(back.json().doneAt).toBe(backdate);
+    // completedAt was non-null prior to this transition, so the auto-fill is skipped.
+    expect(back.json().completedAt).toBe(backdate);
   });
 
-  it('allows clearing doneAt with null', async () => {
+  it('allows clearing completedAt with null', async () => {
     const { token } = await registerUser('a@example.com');
     const team = await createTeam(token, 'acme');
     const project = await createProject(token, team.id);
@@ -315,14 +315,14 @@ describe('task doneAt field', () => {
         payload: { title: 'cleared', status: 'DONE' },
       })
     ).json();
-    expect(task.doneAt).toBeTypeOf('string');
+    expect(task.completedAt).toBeTypeOf('string');
     const cleared = await inject({
       method: 'PATCH',
       url: `/api/teams/${team.id}/projects/${project.id}/tasks/${task.id}`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { doneAt: null },
+      payload: { completedAt: null },
     });
-    expect(cleared.json().doneAt).toBeNull();
+    expect(cleared.json().completedAt).toBeNull();
   });
 });
 

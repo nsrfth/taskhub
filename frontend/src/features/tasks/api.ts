@@ -27,8 +27,10 @@ export interface Task {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  // dueDate = hard deadline; plannedDate = team's target; completedAt = actual.
   dueDate: string | null;
-  doneAt: string | null;
+  plannedDate: string | null;
+  completedAt: string | null;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -58,7 +60,8 @@ export async function createTask(
     priority?: TaskPriority;
     assigneeId?: string | null;
     dueDate?: string | null;
-    doneAt?: string | null;
+    plannedDate?: string | null;
+    completedAt?: string | null;
   },
 ): Promise<Task> {
   return (await api.post<Task>(`/teams/${teamId}/projects/${projectId}/tasks`, input)).data;
@@ -75,7 +78,8 @@ export async function updateTask(
     priority: TaskPriority;
     assigneeId: string | null;
     dueDate: string | null;
-    doneAt: string | null;
+    plannedDate: string | null;
+    completedAt: string | null;
   }>,
 ): Promise<Task> {
   return (

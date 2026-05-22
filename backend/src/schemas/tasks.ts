@@ -11,10 +11,13 @@ export const createTaskBody = z.object({
   // Empty string from a form field is normalized to null (unassigned).
   assigneeId: z.string().nullable().optional(),
   // ISO 8601; backend converts to Date. Client sends `null` to clear.
+  // Three date concepts the task model tracks:
+  //   - dueDate     — hard deadline (powers TASK_DUE notifications)
+  //   - plannedDate — team's target (powers the timeliness report)
+  //   - completedAt — when actually done (auto-fills on status→DONE)
   dueDate: z.string().datetime().nullable().optional(),
-  // When the task was actually completed. Optional on create — usually only
-  // set after the fact; auto-filled when status flips to DONE.
-  doneAt: z.string().datetime().nullable().optional(),
+  plannedDate: z.string().datetime().nullable().optional(),
+  completedAt: z.string().datetime().nullable().optional(),
 });
 
 export const updateTaskBody = z
@@ -25,7 +28,8 @@ export const updateTaskBody = z
     priority: taskPriorityEnum.optional(),
     assigneeId: z.string().nullable().optional(),
     dueDate: z.string().datetime().nullable().optional(),
-    doneAt: z.string().datetime().nullable().optional(),
+    plannedDate: z.string().datetime().nullable().optional(),
+    completedAt: z.string().datetime().nullable().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), 'Provide at least one field to update');
 
@@ -70,7 +74,8 @@ export const taskResponse = z.object({
   status: taskStatusEnum,
   priority: taskPriorityEnum,
   dueDate: z.string().nullable(),
-  doneAt: z.string().nullable(),
+  plannedDate: z.string().nullable(),
+  completedAt: z.string().nullable(),
   position: z.number().int(),
   createdAt: z.string(),
   updatedAt: z.string(),

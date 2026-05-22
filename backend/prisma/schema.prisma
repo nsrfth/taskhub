@@ -170,11 +170,16 @@ model Task {
   description String?
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
+  // Hard deadline — "must be done by". Powers the TASK_DUE scheduler.
   dueDate     DateTime?
+  // Team's target completion date — "we plan to be done by". Used by the
+  // timeliness report; doesn't trigger TASK_DUE notifications (those are for
+  // the hard deadline only).
+  plannedDate DateTime?
   // When the task was actually completed. Auto-filled on first transition to
   // status=DONE if not explicitly set; the member can also set it manually
-  // (e.g., back-dating after the fact) regardless of status.
-  doneAt      DateTime?
+  // (back-dating) regardless of status. Renamed from doneAt in v1.2.
+  completedAt DateTime?
   // When a TASK_DUE notification was last emitted for this task — used by the
   // scheduler to avoid re-notifying every tick. Reset to null whenever dueDate
   // changes so the next due date triggers a fresh reminder.

@@ -4,6 +4,67 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-05-22
+
+Three-date model for tasks and a new Timeliness report. Distinguishes the hard
+deadline from the team's planned target from the actual completion, so the
+Reports page can answer "are we hitting our own plan?" alongside "are we
+breaching deadlines?".
+
+### Three date fields on Task (breaking API rename)
+
+- `dueDate` — hard deadline (externally-imposed). Drives `TASK_DUE` reminders;
+  surfaced as the "Overdue" report. Unchanged from prior versions.
+- `plannedDate` — **new**. The team's target completion date. Doesn't trigger
+  notifications; powers the new Timeliness report.
+- `completedAt` — actual completion. **Renamed from `doneAt`**. Auto-fills on
+  first transition to `status = DONE` when not set explicitly; can also be
+  backdated manually regardless of status.
+- Migration `20260522160549_planned_and_completed_dates`:
+  `ALTER TABLE "Task" ADD COLUMN "plannedDate"` +
+  `ALTER TABLE "Task" RENAME COLUMN "doneAt" TO "completedAt"`. Postgres
+  preserves data and indexes through the rename.
+- All API request/response shapes (`createTask`, `updateTask`, list/get,
+  `/reports/done`) emit and accept `completedAt` instead of `doneAt`, and
+  accept/return `plannedDate`. The Zod schemas drop `doneAt` entirely;
+  callers must migrate.
+
+### New `/api/teams/:teamId/reports/timeliness` endpoint
+
+- Trailing-window query (`?days=N`, default 7, cap 365). Evaluates every task
+  in the window that has both `plannedDate` and `completedAt`, returning:
+  - `onTimeRate` — completed-by-or-before-plan / evaluated count (0..1).
+  - `avgVarianceDays` — mean `completedAt − plannedDate` in days. Positive =
+    late on average, negative = early.
+  - `evaluatedCount` — denominator, for UX transparency when small.
+  - `behindPlanCount` — open tasks (`TODO|IN_PROGRESS|REVIEW`) whose
+    `plannedDate` is now in the past. This one is unaffected by `?days`.
+
+### Frontend UI
+
+- Task detail page: three pickers in a grid — "Due by", "Planned on",
+  "Completed on" — each with its own save/clear and a one-line helper.
+- Kanban card date strip now shows up to three dates with distinct colors:
+  slate (`مهلت` due), sky (`هدف` planned), emerald (`انجام` completed).
+- Reports page:
+  - "Tasks done" section renamed to **"Tasks completed"**.
+  - New **Timeliness** section with on-time rate (% with traffic-light
+    coloring), avg variance days (signed, red/emerald), behind-plan count,
+    and window.
+
+### Behavior notes / caveats
+
+- Auto-fill of `completedAt` continues to fire only on the first
+  `status → DONE` transition. Status flips back-and-forth don't clobber a
+  user-set completion date.
+- Pre-existing rows from earlier versions have `plannedDate = NULL` — they
+  show no "planned" date and are excluded from Timeliness until set. The
+  seeded sample data was updated to include realistic planned dates so the
+  new section populates on a fresh install.
+- 112 integration tests pass after the rename (no logic regression — the
+  rename is internal to Prisma's column mapping and tests exercise the
+  service / API layer, not the schema directly).
+
 ## [1.1.3] — 2026-05-22
 
 Date-handling correctness pass. Fixes a real timezone bug, separates calendar

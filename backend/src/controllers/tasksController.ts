@@ -15,7 +15,8 @@ function serialize(t: TaskView) {
   return {
     ...t,
     dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-    doneAt: t.doneAt ? t.doneAt.toISOString() : null,
+    plannedDate: t.plannedDate ? t.plannedDate.toISOString() : null,
+    completedAt: t.completedAt ? t.completedAt.toISOString() : null,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   };

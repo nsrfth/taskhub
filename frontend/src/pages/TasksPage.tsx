@@ -128,11 +128,17 @@ function SortableCard({ task, onOpen, onDelete, onStatusChange }: SortableCardPr
           ))}
         </select>
       </div>
-      {(task.dueDate || task.doneAt) && (
-        <div className="mt-1 flex justify-between text-[11px] text-slate-500" dir="rtl">
-          {task.dueDate && <span>سررسید {formatShamsiDate(task.dueDate)}</span>}
-          {task.doneAt && (
-            <span className="text-emerald-700">انجام {formatShamsiDate(task.doneAt)}</span>
+      {(task.dueDate || task.plannedDate || task.completedAt) && (
+        <div
+          className="mt-1 flex flex-wrap justify-between gap-x-2 text-[11px] text-slate-500"
+          dir="rtl"
+        >
+          {task.dueDate && <span>مهلت {formatShamsiDate(task.dueDate)}</span>}
+          {task.plannedDate && (
+            <span className="text-sky-700">هدف {formatShamsiDate(task.plannedDate)}</span>
+          )}
+          {task.completedAt && (
+            <span className="text-emerald-700">انجام {formatShamsiDate(task.completedAt)}</span>
           )}
         </div>
       )}

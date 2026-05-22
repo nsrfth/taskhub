@@ -7,7 +7,7 @@ export interface DoneTaskRow {
   projectName: string;
   assigneeId: string | null;
   assigneeName: string | null;
-  doneAt: string;
+  completedAt: string;
 }
 
 export interface DoneReport {
@@ -55,4 +55,25 @@ export interface SummaryReport {
 
 export async function fetchSummary(teamId: string): Promise<SummaryReport> {
   return (await api.get<SummaryReport>(`/teams/${teamId}/reports/summary`)).data;
+}
+
+export interface TimelinessReport {
+  windowDays: number;
+  evaluatedCount: number;
+  // 0..1; 0 when no tasks have both plannedDate + completedAt in window.
+  onTimeRate: number;
+  // Days; positive = late, negative = early.
+  avgVarianceDays: number;
+  behindPlanCount: number;
+}
+
+export async function fetchTimeliness(
+  teamId: string,
+  days: number,
+): Promise<TimelinessReport> {
+  return (
+    await api.get<TimelinessReport>(`/teams/${teamId}/reports/timeliness`, {
+      params: { days },
+    })
+  ).data;
 }

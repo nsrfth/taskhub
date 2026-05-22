@@ -6,6 +6,7 @@ import {
   fetchDoneReport,
   fetchOverdue,
   fetchSummary,
+  fetchTimeliness,
   fetchWorkload,
   type DoneTaskRow,
 } from '@/features/reports/api';
@@ -17,7 +18,7 @@ const WINDOWS: { days: number; label: string }[] = [
   { days: 90, label: 'Last 90 days' },
 ];
 
-// "Tasks done" report. Pulls the team's recently-completed tasks from the API
+// "Tasks completed" report. Pulls the team's recently-completed tasks from the API
 // and presents them two ways: a flat list (most recent first) and a per-
 // assignee tally. Both pivots come from one query — server returns a flat
 // row set, the UI groups in memory.
@@ -47,6 +48,12 @@ export default function ReportsPage(): JSX.Element {
   const { data: overdue } = useQuery({
     queryKey: ['reports', 'overdue', currentTeam?.id],
     queryFn: () => fetchOverdue(currentTeam!.id),
+    enabled: !!currentTeam,
+  });
+
+  const { data: timeliness } = useQuery({
+    queryKey: ['reports', 'timeliness', currentTeam?.id, days],
+    queryFn: () => fetchTimeliness(currentTeam!.id, days),
     enabled: !!currentTeam,
   });
 
@@ -125,7 +132,7 @@ export default function ReportsPage(): JSX.Element {
 
       <section className="bg-white rounded shadow p-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <h2 className="font-medium mr-3">Tasks done</h2>
+          <h2 className="font-medium mr-3">Tasks completed</h2>
           {WINDOWS.map((w) => (
             <button
               key={w.days}
@@ -167,7 +174,7 @@ export default function ReportsPage(): JSX.Element {
                         {r.taskTitle}
                       </button>
                       <span className="text-xs text-slate-500" dir="rtl">
-                        {formatShamsiDate(r.doneAt)}
+                        {formatShamsiDate(r.completedAt)}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500">
@@ -193,6 +200,83 @@ export default function ReportsPage(): JSX.Element {
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Timeliness — planned-vs-actual delivery quality over the same window. */}
+      <section className="bg-white rounded shadow p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <h2 className="font-medium mr-3">Timeliness</h2>
+          <span className="text-xs text-slate-500">
+            (same window as "Tasks completed")
+          </span>
+        </div>
+        {!timeliness && <p className="text-sm text-slate-500">Loading…</p>}
+        {timeliness && timeliness.evaluatedCount === 0 && (
+          <p className="text-sm text-slate-500 italic">
+            No tasks in this window have both a planned date and a completion date yet.
+          </p>
+        )}
+        {timeliness && timeliness.evaluatedCount > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">On-time rate</p>
+              <p
+                className={`text-2xl font-semibold tabular-nums ${
+                  timeliness.onTimeRate >= 0.8
+                    ? 'text-emerald-700'
+                    : timeliness.onTimeRate >= 0.5
+                      ? 'text-amber-700'
+                      : 'text-red-700'
+                }`}
+              >
+                {Math.round(timeliness.onTimeRate * 100)}%
+              </p>
+              <p className="text-[11px] text-slate-400">
+                of {timeliness.evaluatedCount} task{timeliness.evaluatedCount === 1 ? '' : 's'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">Avg variance</p>
+              <p
+                className={`text-2xl font-semibold tabular-nums ${
+                  timeliness.avgVarianceDays > 0
+                    ? 'text-red-700'
+                    : timeliness.avgVarianceDays < 0
+                      ? 'text-emerald-700'
+                      : 'text-slate-700'
+                }`}
+              >
+                {timeliness.avgVarianceDays > 0 ? '+' : ''}
+                {timeliness.avgVarianceDays.toFixed(1)}d
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {timeliness.avgVarianceDays > 0
+                  ? 'late on average'
+                  : timeliness.avgVarianceDays < 0
+                    ? 'early on average'
+                    : 'right on plan'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">Behind plan</p>
+              <p
+                className={`text-2xl font-semibold tabular-nums ${
+                  timeliness.behindPlanCount > 0 ? 'text-red-700' : 'text-slate-700'
+                }`}
+              >
+                {timeliness.behindPlanCount}
+              </p>
+              <p className="text-[11px] text-slate-400">open, past planned date</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">Window</p>
+              <p className="text-2xl font-semibold tabular-nums text-slate-700">
+                {timeliness.windowDays}d
+              </p>
+              <p className="text-[11px] text-slate-400">trailing</p>
             </div>
           </div>
         )}
