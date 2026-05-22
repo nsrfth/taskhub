@@ -10,7 +10,9 @@ import { Errors } from '../lib/errors.js';
 export interface ProjectView {
   id: string;
   teamId: string;
-  ownerId: string;
+  // ownerId is null when the owning user has been deleted (FK SetNull).
+  // A manager can reassign by transferring the project to a new owner.
+  ownerId: string | null;
   name: string;
   description: string | null;
   status: ProjectStatus;

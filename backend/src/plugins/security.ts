@@ -5,6 +5,7 @@ import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import fastifyJwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
+import websocket from '@fastify/websocket';
 import type { Env } from '../config/env.js';
 import { decorateJwt } from '../lib/jwt.js';
 
@@ -61,9 +62,12 @@ export async function registerSecurity(app: FastifyInstance, env: Env): Promise<
     limits: {
       fileSize: env.UPLOAD_MAX_BYTES,
       files: 1,
-      // Field name + value sizes — small but defensive against a junk client.
       fieldNameSize: 100,
       fieldSize: 1024,
     },
   });
+
+  // WebSocket support for the realtime notification feed. The route itself
+  // lives in notificationsWsRoutes; this just turns on the plugin.
+  await app.register(websocket);
 }

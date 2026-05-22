@@ -18,7 +18,8 @@ function callerMembership(req: FastifyRequest): TeamMembership {
 function serialize(p: {
   id: string;
   teamId: string;
-  ownerId: string;
+  // Nullable because admin can SetNull when deleting the owning user.
+  ownerId: string | null;
   name: string;
   description: string | null;
   status: string;

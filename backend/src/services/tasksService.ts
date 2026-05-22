@@ -33,7 +33,9 @@ export interface TaskView {
   id: string;
   projectId: string;
   teamId: string;
-  creatorId: string;
+  // Nullable since admin can delete a user; we SetNull rather than cascade
+  // to preserve the task's history. Frontend renders as "(deleted user)".
+  creatorId: string | null;
   assigneeId: string | null;
   title: string;
   description: string | null;
@@ -168,6 +170,7 @@ export class TasksService {
       if (task.assigneeId) {
         await notifications.onTaskAssigned(tx, {
           taskId: task.id,
+          projectId: task.projectId,
           teamId: task.teamId,
           actorId: creatorId,
           newAssigneeId: task.assigneeId,
@@ -287,6 +290,9 @@ export class TasksService {
             ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
             ...(input.dueDate !== undefined && {
               dueDate: input.dueDate === null ? null : new Date(input.dueDate),
+              // Reset the TASK_DUE notification flag whenever dueDate changes
+              // so the scheduler treats the new date as fresh and notifies again.
+              dueNotifiedAt: null,
             }),
             ...(resolvedDoneAt !== undefined && { doneAt: resolvedDoneAt }),
           },
@@ -305,6 +311,7 @@ export class TasksService {
           });
           await notifications.onStatusChanged(tx, {
             taskId,
+            projectId: existing.projectId,
             teamId: existing.teamId,
             actorId,
             from: existing.status,
@@ -329,6 +336,7 @@ export class TasksService {
         ) {
           await notifications.onTaskAssigned(tx, {
             taskId,
+            projectId: existing.projectId,
             teamId: existing.teamId,
             actorId,
             newAssigneeId: updated.assigneeId,
@@ -343,6 +351,128 @@ export class TasksService {
       }
       throw err;
     }
+  }
+
+  // Place `taskId` immediately before `beforeTaskId` in the target column.
+  // beforeTaskId === null → drop at the end of the column.
+  //
+  // Position math:
+  //   - between two existing tasks: midpoint of their positions
+  //   - at the head (before first task): firstPos - POSITION_GAP
+  //   - at the tail: lastPos + POSITION_GAP (or POSITION_GAP if empty)
+  //
+  // When the gap collapses to <= 1 (very long lifetimes of insert-between),
+  // re-number the whole column with fresh sparse positions. Cheap enough at
+  // kanban scale and avoids the floating-point complexity of fractional indexing.
+  async reorder(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    actorId: string,
+    input: { status: TaskStatus; beforeTaskId: string | null },
+  ): Promise<TaskView> {
+    const existing = await this.get(teamId, projectId, taskId);
+    if (input.beforeTaskId === taskId) {
+      throw Errors.badRequest('Cannot reorder a task before itself');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      let newPosition: number;
+      if (input.beforeTaskId === null) {
+        const last = await tx.task.findFirst({
+          where: { projectId, status: input.status, NOT: { id: taskId } },
+          orderBy: { position: 'desc' },
+          select: { position: true },
+        });
+        newPosition = (last?.position ?? 0) + POSITION_GAP;
+      } else {
+        const before = await tx.task.findUnique({
+          where: { id: input.beforeTaskId },
+          select: { id: true, projectId: true, status: true, position: true },
+        });
+        if (!before || before.projectId !== projectId || before.status !== input.status) {
+          throw Errors.badRequest('beforeTaskId is not in the target column');
+        }
+        const prev = await tx.task.findFirst({
+          where: {
+            projectId,
+            status: input.status,
+            position: { lt: before.position },
+            NOT: { id: taskId },
+          },
+          orderBy: { position: 'desc' },
+          select: { position: true },
+        });
+        if (prev) {
+          newPosition = Math.floor((prev.position + before.position) / 2);
+          if (newPosition <= prev.position || newPosition >= before.position) {
+            newPosition = await this.renumberColumn(tx, projectId, input.status, taskId, input.beforeTaskId);
+          }
+        } else {
+          newPosition = before.position - POSITION_GAP;
+        }
+      }
+
+      const statusChanged = input.status !== existing.status;
+      const updated = await tx.task.update({
+        where: { id: taskId },
+        data: { status: input.status, position: newPosition },
+        include: TASK_INCLUDE,
+      });
+      if (statusChanged) {
+        await logActivity(tx, {
+          taskId,
+          actorId,
+          action: 'task.status_changed',
+          meta: { from: existing.status, to: input.status },
+        });
+        await notifications.onStatusChanged(tx, {
+          taskId,
+          projectId: existing.projectId,
+          teamId: existing.teamId,
+          actorId,
+          from: existing.status,
+          to: input.status,
+          taskTitle: updated.title,
+        });
+      }
+      return toView(updated);
+    });
+  }
+
+  // Rewrite every task in (projectId, status) with sparse positions. Used as
+  // a fallback when adjacent positions are too close to slot a new value between.
+  private async renumberColumn(
+    tx: Prisma.TransactionClient,
+    projectId: string,
+    status: TaskStatus,
+    movingTaskId: string,
+    beforeTaskId: string,
+  ): Promise<number> {
+    const rows = await tx.task.findMany({
+      where: { projectId, status, NOT: { id: movingTaskId } },
+      orderBy: { position: 'asc' },
+      select: { id: true },
+    });
+    const order: string[] = [];
+    let inserted = false;
+    for (const r of rows) {
+      if (r.id === beforeTaskId) {
+        order.push(movingTaskId);
+        inserted = true;
+      }
+      order.push(r.id);
+    }
+    if (!inserted) order.push(movingTaskId);
+
+    let myPos = POSITION_GAP;
+    for (let i = 0; i < order.length; i++) {
+      const pos = (i + 1) * POSITION_GAP;
+      const id = order[i]!;
+      await tx.task.update({ where: { id }, data: { position: pos } });
+      if (id === movingTaskId) myPos = pos;
+    }
+    return myPos;
   }
 
   async remove(teamId: string, projectId: string, taskId: string, _actorId: string): Promise<void> {

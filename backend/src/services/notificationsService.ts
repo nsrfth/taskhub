@@ -1,6 +1,7 @@
 import type { Prisma, NotifyType } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
+import { notificationsHub } from './notificationsHub.js';
 
 // One service handles both the read-side (list, count, mark-read) and the
 // write-side (fan-out helpers called from tasks/comments services).
@@ -13,6 +14,10 @@ type Client = Prisma.TransactionClient | typeof prisma;
 
 interface RecipientContext {
   taskId: string;
+  // projectId is in every payload so the frontend bell can deep-link to the
+  // task detail page (`/projects/:projectId/tasks/:taskId`) without an
+  // extra lookup round-trip.
+  projectId: string;
   teamId: string;
   actorId: string; // never notify the user who caused the event
 }
@@ -50,6 +55,13 @@ async function insertMany(
         payload,
       })),
     });
+    // Wake up any open WebSockets. Best-effort: hub.publish is a no-op when
+    // the user has no live socket, so this incurs no cost for offline users.
+    // The event is a tiny ping ("something new arrived"); clients re-fetch
+    // via the normal REST endpoint so we don't have to wire WS into the cache.
+    for (const userId of recipients) {
+      notificationsHub.publish(userId, { type: 'notification:new', id: '' });
+    }
   } catch {
     // Best-effort fan-out. Failures shouldn't fail the parent mutation.
   }
@@ -65,6 +77,7 @@ export const notifications = {
     if (ctx.newAssigneeId === ctx.actorId) return;
     await insertMany(client, 'TASK_ASSIGNED', ctx, [ctx.newAssigneeId], {
       taskId: ctx.taskId,
+      projectId: ctx.projectId,
       taskTitle: ctx.taskTitle,
       assignedBy: ctx.actorId,
     });
@@ -77,6 +90,7 @@ export const notifications = {
     const recipients = await loadTaskRecipients(client, ctx.taskId, ctx.actorId);
     await insertMany(client, 'TASK_COMMENT', ctx, recipients, {
       taskId: ctx.taskId,
+      projectId: ctx.projectId,
       taskTitle: ctx.taskTitle,
       commentId: ctx.commentId,
       excerpt: ctx.excerpt,
@@ -91,11 +105,61 @@ export const notifications = {
     const recipients = await loadTaskRecipients(client, ctx.taskId, ctx.actorId);
     await insertMany(client, 'TASK_STATUS', ctx, recipients, {
       taskId: ctx.taskId,
+      projectId: ctx.projectId,
       taskTitle: ctx.taskTitle,
       from: ctx.from,
       to: ctx.to,
       changedBy: ctx.actorId,
     });
+  },
+
+  async onMention(
+    client: Client,
+    ctx: RecipientContext & {
+      commentId: string;
+      excerpt: string;
+      taskTitle: string;
+      recipients: string[];
+    },
+  ): Promise<void> {
+    // Pre-filter actor + dedupe so onMention itself stays a thin wrapper.
+    const recipients = [...new Set(ctx.recipients)].filter((id) => id !== ctx.actorId);
+    await insertMany(client, 'MENTION', ctx, recipients, {
+      taskId: ctx.taskId,
+      projectId: ctx.projectId,
+      taskTitle: ctx.taskTitle,
+      commentId: ctx.commentId,
+      excerpt: ctx.excerpt,
+      mentionedBy: ctx.actorId,
+    });
+  },
+
+  async onTaskDue(
+    client: Client,
+    ctx: { taskId: string; projectId: string; teamId: string; taskTitle: string; dueDate: string },
+  ): Promise<void> {
+    // Notify the assignee + creator. Used by the scheduler; the "actor" here
+    // is effectively the system, so we don't exclude anyone.
+    const task = await client.task.findUnique({
+      where: { id: ctx.taskId },
+      select: { assigneeId: true, creatorId: true },
+    });
+    if (!task) return;
+    const recipients = [task.assigneeId, task.creatorId]
+      .filter((id): id is string => !!id)
+      .filter((id, i, arr) => arr.indexOf(id) === i);
+    await insertMany(
+      client,
+      'TASK_DUE',
+      { taskId: ctx.taskId, projectId: ctx.projectId, teamId: ctx.teamId, actorId: '' },
+      recipients,
+      {
+        taskId: ctx.taskId,
+        projectId: ctx.projectId,
+        taskTitle: ctx.taskTitle,
+        dueDate: ctx.dueDate,
+      },
+    );
   },
 };
 

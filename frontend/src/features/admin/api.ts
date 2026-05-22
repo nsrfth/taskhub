@@ -21,18 +21,33 @@ export interface AdminTeam {
   projectCount: number;
 }
 
-export async function listUsers(): Promise<AdminUser[]> {
-  return (await api.get<AdminUser[]>('/admin/users')).data;
+export interface Page<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export async function listUsers(opts?: { cursor?: string; limit?: number }): Promise<Page<AdminUser>> {
+  const params: Record<string, string> = {};
+  if (opts?.cursor) params.cursor = opts.cursor;
+  if (opts?.limit) params.limit = String(opts.limit);
+  return (await api.get<Page<AdminUser>>('/admin/users', { params })).data;
 }
 
 export async function updateUserRole(userId: string, globalRole: GlobalRole): Promise<AdminUser> {
   return (await api.patch<AdminUser>(`/admin/users/${userId}`, { globalRole })).data;
 }
 
-export async function listTeams(): Promise<AdminTeam[]> {
-  return (await api.get<AdminTeam[]>('/admin/teams')).data;
+export async function listTeams(opts?: { cursor?: string; limit?: number }): Promise<Page<AdminTeam>> {
+  const params: Record<string, string> = {};
+  if (opts?.cursor) params.cursor = opts.cursor;
+  if (opts?.limit) params.limit = String(opts.limit);
+  return (await api.get<Page<AdminTeam>>('/admin/teams', { params })).data;
 }
 
 export async function deleteTeam(teamId: string): Promise<void> {
   await api.delete(`/admin/teams/${teamId}`);
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  await api.delete(`/admin/users/${userId}`);
 }

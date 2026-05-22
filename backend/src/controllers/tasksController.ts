@@ -3,6 +3,7 @@ import type { TasksService, TaskView } from '../services/tasksService.js';
 import type {
   CreateTaskBody,
   ListTasksQuery,
+  ReorderTaskBody,
   UpdateTaskBody,
 } from '../schemas/tasks.js';
 import { Errors } from '../lib/errors.js';
@@ -51,6 +52,21 @@ export class TasksController {
   ) => {
     if (!req.user) throw Errors.unauthorized();
     const t = await this.svc.update(
+      req.params.teamId,
+      req.params.projectId,
+      req.params.taskId,
+      req.user.sub,
+      req.body,
+    );
+    return reply.send(serialize(t));
+  };
+
+  reorder = async (
+    req: FastifyRequest<{ Params: TaskParams; Body: ReorderTaskBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const t = await this.svc.reorder(
       req.params.teamId,
       req.params.projectId,
       req.params.taskId,

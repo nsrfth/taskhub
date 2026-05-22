@@ -33,6 +33,16 @@ export const listTasksQuery = z.object({
   status: taskStatusEnum.optional(),
 });
 
+// Used by the drag-and-drop endpoint. `beforeTaskId` is the task the dragged
+// item is being placed BEFORE in the target column. `null` means "drop at the
+// end". The target column is implied by `status`.
+export const reorderTaskBody = z.object({
+  status: taskStatusEnum,
+  beforeTaskId: z.string().nullable(),
+});
+
+export type ReorderTaskBody = z.infer<typeof reorderTaskBody>;
+
 export const taskLabelResponse = z.object({
   id: z.string(),
   name: z.string(),
@@ -51,7 +61,9 @@ export const taskResponse = z.object({
   id: z.string(),
   projectId: z.string(),
   teamId: z.string(),
-  creatorId: z.string(),
+  // creatorId is nullable since the creator may have been deleted by an admin
+  // (FK SetNull preserves task history).
+  creatorId: z.string().nullable(),
   assigneeId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),

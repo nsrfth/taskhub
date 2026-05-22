@@ -1,7 +1,21 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import {
+  DndContext,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useTeams } from '@/features/teams/TeamsContext';
 import * as projectsApi from '@/features/projects/api';
 import * as tasksApi from '@/features/tasks/api';
@@ -36,6 +50,123 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// Sortable card: one draggable item. Wraps the existing card markup; the drag
+// handle is the whole card surface, with a small grab affordance in the corner.
+// Click navigation still works because pointer-down vs. drag is disambiguated
+// by @dnd-kit's PointerSensor activation distance.
+interface SortableCardProps {
+  task: tasksApi.Task;
+  onOpen: (taskId: string) => void;
+  onDelete: (task: tasksApi.Task) => void;
+  onStatusChange: (task: tasksApi.Task, status: tasksApi.TaskStatus) => void;
+}
+
+function SortableCard({ task, onOpen, onDelete, onStatusChange }: SortableCardProps): JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    data: { columnId: task.status, kind: 'task' as const },
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="rounded border border-slate-200 p-2 text-sm bg-white"
+      {...attributes}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span
+          {...listeners}
+          className="cursor-grab text-slate-400 text-xs select-none"
+          aria-label="Drag handle"
+          title="Drag to reorder"
+        >
+          ⋮⋮
+        </span>
+        <button
+          type="button"
+          onClick={() => onOpen(task.id)}
+          className="font-medium break-words text-left hover:underline flex-1 min-w-0"
+        >
+          {task.title}
+        </button>
+        <button
+          onClick={() => onDelete(task)}
+          className="text-xs text-red-600 hover:underline shrink-0"
+        >
+          ✕
+        </button>
+      </div>
+      {task.labels.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {task.labels.map((l) => (
+            <LabelChip key={l.id} label={l} />
+          ))}
+        </div>
+      )}
+      {task.subtasks.length > 0 && (
+        <div className="mt-1 text-[11px] text-slate-500">
+          ☑ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
+        </div>
+      )}
+      <div className="flex items-center justify-between mt-2 gap-2 text-xs">
+        <span className={PRIORITY_CLASS[task.priority]}>{PRIORITY_LABEL[task.priority]}</span>
+        <select
+          value={task.status}
+          onChange={(e) => onStatusChange(task, e.target.value as tasksApi.TaskStatus)}
+          className="rounded border-slate-300 px-1 py-0.5 border text-xs"
+          aria-label="Status (keyboard-accessible alternative to drag)"
+        >
+          {STATUS_ORDER.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {(task.dueDate || task.doneAt) && (
+        <div className="mt-1 flex justify-between text-[11px] text-slate-500" dir="rtl">
+          {task.dueDate && <span>سررسید {formatShamsiDate(task.dueDate)}</span>}
+          {task.doneAt && (
+            <span className="text-emerald-700">انجام {formatShamsiDate(task.doneAt)}</span>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// Column body: includes a useDroppable wrapper so a card dropped into an
+// otherwise-empty column lands here (no card to be "before").
+interface ColumnProps {
+  status: tasksApi.TaskStatus;
+  tasks: tasksApi.Task[];
+  children: React.ReactNode;
+}
+
+function Column({ status, tasks, children }: ColumnProps): JSX.Element {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `column:${status}`,
+    data: { columnId: status, kind: 'column' as const },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`bg-white rounded shadow p-3 ${isOver ? 'ring-2 ring-slate-300' : ''}`}
+    >
+      <h2 className="text-sm font-medium mb-2 flex items-center justify-between">
+        <span>{STATUS_LABEL[status]}</span>
+        <span className="text-xs text-slate-500">{tasks.length}</span>
+      </h2>
+      <ul className="space-y-2 min-h-[40px]">{children}</ul>
+    </div>
+  );
+}
+
 export default function TasksPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const { currentTeam } = useTeams();
@@ -46,8 +177,6 @@ export default function TasksPage(): JSX.Element {
 
   const { data: project } = useQuery({
     queryKey: ['projects', teamId, projectId],
-    // The list endpoint is the cheapest way to materialize the project's name
-    // without a dedicated GET-by-id call from this page; we re-use the data.
     queryFn: async () => {
       if (!teamId || !projectId) return null;
       const all = await projectsApi.listProjects(teamId);
@@ -80,7 +209,12 @@ export default function TasksPage(): JSX.Element {
 
   const updateMut = useMutation({
     mutationFn: (input: { taskId: string; patch: Partial<tasksApi.Task> }) =>
-      tasksApi.updateTask(teamId!, projectId!, input.taskId, input.patch as Parameters<typeof tasksApi.updateTask>[3]),
+      tasksApi.updateTask(
+        teamId!,
+        projectId!,
+        input.taskId,
+        input.patch as Parameters<typeof tasksApi.updateTask>[3],
+      ),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['tasks', teamId, projectId] });
     },
@@ -93,10 +227,37 @@ export default function TasksPage(): JSX.Element {
     },
   });
 
-  function onCreate(e: FormEvent): void {
-    e.preventDefault();
-    createMut.mutate({ title, priority });
-  }
+  const reorderMut = useMutation({
+    mutationFn: (input: {
+      taskId: string;
+      status: tasksApi.TaskStatus;
+      beforeTaskId: string | null;
+    }) =>
+      tasksApi.reorderTask(teamId!, projectId!, input.taskId, {
+        status: input.status,
+        beforeTaskId: input.beforeTaskId,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['tasks', teamId, projectId] });
+    },
+  });
+
+  // Activation distance prevents a click on a card (open detail) from being
+  // misread as the start of a drag. 5px is the @dnd-kit default-ish that feels
+  // right in casual testing.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // Group tasks by status, preserving server-supplied position order.
+  const grouped = useMemo(() => {
+    const g: Record<tasksApi.TaskStatus, tasksApi.Task[]> = {
+      TODO: [],
+      IN_PROGRESS: [],
+      REVIEW: [],
+      DONE: [],
+    };
+    for (const t of tasks) g[t.status].push(t);
+    return g;
+  }, [tasks]);
 
   if (!currentTeam) {
     return (
@@ -112,14 +273,38 @@ export default function TasksPage(): JSX.Element {
     );
   }
 
-  // Group tasks by status for the simple column view.
-  const grouped: Record<tasksApi.TaskStatus, tasksApi.Task[]> = {
-    TODO: [],
-    IN_PROGRESS: [],
-    REVIEW: [],
-    DONE: [],
-  };
-  for (const t of tasks) grouped[t.status].push(t);
+  function onCreate(e: FormEvent): void {
+    e.preventDefault();
+    createMut.mutate({ title, priority });
+  }
+
+  // Map a dnd-kit drop event to a backend reorder call. `over` can be either
+  // another card (place before that card) or a column droppable (place at the
+  // end). `active.id` is the dragged task's id.
+  function onDragEnd(event: DragEndEvent): void {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = String(active.id);
+    if (activeId === String(over.id)) return;
+
+    const overData = over.data.current as
+      | { columnId?: tasksApi.TaskStatus; kind?: 'task' | 'column' }
+      | undefined;
+
+    // Resolve target column + beforeTaskId.
+    let targetStatus: tasksApi.TaskStatus | undefined;
+    let beforeTaskId: string | null = null;
+    if (overData?.kind === 'task' && overData.columnId) {
+      targetStatus = overData.columnId;
+      beforeTaskId = String(over.id);
+    } else if (overData?.kind === 'column' && overData.columnId) {
+      targetStatus = overData.columnId;
+      beforeTaskId = null;
+    }
+    if (!targetStatus) return;
+
+    reorderMut.mutate({ taskId: activeId, status: targetStatus, beforeTaskId });
+  }
 
   return (
     <div className="min-h-screen p-8 max-w-6xl mx-auto">
@@ -168,81 +353,37 @@ export default function TasksPage(): JSX.Element {
 
       {isLoading && <p className="text-sm text-slate-500">Loading tasks…</p>}
 
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {STATUS_ORDER.map((status) => (
-          <div key={status} className="bg-white rounded shadow p-3">
-            <h2 className="text-sm font-medium mb-2 flex items-center justify-between">
-              <span>{STATUS_LABEL[status]}</span>
-              <span className="text-xs text-slate-500">{grouped[status].length}</span>
-            </h2>
-            <ul className="space-y-2">
-              {grouped[status].map((t) => (
-                <li key={t.id} className="rounded border border-slate-200 p-2 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => nav(`/projects/${projectId}/tasks/${t.id}`)}
-                      className="font-medium break-words text-left hover:underline flex-1 min-w-0"
-                    >
-                      {t.title}
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Delete task "${t.title}"?`)) deleteMut.mutate(t.id);
-                      }}
-                      className="text-xs text-red-600 hover:underline shrink-0"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {t.labels.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {t.labels.map((l) => (
-                        <LabelChip key={l.id} label={l} />
-                      ))}
-                    </div>
-                  )}
-                  {t.subtasks.length > 0 && (
-                    <div className="mt-1 text-[11px] text-slate-500">
-                      ☑ {t.subtasks.filter((s) => s.done).length}/{t.subtasks.length}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between mt-2 gap-2 text-xs">
-                    <span className={PRIORITY_CLASS[t.priority]}>{PRIORITY_LABEL[t.priority]}</span>
-                    <select
-                      value={t.status}
-                      onChange={(e) =>
-                        updateMut.mutate({
-                          taskId: t.id,
-                          patch: { status: e.target.value as tasksApi.TaskStatus },
-                        })
-                      }
-                      className="rounded border-slate-300 px-1 py-0.5 border text-xs"
-                    >
-                      {STATUS_ORDER.map((s) => (
-                        <option key={s} value={s}>
-                          {STATUS_LABEL[s]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {(t.dueDate || t.doneAt) && (
-                    <div className="mt-1 flex justify-between text-[11px] text-slate-500" dir="rtl">
-                      {t.dueDate && <span>سررسید {formatShamsiDate(t.dueDate)}</span>}
-                      {t.doneAt && (
-                        <span className="text-emerald-700">انجام {formatShamsiDate(t.doneAt)}</span>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-              {grouped[status].length === 0 && (
-                <li className="text-xs text-slate-400 italic">empty</li>
-              )}
-            </ul>
-          </div>
-        ))}
-      </section>
+      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {STATUS_ORDER.map((status) => (
+            <Column key={status} status={status} tasks={grouped[status]}>
+              <SortableContext
+                items={grouped[status].map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {grouped[status].map((t) => (
+                  <SortableCard
+                    key={t.id}
+                    task={t}
+                    onOpen={(id) => nav(`/projects/${projectId}/tasks/${id}`)}
+                    onDelete={(task) => {
+                      if (window.confirm(`Delete task "${task.title}"?`)) deleteMut.mutate(task.id);
+                    }}
+                    onStatusChange={(task, s) =>
+                      updateMut.mutate({ taskId: task.id, patch: { status: s } })
+                    }
+                  />
+                ))}
+                {grouped[status].length === 0 && (
+                  <li className="text-xs text-slate-400 italic py-2">
+                    {reorderMut.isPending ? 'Saving…' : 'empty'}
+                  </li>
+                )}
+              </SortableContext>
+            </Column>
+          ))}
+        </section>
+      </DndContext>
     </div>
   );
 }

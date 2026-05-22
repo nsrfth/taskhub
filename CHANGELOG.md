@@ -4,6 +4,89 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-05-22
+
+Closes every feature gap from the v1.0 known-limitations list. Test suite
+grew from 98 to **110 integration tests, all green**.
+
+### Realtime notifications (WebSocket)
+
+- New `GET /api/ws/notifications?token=<accessToken>` channel via
+  `@fastify/websocket`. Server pushes `{type:'notification:new'}` when a row
+  lands for the connected user; the bell invalidates its TanStack Query
+  cache on receipt and re-fetches via REST.
+- In-memory pub/sub hub (`notificationsHub`) keyed by userId — fine for the
+  single-replica Compose deploy. Multi-instance would swap to Redis pub/sub
+  on the existing container.
+- Frontend auto-reconnects with exponential backoff up to 30 s; subscribes
+  to `onTokenChange` so a sign-in / refresh re-establishes the socket.
+
+### Kanban drag-and-drop
+
+- `@dnd-kit/sortable` on the task board: drag a card within its column to
+  reorder, or across columns to change status. Per-card status dropdown
+  preserved as a keyboard-accessible alternative.
+- New `POST /api/.../tasks/:taskId/reorder` endpoint takes
+  `{status, beforeTaskId|null}` and computes the new position as the
+  midpoint of two neighbors. When gaps collapse to ≤1, the column is
+  automatically renumbered at the sparse interval — durable ordering
+  without fractional-index complexity.
+
+### TASK_DUE scheduled notifications
+
+- In-process `setInterval` scheduler (`src/scheduler/dueDateScheduler.ts`)
+  scans tasks where `dueDate` is within the lead window and emits a
+  `TASK_DUE` notification once per (task, dueDate) cycle. BullMQ is the
+  natural production upgrade.
+- Idempotency via new `Task.dueNotifiedAt` column: set when emitted, reset
+  to null whenever `dueDate` changes so rescheduling re-fires the reminder.
+- Opt-in via `TASK_DUE_ENABLED=true`; `TASK_DUE_LEAD_HOURS` (default 24)
+  and `TASK_DUE_CHECK_INTERVAL_MIN` (default 15) are env-configurable.
+
+### @mention parsing
+
+- Comment bodies parse `@handle` patterns where `handle` matches the
+  local-part of a team member's email (`@alice` matches `alice@x.com`).
+- Each mentioned member receives a `MENTION` notification separate from
+  the per-task `TASK_COMMENT` — a mentioned user who is also the assignee
+  gets both.
+
+### Notification click-through
+
+- Every notification payload now carries `projectId` in addition to
+  `taskId`, so the bell navigates directly to
+  `/projects/:projectId/tasks/:taskId` instead of `/dashboard`.
+
+### Admin pagination
+
+- `GET /api/admin/users` and `/admin/teams` now accept `?cursor=` and
+  `?limit=` (default 25, capped at 100) and return `{items, nextCursor}`.
+- Admin page accumulates pages with "Load more"; mutations reset the
+  accumulator to avoid stale rows mid-list.
+
+### Admin user deletion
+
+- `DELETE /api/admin/users/:userId` implemented.
+- Schema migration `user_delete_cascades`:
+  - `Project.owner`, `Task.creator`, `Task.assignee`, `Comment.author` →
+    `ON DELETE SET NULL`. Content survives with "(deleted user)" attribution.
+  - `Activity.actor`, `Attachment.uploader` → `ON DELETE CASCADE`. Activity
+    is observability not audit; orphan attachment blobs on disk need their
+    own GC pass.
+- Same hard invariants as role updates: can't delete yourself, can't
+  delete the last ADMIN.
+
+### Email verification
+
+- New `EmailVerification` model + migration. Register auto-issues a
+  verification token; in non-prod the controller surfaces it as
+  `devVerifyToken` (mirrors `devResetToken`).
+- New endpoints:
+  - `POST /api/auth/verification/request` — re-issue (anti-enumeration shape)
+  - `POST /api/auth/verification/perform` — claim a token, set `emailVerifiedAt`
+
+[1.1.0]: https://github.com/USER/REPO/releases/tag/v1.1.0
+
 ## [1.0.0] — 2026-05-22
 
 First public release. Covers every model in the schema with an end-to-end

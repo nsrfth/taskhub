@@ -21,7 +21,8 @@ export const updateProjectBody = z
 export const projectResponse = z.object({
   id: z.string(),
   teamId: z.string(),
-  ownerId: z.string(),
+  // Nullable since the owning user may have been deleted (FK SetNull).
+  ownerId: z.string().nullable(),
   name: z.string(),
   description: z.string().nullable(),
   status: projectStatusEnum,

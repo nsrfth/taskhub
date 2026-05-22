@@ -8,6 +8,8 @@ import {
   performResetBody,
   registerBody,
   requestResetBody,
+  verificationPerformBody,
+  verificationRequestBody,
 } from '../schemas/auth.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Env } from '../config/env.js';
@@ -35,7 +37,15 @@ export async function authRoutes(app: FastifyInstance, opts: { env: Env }): Prom
       tags: ['auth'],
       summary: 'Create a new account',
       body: registerBody,
-      response: { 201: z.object({ accessToken: z.string(), user: z.any() }) },
+      // devVerifyToken: non-prod only, used by tests + dev flows. Listed in
+      // the schema so the fastify-type-provider-zod serializer doesn't strip it.
+      response: {
+        201: z.object({
+          accessToken: z.string(),
+          user: z.any(),
+          devVerifyToken: z.string().optional(),
+        }),
+      },
     },
     handler: ctrl.register,
   });
@@ -72,6 +82,26 @@ export async function authRoutes(app: FastifyInstance, opts: { env: Env }): Prom
     config: RL_TAG,
     schema: { tags: ['auth'], summary: 'Complete password reset', body: performResetBody },
     handler: ctrl.performReset,
+  });
+
+  r.post('/verification/request', {
+    config: RL_TAG,
+    schema: {
+      tags: ['auth'],
+      summary: 'Re-issue an email verification token (anti-enumeration response)',
+      body: verificationRequestBody,
+    },
+    handler: ctrl.requestVerification,
+  });
+
+  r.post('/verification/perform', {
+    config: RL_TAG,
+    schema: {
+      tags: ['auth'],
+      summary: 'Claim a verification token; marks the user as email-verified',
+      body: verificationPerformBody,
+    },
+    handler: ctrl.performVerification,
   });
 
   r.get('/me', {

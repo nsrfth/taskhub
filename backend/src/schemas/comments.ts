@@ -11,8 +11,9 @@ export const updateCommentBody = z.object({
 export const commentResponse = z.object({
   id: z.string(),
   taskId: z.string(),
-  authorId: z.string(),
-  authorName: z.string(),
+  // Nullable once the author user has been deleted (FK SetNull).
+  authorId: z.string().nullable(),
+  authorName: z.string().nullable(),
   body: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

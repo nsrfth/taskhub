@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { AdminService, AdminUserView, AdminTeamView } from '../services/adminService.js';
+import type { ListQuery } from '../schemas/admin.js';
 import { Errors } from '../lib/errors.js';
 
 type UserParams = { userId: string };
@@ -20,9 +21,12 @@ function serializeTeam(t: AdminTeamView) {
 export class AdminController {
   constructor(private readonly svc: AdminService) {}
 
-  listUsers = async (req: FastifyRequest, reply: FastifyReply) => {
-    const users = await this.svc.listUsers();
-    return reply.send(users.map(serializeUser));
+  listUsers = async (
+    req: FastifyRequest<{ Querystring: ListQuery }>,
+    reply: FastifyReply,
+  ) => {
+    const page = await this.svc.listUsers(req.query);
+    return reply.send({ items: page.items.map(serializeUser), nextCursor: page.nextCursor });
   };
 
   updateUserRole = async (
@@ -34,9 +38,18 @@ export class AdminController {
     return reply.send(serializeUser(updated));
   };
 
-  listTeams = async (req: FastifyRequest, reply: FastifyReply) => {
-    const teams = await this.svc.listTeams();
-    return reply.send(teams.map(serializeTeam));
+  listTeams = async (
+    req: FastifyRequest<{ Querystring: ListQuery }>,
+    reply: FastifyReply,
+  ) => {
+    const page = await this.svc.listTeams(req.query);
+    return reply.send({ items: page.items.map(serializeTeam), nextCursor: page.nextCursor });
+  };
+
+  deleteUser = async (req: FastifyRequest<{ Params: UserParams }>, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    await this.svc.deleteUser(req.user.sub, req.params.userId);
+    return reply.status(204).send();
   };
 
   deleteTeam = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {

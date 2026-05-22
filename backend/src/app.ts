@@ -14,6 +14,7 @@ import { adminRoutes } from './routes/admin.js';
 import { labelsRoutes, taskLabelsRoutes } from './routes/labels.js';
 import { subtasksRoutes } from './routes/subtasks.js';
 import { attachmentsRoutes } from './routes/attachments.js';
+import { notificationsWsRoutes } from './routes/notificationsWs.js';
 import { prisma } from './data/prisma.js';
 
 // App factory — separate from server.ts so tests can spin up the app without
@@ -69,6 +70,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
       prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/attachments',
       env,
     });
+    // WebSocket realtime feed. Single endpoint under /api/ws/.
+    await api.register(notificationsWsRoutes, { prefix: '/ws' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

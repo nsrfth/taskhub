@@ -90,3 +90,17 @@ export async function deleteTask(
 ): Promise<void> {
   await api.delete(`/teams/${teamId}/projects/${projectId}/tasks/${taskId}`);
 }
+
+export async function reorderTask(
+  teamId: string,
+  projectId: string,
+  taskId: string,
+  input: { status: TaskStatus; beforeTaskId: string | null },
+): Promise<Task> {
+  return (
+    await api.post<Task>(
+      `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/reorder`,
+      input,
+    )
+  ).data;
+}

@@ -29,6 +29,7 @@ beforeEach(async () => {
   // Tables in dependency order; cascade handles the rest but explicit is safer.
   await prisma.refreshToken.deleteMany();
   await prisma.passwordReset.deleteMany();
+  await prisma.emailVerification.deleteMany();
   await prisma.teamMembership.deleteMany();
   await prisma.user.deleteMany();
 });
@@ -228,5 +229,80 @@ describe('password reset', () => {
     });
     expect(res.statusCode).toBe(202);
     expect(res.json().devResetToken).toBeUndefined();
+  });
+});
+
+describe('email verification', () => {
+  it('register surfaces a dev verification token; perform marks user verified', async () => {
+    const reg = await inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { email: 'verify@example.com', name: 'V', password: VALID_PASSWORD },
+    });
+    expect(reg.statusCode).toBe(201);
+    const token = reg.json().devVerifyToken as string;
+    expect(token).toBeTypeOf('string');
+
+    const verified = await prisma.user.findUnique({ where: { email: 'verify@example.com' } });
+    expect(verified?.emailVerifiedAt).toBeNull();
+
+    const perform = await inject({
+      method: 'POST',
+      url: '/api/auth/verification/perform',
+      payload: { token },
+    });
+    expect(perform.statusCode).toBe(204);
+
+    const after = await prisma.user.findUnique({ where: { email: 'verify@example.com' } });
+    expect(after?.emailVerifiedAt).toBeTruthy();
+  });
+
+  it('rejects an already-used verification token', async () => {
+    const reg = await inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { email: 'verify@example.com', name: 'V', password: VALID_PASSWORD },
+    });
+    const token = reg.json().devVerifyToken as string;
+    const first = await inject({
+      method: 'POST',
+      url: '/api/auth/verification/perform',
+      payload: { token },
+    });
+    expect(first.statusCode).toBe(204);
+    const second = await inject({
+      method: 'POST',
+      url: '/api/auth/verification/perform',
+      payload: { token },
+    });
+    expect(second.statusCode).toBe(400);
+  });
+
+  it('does not enumerate on /verification/request for unknown email', async () => {
+    const res = await inject({
+      method: 'POST',
+      url: '/api/auth/verification/request',
+      payload: { email: 'ghost@example.com' },
+    });
+    expect(res.statusCode).toBe(202);
+    expect(res.json().devVerifyToken).toBeUndefined();
+  });
+
+  it('does not re-issue a token for an already-verified account', async () => {
+    const reg = await inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { email: 'verify@example.com', name: 'V', password: VALID_PASSWORD },
+    });
+    const t = reg.json().devVerifyToken as string;
+    await inject({ method: 'POST', url: '/api/auth/verification/perform', payload: { token: t } });
+
+    const resend = await inject({
+      method: 'POST',
+      url: '/api/auth/verification/request',
+      payload: { email: 'verify@example.com' },
+    });
+    expect(resend.statusCode).toBe(202);
+    expect(resend.json().devVerifyToken).toBeUndefined();
   });
 });

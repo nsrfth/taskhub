@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -22,39 +23,89 @@ export default function AdminPage(): JSX.Element {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ['admin', 'users'],
-    queryFn: adminApi.listUsers,
-  });
+  // Cursor pagination. Pages accumulate in component state so "Load more"
+  // appends rather than replacing — the typical admin pattern.
+  const [usersCursor, setUsersCursor] = useState<string | null>(null);
+  const [usersPages, setUsersPages] = useState<adminApi.AdminUser[]>([]);
+  const [usersDone, setUsersDone] = useState(false);
 
-  const { data: teams = [], isLoading: teamsLoading } = useQuery({
-    queryKey: ['admin', 'teams'],
-    queryFn: adminApi.listTeams,
+  const { data: usersPage, isLoading: usersLoading } = useQuery({
+    queryKey: ['admin', 'users', usersCursor],
+    queryFn: () =>
+      adminApi.listUsers({ cursor: usersCursor ?? undefined, limit: 25 }).then((p) => {
+        setUsersPages((prev) =>
+          usersCursor === null ? p.items : [...prev, ...p.items],
+        );
+        if (!p.nextCursor) setUsersDone(true);
+        return p;
+      }),
   });
+  const users = usersPages;
+
+  const [teamsCursor, setTeamsCursor] = useState<string | null>(null);
+  const [teamsPages, setTeamsPages] = useState<adminApi.AdminTeam[]>([]);
+  const [teamsDone, setTeamsDone] = useState(false);
+
+  const { data: teamsPageData, isLoading: teamsLoading } = useQuery({
+    queryKey: ['admin', 'teams', teamsCursor],
+    queryFn: () =>
+      adminApi.listTeams({ cursor: teamsCursor ?? undefined, limit: 25 }).then((p) => {
+        setTeamsPages((prev) =>
+          teamsCursor === null ? p.items : [...prev, ...p.items],
+        );
+        if (!p.nextCursor) setTeamsDone(true);
+        return p;
+      }),
+  });
+  const teams = teamsPages;
+
+  // After a mutation, the simplest correctness model is: wipe the accumulated
+  // page state and re-fetch from cursor=null. Avoids subtle "stale row in the
+  // middle of page 2" bugs.
+  function resetUsers(): void {
+    setUsersPages([]);
+    setUsersDone(false);
+    setUsersCursor(null);
+    qc.invalidateQueries({ queryKey: ['admin', 'users'] });
+  }
+  function resetTeams(): void {
+    setTeamsPages([]);
+    setTeamsDone(false);
+    setTeamsCursor(null);
+    qc.invalidateQueries({ queryKey: ['admin', 'teams'] });
+  }
 
   const updateRoleMut = useMutation({
     mutationFn: (input: { userId: string; role: adminApi.GlobalRole }) =>
       adminApi.updateUserRole(input.userId, input.role),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['admin', 'users'] });
-    },
+    onSuccess: () => resetUsers(),
     onError: (err) => {
       window.alert(errorMessage(err, 'Could not update role'));
     },
   });
 
+  const deleteUserMut = useMutation({
+    mutationFn: (userId: string) => adminApi.deleteUser(userId),
+    onSuccess: () => resetUsers(),
+    onError: (err) => {
+      window.alert(errorMessage(err, 'Could not delete user'));
+    },
+  });
+
   const deleteTeamMut = useMutation({
     mutationFn: (teamId: string) => adminApi.deleteTeam(teamId),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['admin', 'teams'] }),
-        qc.invalidateQueries({ queryKey: ['teams', 'mine'] }), // dashboard picker too
-      ]);
+    onSuccess: () => {
+      resetTeams();
+      qc.invalidateQueries({ queryKey: ['teams', 'mine'] }); // dashboard picker
     },
     onError: (err) => {
       window.alert(errorMessage(err, 'Could not delete team'));
     },
   });
+
+  // Avoid unused-var lint warnings — these are read implicitly by the query.
+  void usersPage;
+  void teamsPageData;
 
   return (
     <div className="min-h-screen p-8 max-w-5xl mx-auto">
@@ -103,10 +154,26 @@ export default function AdminPage(): JSX.Element {
                           updateRoleMut.mutate({ userId: u.id, role: otherRole });
                         }
                       }}
-                      className="text-xs underline disabled:opacity-40"
+                      className="text-xs underline disabled:opacity-40 mr-3"
                       title={isSelf ? 'You cannot change your own role' : undefined}
                     >
                       {u.globalRole === 'ADMIN' ? 'Demote' : 'Promote'}
+                    </button>
+                    <button
+                      disabled={isSelf || deleteUserMut.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Delete ${u.email}? Their projects/tasks/comments survive with "(deleted user)" attribution. Activity log + attachments are removed.`,
+                          )
+                        ) {
+                          deleteUserMut.mutate(u.id);
+                        }
+                      }}
+                      className="text-xs text-red-600 hover:underline disabled:opacity-40"
+                      title={isSelf ? 'You cannot delete your own account' : undefined}
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -114,6 +181,15 @@ export default function AdminPage(): JSX.Element {
             })}
           </tbody>
         </table>
+        {!usersDone && users.length > 0 && (
+          <button
+            onClick={() => setUsersCursor(users[users.length - 1].id)}
+            disabled={usersLoading}
+            className="mt-3 text-xs underline disabled:opacity-50"
+          >
+            {usersLoading ? 'Loading…' : 'Load more'}
+          </button>
+        )}
       </section>
 
       <section className="bg-white rounded shadow p-4">
@@ -160,6 +236,15 @@ export default function AdminPage(): JSX.Element {
             ))}
           </tbody>
         </table>
+        {!teamsDone && teams.length > 0 && (
+          <button
+            onClick={() => setTeamsCursor(teams[teams.length - 1].id)}
+            disabled={teamsLoading}
+            className="mt-3 text-xs underline disabled:opacity-50"
+          >
+            {teamsLoading ? 'Loading…' : 'Load more'}
+          </button>
+        )}
       </section>
     </div>
   );

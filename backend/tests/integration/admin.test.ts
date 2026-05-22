@@ -84,14 +84,47 @@ describe('GET /api/admin/users', () => {
       headers: { authorization: `Bearer ${admin.token}` },
     });
     expect(res.statusCode).toBe(200);
-    const users = res.json() as Array<{ email: string; globalRole: string; membershipCount: number }>;
-    expect(users).toHaveLength(2);
-    const adminRow = users.find((u) => u.email === 'admin@example.com')!;
+    const page = res.json() as {
+      items: Array<{ email: string; globalRole: string; membershipCount: number }>;
+      nextCursor: string | null;
+    };
+    expect(page.items).toHaveLength(2);
+    expect(page.nextCursor).toBeNull();
+    const adminRow = page.items.find((u) => u.email === 'admin@example.com')!;
     expect(adminRow.globalRole).toBe('ADMIN');
     expect(adminRow.membershipCount).toBe(1);
-    expect(users.find((u) => u.email === 'member@example.com')!.membershipCount).toBe(0);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    expect(page.items.find((u) => u.email === 'member@example.com')!.membershipCount).toBe(0);
     void member;
+  });
+
+  it('paginates with cursor when more rows exist than the page limit', async () => {
+    const admin = await register('admin@example.com');
+    // Register additional users so there are 4 total.
+    await register('b@example.com');
+    await register('c@example.com');
+    await register('d@example.com');
+
+    // Limit 2 → expect 2 items + a nextCursor.
+    const r1 = await inject({
+      method: 'GET',
+      url: '/api/admin/users?limit=2',
+      headers: { authorization: `Bearer ${admin.token}` },
+    });
+    const p1 = r1.json() as { items: Array<{ id: string }>; nextCursor: string | null };
+    expect(p1.items).toHaveLength(2);
+    expect(p1.nextCursor).toBeTruthy();
+
+    // Follow the cursor for the second page.
+    const r2 = await inject({
+      method: 'GET',
+      url: `/api/admin/users?limit=2&cursor=${p1.nextCursor}`,
+      headers: { authorization: `Bearer ${admin.token}` },
+    });
+    const p2 = r2.json() as { items: Array<{ id: string }>; nextCursor: string | null };
+    expect(p2.items).toHaveLength(2);
+    expect(p2.nextCursor).toBeNull(); // no more pages
+    // No overlap between pages.
+    expect(new Set([...p1.items.map((u) => u.id), ...p2.items.map((u) => u.id)]).size).toBe(4);
   });
 });
 
@@ -186,10 +219,103 @@ describe('GET /api/admin/teams', () => {
       headers: { authorization: `Bearer ${admin.token}` },
     });
     expect(res.statusCode).toBe(200);
-    const teams = res.json() as Array<{ slug: string; memberCount: number; projectCount: number }>;
-    const row = teams.find((t) => t.slug === 'acme')!;
+    const page = res.json() as {
+      items: Array<{ slug: string; memberCount: number; projectCount: number }>;
+    };
+    const row = page.items.find((t) => t.slug === 'acme')!;
     expect(row.memberCount).toBe(1);
     expect(row.projectCount).toBe(1);
+  });
+});
+
+describe('DELETE /api/admin/users/:userId', () => {
+  it('deletes a user; their projects/tasks/comments survive with null attribution', async () => {
+    const admin = await register('admin@example.com');
+    const victim = await register('victim@example.com');
+
+    // Victim owns a project, creates a task, comments on it.
+    const team = (
+      await inject({
+        method: 'POST',
+        url: '/api/teams',
+        headers: { authorization: `Bearer ${victim.token}` },
+        payload: { name: 'V', slug: 'team-v' },
+      })
+    ).json();
+    const project = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${team.id}/projects`,
+        headers: { authorization: `Bearer ${victim.token}` },
+        payload: { name: 'P' },
+      })
+    ).json();
+    const task = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${team.id}/projects/${project.id}/tasks`,
+        headers: { authorization: `Bearer ${victim.token}` },
+        payload: { title: 'T' },
+      })
+    ).json();
+    await inject({
+      method: 'POST',
+      url: `/api/teams/${team.id}/projects/${project.id}/tasks/${task.id}/comments`,
+      headers: { authorization: `Bearer ${victim.token}` },
+      payload: { body: 'mine' },
+    });
+
+    // Admin deletes victim.
+    const del = await inject({
+      method: 'DELETE',
+      url: `/api/admin/users/${victim.userId}`,
+      headers: { authorization: `Bearer ${admin.token}` },
+    });
+    expect(del.statusCode).toBe(204);
+
+    // Project survives but ownerId is null.
+    const surviving = await prisma.project.findUnique({ where: { id: project.id } });
+    expect(surviving).toBeTruthy();
+    expect(surviving!.ownerId).toBeNull();
+
+    // Task survives but creatorId is null.
+    const survivingTask = await prisma.task.findUnique({ where: { id: task.id } });
+    expect(survivingTask).toBeTruthy();
+    expect(survivingTask!.creatorId).toBeNull();
+
+    // Comment survives but authorId is null.
+    const surviving_comments = await prisma.comment.findMany({ where: { taskId: task.id } });
+    expect(surviving_comments).toHaveLength(1);
+    expect(surviving_comments[0]!.authorId).toBeNull();
+  });
+
+  it('refuses to delete the last ADMIN', async () => {
+    const admin = await register('admin@example.com');
+    const res = await inject({
+      method: 'DELETE',
+      url: `/api/admin/users/${admin.userId}`,
+      headers: { authorization: `Bearer ${admin.token}` },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('refuses self-delete even with multiple admins', async () => {
+    const a = await register('a@example.com');
+    const b = await register('b@example.com');
+    // Promote b to ADMIN.
+    await inject({
+      method: 'PATCH',
+      url: `/api/admin/users/${b.userId}`,
+      headers: { authorization: `Bearer ${a.token}` },
+      payload: { globalRole: 'ADMIN' },
+    });
+    // a tries to delete themselves.
+    const res = await inject({
+      method: 'DELETE',
+      url: `/api/admin/users/${a.userId}`,
+      headers: { authorization: `Bearer ${a.token}` },
+    });
+    expect(res.statusCode).toBe(409);
   });
 });
 

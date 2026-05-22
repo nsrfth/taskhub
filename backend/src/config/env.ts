@@ -26,6 +26,20 @@ const envSchema = z.object({
 
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   AUTH_RATE_LIMIT_WINDOW: z.string().default('1 minute'),
+
+  // TASK_DUE scheduler — runs in-process via setInterval. Disabled by default
+  // so tests + small dev runs don't spawn an unwanted background loop. Production
+  // single-instance deploys can opt in with TASK_DUE_ENABLED=true. Multi-instance
+  // deploys should disable it here and run the scheduler elsewhere to avoid
+  // duplicate notifications.
+  TASK_DUE_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  // How far in advance to notify, in hours.
+  TASK_DUE_LEAD_HOURS: z.coerce.number().int().positive().default(24),
+  // How often to scan the DB for newly-due tasks, in minutes.
+  TASK_DUE_CHECK_INTERVAL_MIN: z.coerce.number().int().positive().default(15),
 });
 
 export type Env = z.infer<typeof envSchema> & { corsOrigins: string[] };

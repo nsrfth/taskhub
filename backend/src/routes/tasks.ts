@@ -7,6 +7,7 @@ import { requireAuth, requireTeamRole } from '../middleware/auth.js';
 import {
   createTaskBody,
   listTasksQuery,
+  reorderTaskBody,
   taskResponse,
   updateTaskBody,
 } from '../schemas/tasks.js';
@@ -70,6 +71,18 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.update,
+  });
+
+  r.post('/:taskId/reorder', {
+    schema: {
+      tags: ['tasks'],
+      summary: 'Move a task to a target column at a specific position',
+      params: z.object({ teamId: z.string(), projectId: z.string(), taskId: z.string() }),
+      body: reorderTaskBody,
+      response: { 200: taskResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.reorder,
   });
 
   r.delete('/:taskId', {

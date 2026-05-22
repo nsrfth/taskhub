@@ -6,6 +6,8 @@ import type {
   PerformResetBody,
   RegisterBody,
   RequestResetBody,
+  VerificationPerformBody,
+  VerificationRequestBody,
 } from '../schemas/auth.js';
 import { Errors } from '../lib/errors.js';
 
@@ -38,10 +40,16 @@ export class AuthController {
   register = async (req: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) => {
     const session = await this.svc.register(req.body);
     setRefreshCookie(reply, this.env, session.refreshTokenRaw, session.refreshExpiresAt);
-    return reply.status(201).send({
+    const body: Record<string, unknown> = {
       accessToken: session.accessToken,
       user: { ...session.user, createdAt: session.user.createdAt.toISOString() },
-    });
+    };
+    // Non-prod: surface the verification token so dev/test can call
+    // /verification/perform with it. In prod we'd email it instead.
+    if (this.env.NODE_ENV !== 'production' && session.verificationToken) {
+      body.devVerifyToken = session.verificationToken;
+    }
+    return reply.status(201).send(body);
   };
 
   login = async (req: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
@@ -84,6 +92,27 @@ export class AuthController {
 
   performReset = async (req: FastifyRequest<{ Body: PerformResetBody }>, reply: FastifyReply) => {
     await this.svc.performPasswordReset(req.body);
+    return reply.status(204).send();
+  };
+
+  requestVerification = async (
+    req: FastifyRequest<{ Body: VerificationRequestBody }>,
+    reply: FastifyReply,
+  ) => {
+    const { verificationToken } = await this.svc.requestEmailVerification(req.body.email);
+    // Same anti-enumeration shape as password reset.
+    const body: Record<string, unknown> = { status: 'accepted' };
+    if (this.env.NODE_ENV !== 'production' && verificationToken) {
+      body.devVerifyToken = verificationToken;
+    }
+    return reply.status(202).send(body);
+  };
+
+  performVerification = async (
+    req: FastifyRequest<{ Body: VerificationPerformBody }>,
+    reply: FastifyReply,
+  ) => {
+    await this.svc.performEmailVerification(req.body.token);
     return reply.status(204).send();
   };
 

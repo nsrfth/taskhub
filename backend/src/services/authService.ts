@@ -18,6 +18,10 @@ export interface IssuedSession {
     globalRole: 'ADMIN' | 'MEMBER';
     createdAt: Date;
   };
+  // Set on `register` only — the raw email-verification token the controller
+  // surfaces to the client in non-prod (mirrors devResetToken). null when the
+  // user is already verified (admins via seed) so register doesn't re-issue.
+  verificationToken?: string | null;
 }
 
 export interface AuthSigner {
@@ -52,7 +56,13 @@ export class AuthService {
       },
     });
 
-    return this.issueSession(user);
+    // Auto-issue an email-verification token. Real email delivery isn't wired;
+    // the controller returns this token in the response body in non-prod so
+    // dev/test flows can call /verification/perform with it.
+    const verificationToken = await this.createVerificationToken(user.id);
+
+    const session = await this.issueSession(user);
+    return { ...session, verificationToken };
   }
 
   async login(input: { email: string; password: string }): Promise<IssuedSession> {
@@ -117,6 +127,45 @@ export class AuthService {
       data: { userId: user.id, tokenHash: sha256(raw), expiresAt },
     });
     return { resetToken: raw };
+  }
+
+  // Internal — issue + persist a single-use email-verification token for a
+  // user. Returns the raw token; only the SHA-256 hash is stored.
+  private async createVerificationToken(userId: string): Promise<string> {
+    const raw = randomTokenHex(32);
+    const expiresAt = new Date(Date.now() + parseDuration('24h'));
+    await prisma.emailVerification.create({
+      data: { userId, tokenHash: sha256(raw), expiresAt },
+    });
+    return raw;
+  }
+
+  // Re-send (or first-send) a verification token. Always returns success-shape
+  // even for unknown / already-verified emails to prevent enumeration. The
+  // returned token (when present) is what the controller surfaces in non-prod.
+  async requestEmailVerification(email: string): Promise<{ verificationToken: string | null }> {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.emailVerifiedAt) return { verificationToken: null };
+    const raw = await this.createVerificationToken(user.id);
+    return { verificationToken: raw };
+  }
+
+  async performEmailVerification(token: string): Promise<void> {
+    const tokenHash = sha256(token);
+    const row = await prisma.emailVerification.findUnique({ where: { tokenHash } });
+    if (!row || row.usedAt || row.expiresAt < new Date()) {
+      throw Errors.badRequest('Invalid or expired verification token');
+    }
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: row.userId },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      prisma.emailVerification.update({
+        where: { id: row.id },
+        data: { usedAt: new Date() },
+      }),
+    ]);
   }
 
   async performPasswordReset(input: { token: string; password: string }): Promise<void> {

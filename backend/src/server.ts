@@ -1,13 +1,26 @@
 import { buildApp } from './app.js';
 import { loadEnv } from './config/env.js';
+import { createDueDateScheduler } from './scheduler/dueDateScheduler.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
   const app = await buildApp(env);
 
+  // Background scheduler — opt-in via env. Lives only in server.ts (not
+  // buildApp) so test runs don't accidentally fire background timers.
+  const dueScheduler = env.TASK_DUE_ENABLED
+    ? createDueDateScheduler({
+        leadHours: env.TASK_DUE_LEAD_HOURS,
+        intervalMin: env.TASK_DUE_CHECK_INTERVAL_MIN,
+        logger: app.log,
+      })
+    : null;
+  dueScheduler?.start();
+
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
     try {
+      dueScheduler?.stop();
       await app.close();
       process.exit(0);
     } catch (err) {

@@ -30,6 +30,14 @@ export const performResetBody = z.object({
   password: passwordSchema,
 });
 
+export const verificationRequestBody = z.object({
+  email: z.string().email().toLowerCase(),
+});
+
+export const verificationPerformBody = z.object({
+  token: z.string().min(32).max(256),
+});
+
 export const userResponse = z.object({
   id: z.string(),
   email: z.string().email(),
@@ -47,3 +55,5 @@ export type RegisterBody = z.infer<typeof registerBody>;
 export type LoginBody = z.infer<typeof loginBody>;
 export type RequestResetBody = z.infer<typeof requestResetBody>;
 export type PerformResetBody = z.infer<typeof performResetBody>;
+export type VerificationRequestBody = z.infer<typeof verificationRequestBody>;
+export type VerificationPerformBody = z.infer<typeof verificationPerformBody>;

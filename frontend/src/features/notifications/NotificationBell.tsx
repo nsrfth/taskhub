@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as notifApi from './api';
+import { getAccessToken, onTokenChange } from '@/lib/api';
 
 // Renders the user-facing notification fragment, including a bell button, an
 // unread badge, and a click-to-open dropdown listing recent notifications.
@@ -26,6 +27,70 @@ export default function NotificationBell(): JSX.Element {
     queryFn: () => notifApi.listNotifications({ limit: 20 }),
     enabled: open,
   });
+
+  // Live WS feed. When the server pushes `notification:new`, invalidate the
+  // count + list queries so TanStack re-fetches. Reconnects whenever the
+  // access token changes (sign-in, refresh). On token=null (signed out) we
+  // tear down the socket without reconnecting.
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let cancelled = false;
+    let backoffMs = 1000; // exponential backoff up to 30s for reconnects
+
+    function connect(token: string): void {
+      if (cancelled) return;
+      // SPA + Caddy are same-origin in prod; pick ws:// vs wss:// based on the
+      // page protocol so HTTPS deployments don't downgrade to plaintext WS.
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${proto}//${window.location.host}/api/ws/notifications?token=${encodeURIComponent(token)}`;
+      ws = new WebSocket(url);
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data) as { type?: string };
+          if (msg.type === 'notification:new') {
+            void qc.invalidateQueries({ queryKey: ['notifications', 'count'] });
+            void qc.invalidateQueries({ queryKey: ['notifications', 'list'] });
+          }
+        } catch {
+          // Ignore non-JSON frames.
+        }
+      };
+      ws.onopen = () => {
+        backoffMs = 1000; // reset on a successful connection
+      };
+      ws.onclose = () => {
+        if (cancelled) return;
+        // Reconnect with backoff while a token is still present.
+        const t = getAccessToken();
+        if (!t) return;
+        setTimeout(() => connect(t), backoffMs);
+        backoffMs = Math.min(backoffMs * 2, 30000);
+      };
+    }
+
+    const initial = getAccessToken();
+    if (initial) connect(initial);
+
+    // Subscribe to token changes — reconnect with the new token, or tear down
+    // if signed out.
+    const unsub = onTokenChange((t) => {
+      if (ws) {
+        ws.onclose = null; // suppress reconnect-on-close for this teardown
+        ws.close();
+        ws = null;
+      }
+      if (t) connect(t);
+    });
+
+    return () => {
+      cancelled = true;
+      unsub();
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [qc]);
 
   // Close on outside click.
   useEffect(() => {
@@ -69,21 +134,24 @@ export default function NotificationBell(): JSX.Element {
       case 'TASK_DUE':
         return `"${p.taskTitle ?? 'A task'}" is due soon`;
       case 'MENTION':
-        return `You were mentioned on "${p.taskTitle ?? 'a task'}"`;
+        return `You were mentioned on "${p.taskTitle ?? 'a task'}": ${p.excerpt ?? ''}`;
       default:
         return n.type;
     }
   }
 
   function openNotification(n: notifApi.Notification): void {
-    // Mark as read, then navigate to the related task. The /projects/:projectId
-    // segment isn't in the payload yet, so we'd need to look it up — for now
-    // route to the dashboard and let the user click through. (Cheap iteration.)
     if (!n.readAt) markReadMut.mutate(n.id);
     setOpen(false);
-    // If we had projectId in payload we could nav directly to the task page.
-    // Leave the destination general until payloads carry it.
-    void nav('/dashboard');
+    // Payload may carry taskId + projectId (set since v1.1) so we deep-link
+    // straight to the task. Older notifications without projectId fall back
+    // to the dashboard.
+    const p = n.payload as { taskId?: string; projectId?: string };
+    if (p.projectId && p.taskId) {
+      void nav(`/projects/${p.projectId}/tasks/${p.taskId}`);
+    } else {
+      void nav('/dashboard');
+    }
   }
 
   return (

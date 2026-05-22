@@ -70,9 +70,10 @@ model User {
   comments       Comment[]
   activities     Activity[]
   notifications  Notification[]
-  refreshTokens  RefreshToken[]
-  passwordResets PasswordReset[]
-  uploads        Attachment[]
+  refreshTokens      RefreshToken[]
+  passwordResets     PasswordReset[]
+  emailVerifications EmailVerification[]
+  uploads            Attachment[]
 
   @@index([email])
 }
@@ -91,6 +92,17 @@ model RefreshToken {
 }
 
 model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EmailVerification {
   id        String    @id @default(cuid())
   userId    String
   tokenHash String    @unique
@@ -128,14 +140,17 @@ model TeamMembership {
 model Project {
   id          String        @id @default(cuid())
   teamId      String
-  ownerId     String
+  ownerId     String?
   name        String
   description String?
   status      ProjectStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   team        Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
+  // ownerId is nullable + SetNull so admins can delete a user without
+  // cascading the deletion to every project they own. The project then shows
+  // "owner: (deleted user)" in the UI until a manager reassigns it.
+  owner       User?         @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   tasks       Task[]
 
   @@index([teamId, status])
@@ -147,7 +162,9 @@ model Task {
   projectId   String
   // Denormalized for tenant scoping; every query filters by teamId.
   teamId      String
-  creatorId   String
+  // creatorId is nullable + SetNull so a deleted user's tasks remain.
+  // The frontend renders "(deleted user)" wherever the creator name appears.
+  creatorId   String?
   assigneeId  String?
   title       String
   description String?
@@ -158,13 +175,17 @@ model Task {
   // status=DONE if not explicitly set; the member can also set it manually
   // (e.g., back-dating after the fact) regardless of status.
   doneAt      DateTime?
+  // When a TASK_DUE notification was last emitted for this task — used by the
+  // scheduler to avoid re-notifying every tick. Reset to null whenever dueDate
+  // changes so the next due date triggers a fresh reminder.
+  dueNotifiedAt DateTime?
   position    Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creator     User         @relation("TaskCreator", fields: [creatorId], references: [id])
-  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator     User?        @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   subtasks    Subtask[]
   labels      TaskLabel[]
   attachments Attachment[]
@@ -221,7 +242,10 @@ model Attachment {
   sizeBytes  Int
   createdAt  DateTime @default(now())
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  uploader   User     @relation(fields: [uploaderId], references: [id])
+  // Cascade — when a user is deleted, their uploaded blobs are removed along
+  // with the user account. The on-disk files are NOT cleaned up automatically;
+  // a janitor task is the proper home for orphan-blob GC.
+  uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
 }
@@ -229,12 +253,13 @@ model Attachment {
 model Comment {
   id        String   @id @default(cuid())
   taskId    String
-  authorId  String
+  // authorId nullable + SetNull so a deleted user's comments survive.
+  authorId  String?
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id])
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([taskId, createdAt])
 }
@@ -242,12 +267,15 @@ model Comment {
 model Activity {
   id        String   @id @default(cuid())
   taskId    String
+  // Cascade-delete activity rows authored by a deleted user. Activity is
+  // observability, not audit-of-record — losing rows on user delete is fine
+  // (a real audit table would live in a separate non-cascading model).
   actorId   String
   action    String
   meta      Json
   createdAt DateTime @default(now())
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  actor     User     @relation(fields: [actorId], references: [id])
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([taskId, createdAt])
 }

@@ -26,22 +26,36 @@ export interface AdminTeamView {
   projectCount: number;
 }
 
+export interface Page<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
 export class AdminService {
-  async listUsers(): Promise<AdminUserView[]> {
-    // Single trip — leverage Prisma's _count to avoid an N+1.
+  async listUsers(opts: { cursor?: string; limit: number }): Promise<Page<AdminUserView>> {
+    // Cursor pagination: fetch limit+1 to know if there's a next page without
+    // a separate count query. The last item is the cursor for the next page.
     const rows = await prisma.user.findMany({
       orderBy: { createdAt: 'asc' },
+      take: opts.limit + 1,
+      ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
       include: { _count: { select: { memberships: true } } },
     });
-    return rows.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      globalRole: u.globalRole,
-      emailVerifiedAt: u.emailVerifiedAt,
-      createdAt: u.createdAt,
-      membershipCount: u._count.memberships,
-    }));
+    const hasMore = rows.length > opts.limit;
+    const page = hasMore ? rows.slice(0, opts.limit) : rows;
+    const last = page[page.length - 1];
+    return {
+      items: page.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        globalRole: u.globalRole,
+        emailVerifiedAt: u.emailVerifiedAt,
+        createdAt: u.createdAt,
+        membershipCount: u._count.memberships,
+      })),
+      nextCursor: hasMore && last ? last.id : null,
+    };
   }
 
   async updateUserRole(
@@ -83,19 +97,54 @@ export class AdminService {
     };
   }
 
-  async listTeams(): Promise<AdminTeamView[]> {
+  async listTeams(opts: { cursor?: string; limit: number }): Promise<Page<AdminTeamView>> {
     const rows = await prisma.team.findMany({
       orderBy: { createdAt: 'asc' },
+      take: opts.limit + 1,
+      ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
       include: { _count: { select: { memberships: true, projects: true } } },
     });
-    return rows.map((t) => ({
-      id: t.id,
-      name: t.name,
-      slug: t.slug,
-      createdAt: t.createdAt,
-      memberCount: t._count.memberships,
-      projectCount: t._count.projects,
-    }));
+    const hasMore = rows.length > opts.limit;
+    const page = hasMore ? rows.slice(0, opts.limit) : rows;
+    const last = page[page.length - 1];
+    return {
+      items: page.map((t) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        createdAt: t.createdAt,
+        memberCount: t._count.memberships,
+        projectCount: t._count.projects,
+      })),
+      nextCursor: hasMore && last ? last.id : null,
+    };
+  }
+
+  // Delete a user account. The schema's onDelete rules handle the cascade:
+  //   - memberships, refreshTokens, passwordResets, emailVerifications,
+  //     notifications, activities, attachments → CASCADE (gone with the user)
+  //   - Project.owner, Task.creator, Task.assignee, Comment.author → SetNull
+  //     (rows survive, attribution becomes "(deleted user)" in the UI)
+  // Guards mirror the role-update endpoint: no self-delete, no
+  // deleting-the-last-admin (would orphan admin access).
+  async deleteUser(callerId: string, targetUserId: string): Promise<void> {
+    if (callerId === targetUserId) {
+      throw Errors.conflict('Cannot delete your own account');
+    }
+    const target = await prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw Errors.notFound('User not found');
+    if (target.globalRole === 'ADMIN') {
+      const adminCount = await prisma.user.count({ where: { globalRole: 'ADMIN' } });
+      if (adminCount <= 1) throw Errors.conflict('Cannot delete the last ADMIN');
+    }
+    try {
+      await prisma.user.delete({ where: { id: targetUserId } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw Errors.notFound('User not found');
+      }
+      throw err;
+    }
   }
 
   async deleteTeam(teamId: string): Promise<void> {
