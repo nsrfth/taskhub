@@ -73,9 +73,14 @@ export default function TeamsPage(): JSX.Element {
     <div className="min-h-screen p-8 max-w-4xl mx-auto">
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-semibold">Teams</h1>
-        <Link to="/dashboard" className="text-sm underline">
-          Back to dashboard
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/reports" className="text-sm underline text-slate-600">
+            Reports
+          </Link>
+          <Link to="/dashboard" className="text-sm underline">
+            Back to dashboard
+          </Link>
+        </div>
       </header>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">

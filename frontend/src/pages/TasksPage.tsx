@@ -315,9 +315,14 @@ export default function TasksPage(): JSX.Element {
             in <span className="font-medium">{currentTeam.name}</span>
           </p>
         </div>
-        <Link to="/projects" className="text-sm underline">
-          ← Projects
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/reports" className="text-sm underline text-slate-600">
+            Reports
+          </Link>
+          <Link to="/projects" className="text-sm underline">
+            ← Projects
+          </Link>
+        </div>
       </header>
 
       <section className="bg-white rounded shadow p-4 mb-6">

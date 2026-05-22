@@ -4,7 +4,13 @@ import { z } from 'zod';
 import { ReportsService } from '../services/reportsService.js';
 import { ReportsController } from '../controllers/reportsController.js';
 import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { doneReportResponse, doneTasksQuery } from '../schemas/reports.js';
+import {
+  doneReportResponse,
+  doneTasksQuery,
+  overdueResponse,
+  summaryResponse,
+  workloadResponse,
+} from '../schemas/reports.js';
 
 // Team-scoped read-only reports. Mounted at /api/teams/:teamId/reports.
 // More report shapes can land alongside `done` as new endpoints when the
@@ -27,5 +33,38 @@ export async function reportsRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.doneTasks,
+  });
+
+  r.get('/workload', {
+    schema: {
+      tags: ['reports'],
+      summary: 'Open tasks per assignee with per-status breakdown',
+      params: z.object({ teamId: z.string() }),
+      response: { 200: workloadResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.workload,
+  });
+
+  r.get('/overdue', {
+    schema: {
+      tags: ['reports'],
+      summary: 'Open tasks past their dueDate, oldest first',
+      params: z.object({ teamId: z.string() }),
+      response: { 200: overdueResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.overdue,
+  });
+
+  r.get('/summary', {
+    schema: {
+      tags: ['reports'],
+      summary: 'Headline counts for the dashboard widget (cheap aggregate)',
+      params: z.object({ teamId: z.string() }),
+      response: { 200: summaryResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.summary,
   });
 }

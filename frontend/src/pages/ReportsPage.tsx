@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTeams } from '@/features/teams/TeamsContext';
-import { fetchDoneReport, type DoneTaskRow } from '@/features/reports/api';
+import {
+  fetchDoneReport,
+  fetchOverdue,
+  fetchSummary,
+  fetchWorkload,
+  type DoneTaskRow,
+} from '@/features/reports/api';
 import { formatShamsiDate } from '@/lib/shamsi';
 
 const WINDOWS: { days: number; label: string }[] = [
@@ -23,6 +29,24 @@ export default function ReportsPage(): JSX.Element {
   const { data, isLoading } = useQuery({
     queryKey: ['reports', 'done', currentTeam?.id, days],
     queryFn: () => fetchDoneReport(currentTeam!.id, days),
+    enabled: !!currentTeam,
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ['reports', 'summary', currentTeam?.id],
+    queryFn: () => fetchSummary(currentTeam!.id),
+    enabled: !!currentTeam,
+  });
+
+  const { data: workload } = useQuery({
+    queryKey: ['reports', 'workload', currentTeam?.id],
+    queryFn: () => fetchWorkload(currentTeam!.id),
+    enabled: !!currentTeam,
+  });
+
+  const { data: overdue } = useQuery({
+    queryKey: ['reports', 'overdue', currentTeam?.id],
+    queryFn: () => fetchOverdue(currentTeam!.id),
     enabled: !!currentTeam,
   });
 
@@ -68,6 +92,36 @@ export default function ReportsPage(): JSX.Element {
           Back to dashboard
         </Link>
       </header>
+
+      {/* Status snapshot — four small counters above the detailed sections. */}
+      {summary && (
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white rounded shadow p-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Open</p>
+            <p className="text-2xl font-semibold tabular-nums">{summary.openCount}</p>
+          </div>
+          <div className="bg-white rounded shadow p-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">In progress</p>
+            <p className="text-2xl font-semibold tabular-nums">{summary.byStatus.IN_PROGRESS}</p>
+          </div>
+          <div className="bg-white rounded shadow p-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Done (7d)</p>
+            <p className="text-2xl font-semibold tabular-nums text-emerald-700">
+              {summary.doneLast7Days}
+            </p>
+          </div>
+          <div className="bg-white rounded shadow p-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Overdue</p>
+            <p
+              className={`text-2xl font-semibold tabular-nums ${
+                summary.overdueCount > 0 ? 'text-red-700' : 'text-slate-700'
+              }`}
+            >
+              {summary.overdueCount}
+            </p>
+          </div>
+        </section>
+      )}
 
       <section className="bg-white rounded shadow p-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -141,6 +195,89 @@ export default function ReportsPage(): JSX.Element {
               </ul>
             </div>
           </div>
+        )}
+      </section>
+
+      {/* Workload — open tasks per assignee with per-status breakdown. */}
+      <section className="bg-white rounded shadow p-4 mb-6">
+        <h2 className="font-medium mb-3">Workload</h2>
+        {!workload && <p className="text-sm text-slate-500">Loading…</p>}
+        {workload && workload.items.length === 0 && (
+          <p className="text-sm text-slate-500 italic">Nothing open right now.</p>
+        )}
+        {workload && workload.items.length > 0 && (
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-slate-500 uppercase">
+              <tr>
+                <th className="py-1 pr-4">Assignee</th>
+                <th className="py-1 pr-4 text-right">To do</th>
+                <th className="py-1 pr-4 text-right">In progress</th>
+                <th className="py-1 pr-4 text-right">Review</th>
+                <th className="py-1 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workload.items.map((w) => (
+                <tr key={w.assigneeId ?? 'unassigned'} className="border-t">
+                  <td className="py-2 pr-4">
+                    {w.assigneeName ?? <span className="italic text-slate-500">unassigned</span>}
+                  </td>
+                  <td className="py-2 pr-4 text-right tabular-nums text-slate-600">
+                    {w.byStatus.TODO}
+                  </td>
+                  <td className="py-2 pr-4 text-right tabular-nums text-slate-600">
+                    {w.byStatus.IN_PROGRESS}
+                  </td>
+                  <td className="py-2 pr-4 text-right tabular-nums text-slate-600">
+                    {w.byStatus.REVIEW}
+                  </td>
+                  <td className="py-2 text-right tabular-nums font-medium">{w.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Overdue — open tasks past their dueDate, oldest first. */}
+      <section className="bg-white rounded shadow p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-medium">Overdue</h2>
+          {overdue && (
+            <span className="text-sm text-slate-500">
+              {overdue.items.length} task{overdue.items.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+        {!overdue && <p className="text-sm text-slate-500">Loading…</p>}
+        {overdue && overdue.items.length === 0 && (
+          <p className="text-sm text-emerald-700 italic">Nothing overdue. 👌</p>
+        )}
+        {overdue && overdue.items.length > 0 && (
+          <ul className="divide-y">
+            {overdue.items.map((r) => (
+              <li key={r.taskId} className="py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => nav(`/projects/${r.projectId}/tasks/${r.taskId}`)}
+                    className="text-left font-medium hover:underline truncate min-w-0 flex-1"
+                  >
+                    {r.taskTitle}
+                  </button>
+                  <span className="text-xs text-red-700 whitespace-nowrap">
+                    {r.daysOverdue} day{r.daysOverdue === 1 ? '' : 's'} late
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {r.projectName} · {r.status}
+                  {r.assigneeName ? ` · ${r.assigneeName}` : ' · unassigned'}
+                  {' · due '}
+                  <span dir="rtl">{formatShamsiDate(r.dueDate)}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>

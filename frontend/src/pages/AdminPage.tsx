@@ -112,9 +112,14 @@ export default function AdminPage(): JSX.Element {
     <div className="min-h-screen p-8 max-w-5xl mx-auto">
       <header className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Admin</h1>
-        <Link to="/dashboard" className="text-sm underline">
-          Back to dashboard
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/reports" className="text-sm underline text-slate-600">
+            Reports
+          </Link>
+          <Link to="/dashboard" className="text-sm underline">
+            Back to dashboard
+          </Link>
+        </div>
       </header>
 
       <section className="bg-white rounded shadow p-4 mb-6">

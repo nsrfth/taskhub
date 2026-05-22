@@ -17,4 +17,21 @@ export class ReportsController {
       items: rows.map((r) => ({ ...r, doneAt: r.doneAt.toISOString() })),
     });
   };
+
+  workload = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {
+    const items = await this.svc.listWorkload(req.params.teamId);
+    return reply.send({ items });
+  };
+
+  overdue = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {
+    const rows = await this.svc.listOverdue(req.params.teamId);
+    return reply.send({
+      items: rows.map((r) => ({ ...r, dueDate: r.dueDate.toISOString() })),
+    });
+  };
+
+  summary = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {
+    const s = await this.svc.summary(req.params.teamId);
+    return reply.send(s);
+  };
 }

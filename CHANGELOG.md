@@ -4,6 +4,43 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-05-22
+
+Reports section expansion. New endpoints, new sections, Dashboard widget,
+and a Reports link in every authenticated page header.
+
+### New report endpoints
+
+- `GET /api/teams/:teamId/reports/workload` — open tasks per assignee with
+  a per-status breakdown. Unassigned bucket has `assigneeId/Name = null`.
+- `GET /api/teams/:teamId/reports/overdue` — open tasks past their
+  `dueDate`, oldest first, with `daysOverdue` precomputed server-side.
+- `GET /api/teams/:teamId/reports/summary` — single cheap aggregate
+  (`doneLast7Days`, `overdueCount`, `openCount`, `byStatus` totals) used
+  by the Dashboard widget so it doesn't hit four endpoints on every render.
+
+### Reports page
+
+- Four-up status counter strip at the top (Open / In progress / Done 7d /
+  Overdue), red when overdue > 0.
+- New "Workload" section: assignee table with per-status columns and a
+  total. Sorted by total descending.
+- New "Overdue" section: tasks past `dueDate`, oldest first, with project,
+  status, assignee, Shamsi-formatted due date, and a days-overdue badge.
+
+### Dashboard widget
+
+- "At a glance" card shows the three headline numbers (Open / Done 7d /
+  Overdue) with a "Full reports →" link.
+
+### Cross-page navigation
+
+- Every authenticated page header (Admin, Projects, Tasks, Teams) now
+  carries a "Reports" link next to "Back to dashboard" / "← Projects" so
+  the report surface is reachable from anywhere.
+
+[1.1.2]: https://github.com/USER/REPO/releases/tag/v1.1.2
+
 ## [1.1.1] — 2026-05-22
 
 Polish patch on top of v1.1.0. No new endpoints behind feature flags, no
