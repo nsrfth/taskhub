@@ -10,6 +10,7 @@ import type {
   VerificationRequestBody,
 } from '../schemas/auth.js';
 import { Errors } from '../lib/errors.js';
+import { TwoFactorService } from '../services/twoFactorService.js';
 
 const REFRESH_COOKIE = 'th_refresh';
 
@@ -53,12 +54,70 @@ export class AuthController {
   };
 
   login = async (req: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
-    const session = await this.svc.login(req.body);
+    const outcome = await this.svc.loginOutcome(req.body);
+    if (outcome.kind === 'pending2fa') {
+      // No refresh cookie yet — the full session lands only after the second
+      // step. Send the pending token in the body; the frontend keeps it in
+      // memory and POSTs it back to /auth/2fa/login.
+      return reply.send({ pending2fa: true, pendingToken: outcome.pendingToken });
+    }
+    const session = outcome.session;
     setRefreshCookie(reply, this.env, session.refreshTokenRaw, session.refreshExpiresAt);
     return reply.send({
       accessToken: session.accessToken,
       user: { ...session.user, createdAt: session.user.createdAt.toISOString() },
     });
+  };
+
+  // Second step of 2FA login. Takes the pending token + TOTP/recovery code,
+  // returns the full session shape that /login returns when 2FA is off.
+  twoFactorLogin = async (
+    req: FastifyRequest<{ Body: { pendingToken: string; code: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const session = await this.svc.completeLoginWith2fa(req.body.pendingToken, req.body.code);
+    setRefreshCookie(reply, this.env, session.refreshTokenRaw, session.refreshExpiresAt);
+    return reply.send({
+      accessToken: session.accessToken,
+      user: { ...session.user, createdAt: session.user.createdAt.toISOString() },
+    });
+  };
+
+  // ── 2FA management (requires an authenticated user) ────────────────────
+  private readonly twoFactor = new TwoFactorService();
+
+  twoFactorSetup = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    const setup = await this.twoFactor.setup(req.user.sub);
+    return reply.send(setup);
+  };
+
+  twoFactorConfirm = async (
+    req: FastifyRequest<{ Body: { secret: string; code: string } }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const result = await this.twoFactor.confirmSetup(
+      req.user.sub,
+      req.body.secret,
+      req.body.code,
+    );
+    return reply.send(result);
+  };
+
+  twoFactorDisable = async (
+    req: FastifyRequest<{ Body: { code: string } }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    await this.twoFactor.disable(req.user.sub, req.body.code);
+    return reply.code(204).send();
+  };
+
+  twoFactorRegenerateCodes = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    const codes = await this.twoFactor.regenerateRecoveryCodes(req.user.sub);
+    return reply.send({ recoveryCodes: codes });
   };
 
   refresh = async (req: FastifyRequest, reply: FastifyReply) => {

@@ -8,6 +8,11 @@ import {
   performResetBody,
   registerBody,
   requestResetBody,
+  twoFactorConfirmBody,
+  twoFactorDisableBody,
+  twoFactorLoginBody,
+  twoFactorRecoveryCodesResponse,
+  twoFactorSetupResponse,
   verificationPerformBody,
   verificationRequestBody,
 } from '../schemas/auth.js';
@@ -26,6 +31,8 @@ export async function authRoutes(app: FastifyInstance, opts: { env: Env }): Prom
     signAccess: (p) => app.signAccess(p as any),
     signRefresh: (p, exp) => app.signRefresh(p, exp),
     verifyRefresh: (t) => app.verifyRefresh(t),
+    signPending: (sub) => app.signPending(sub),
+    verifyPending: (t) => app.verifyPending(t),
   });
   const ctrl = new AuthController(env, svc);
 
@@ -54,9 +61,12 @@ export async function authRoutes(app: FastifyInstance, opts: { env: Env }): Prom
     config: RL_TAG,
     schema: {
       tags: ['auth'],
-      summary: 'Log in with email + password',
+      summary: 'Log in with email + password (may return a pending-2FA challenge)',
       body: loginBody,
-      response: { 200: z.object({ accessToken: z.string(), user: z.any() }) },
+      // Response is either the full session OR `{ pending2fa: true,
+      // pendingToken }`. z.any() lets both shapes pass — the frontend
+      // dispatches on the presence of `pending2fa`.
+      response: { 200: z.any() },
     },
     handler: ctrl.login,
   });
@@ -108,5 +118,63 @@ export async function authRoutes(app: FastifyInstance, opts: { env: Env }): Prom
     preHandler: requireAuth,
     schema: { tags: ['auth'], summary: 'Get the current user', security: [{ bearerAuth: [] }] },
     handler: ctrl.me,
+  });
+
+  // ── 2FA endpoints ────────────────────────────────────────────────────
+  r.post('/2fa/login', {
+    config: RL_TAG,
+    schema: {
+      tags: ['auth'],
+      summary: 'Complete login with a TOTP / recovery code after /login returned pending2fa',
+      body: twoFactorLoginBody,
+      response: { 200: z.object({ accessToken: z.string(), user: z.any() }) },
+    },
+    handler: ctrl.twoFactorLogin,
+  });
+
+  r.post('/2fa/setup', {
+    preHandler: requireAuth,
+    schema: {
+      tags: ['auth'],
+      summary: 'Begin 2FA enrolment — returns secret + QR (nothing persisted yet)',
+      response: { 200: twoFactorSetupResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.twoFactorSetup,
+  });
+
+  r.post('/2fa/confirm', {
+    preHandler: requireAuth,
+    schema: {
+      tags: ['auth'],
+      summary: 'Finalise 2FA enrolment — verify a code, then persist + return recovery codes once',
+      body: twoFactorConfirmBody,
+      response: { 200: twoFactorRecoveryCodesResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.twoFactorConfirm,
+  });
+
+  r.post('/2fa/disable', {
+    preHandler: requireAuth,
+    schema: {
+      tags: ['auth'],
+      summary: 'Disable 2FA — requires a fresh TOTP / recovery proof',
+      body: twoFactorDisableBody,
+      response: { 204: z.null() },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.twoFactorDisable,
+  });
+
+  r.post('/2fa/recovery-codes', {
+    preHandler: requireAuth,
+    schema: {
+      tags: ['auth'],
+      summary: 'Regenerate recovery codes (invalidates the previous set)',
+      response: { 200: twoFactorRecoveryCodesResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.twoFactorRegenerateCodes,
   });
 }

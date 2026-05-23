@@ -48,12 +48,51 @@ export const userResponse = z.object({
   // for LDAP-managed accounts.
   directoryId: z.string().nullable().default(null),
   externalId: z.string().nullable().default(null),
+  // Phase 2C: surfaced so the Settings → Security page can render the
+  // correct "enable" vs "disable" affordance without a second round-trip.
+  totpEnabled: z.boolean().default(false),
   createdAt: z.string(),
 });
 
 export const authTokensResponse = z.object({
   accessToken: z.string(),
   user: userResponse,
+});
+
+// ── Two-factor authentication ─────────────────────────────────────────────
+// Setup response — secret + QR exposed exactly once at enrolment.
+export const twoFactorSetupResponse = z.object({
+  secret: z.string(),
+  uri: z.string(),
+  qrDataUrl: z.string(),
+});
+
+export const twoFactorConfirmBody = z.object({
+  secret: z.string().min(8).max(128),
+  code: z.string().regex(/^\d{6}$/, '6-digit numeric'),
+});
+
+// Surfaced ONCE, immediately after confirmSetup or regenerate. Never again.
+export const twoFactorRecoveryCodesResponse = z.object({
+  recoveryCodes: z.array(z.string()),
+});
+
+export const twoFactorDisableBody = z.object({
+  // Either a 6-digit TOTP code or a recovery code. Length-vary; checked
+  // server-side.
+  code: z.string().min(4).max(40),
+});
+
+// Second-step login. `pendingToken` came from the 200 response of /login
+// when 2FA is enabled; `code` is the user's TOTP or recovery code.
+export const twoFactorLoginBody = z.object({
+  pendingToken: z.string().min(20).max(2048),
+  code: z.string().min(4).max(40),
+});
+
+export const twoFactorPendingResponse = z.object({
+  pending2fa: z.literal(true),
+  pendingToken: z.string(),
 });
 
 export type RegisterBody = z.infer<typeof registerBody>;

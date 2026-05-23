@@ -4,6 +4,113 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-05-23
+
+Phase 2C — Per-user TOTP 2FA. Adds an opt-in second factor on top of the
+existing password + LDAP login paths, with one-shot recovery codes for the
+"my phone is in another country" case. `/auth/login` returns a short-lived
+pending challenge when the user has 2FA enabled; the client follows up with
+`/auth/2fa/login` to get the full session.
+
+### Schema
+
+- `User.totpSecretEnc: String?` — AES-256-GCM ciphertext of the shared
+  secret. Only written after the user confirms a code; cleared on disable.
+- `User.totpEnabled: Boolean @default(false)` — explicit flag (lighter on
+  the login hot path than `totpSecretEnc IS NOT NULL`).
+- New `RecoveryCode` model — `userId`, `codeHash` (sha256 of the
+  normalised code), `usedAt?`. Raw code shown to the user exactly once at
+  generation; only the hash persists.
+- Migration `20260523140000_add_two_factor` — additive only.
+
+### Backend
+
+- New [lib/totp.ts](backend/src/lib/totp.ts) wrapping `otplib` (SHA-1, 6
+  digits, 30s step, ±1 window for clock skew) + `qrcode` for the PNG data
+  URL. The frontend renders the QR in an `<img>` tag — no client-side QR
+  library needed.
+- New [TwoFactorService](backend/src/services/twoFactorService.ts) — setup
+  (returns ephemeral material, persists nothing), confirmSetup (verifies
+  the first code, encrypts + stores the secret, generates 10 recovery
+  codes), disable (requires a fresh TOTP or recovery proof), verifyForLogin
+  (TOTP or burn-on-use recovery), regenerateRecoveryCodes.
+- JWT layer gains `signPending(sub)` / `verifyPending(token)` for the
+  5-minute "2fa-pending" intermediate token. Signed with the access secret
+  but carries `kind: '2fa-pending'` so it can't be replayed as a normal
+  access token (verifyPending explicitly checks the claim).
+- `authService.login` is wrapped by `loginOutcome`: on `totpEnabled=true`
+  it revokes the just-issued refresh token and returns
+  `{ kind: 'pending2fa', pendingToken }`. `completeLoginWith2fa` verifies
+  the pending token + code and mints the full session.
+
+### New endpoints
+
+- `POST /auth/2fa/setup` — returns `{ secret, uri, qrDataUrl }`. Nothing
+  persists yet; the user can call setup repeatedly until they confirm.
+- `POST /auth/2fa/confirm` — body `{ secret, code }`. Verifies the code,
+  persists the encrypted secret, flips `totpEnabled`, returns 10 recovery
+  codes (ONCE).
+- `POST /auth/2fa/disable` — body `{ code }`. Accepts a current TOTP code
+  OR a recovery code as proof. 204 on success.
+- `POST /auth/2fa/recovery-codes` — wipe + regenerate the recovery code
+  set. Returns the new plaintext codes (ONCE).
+- `POST /auth/2fa/login` — second step of the login. Body
+  `{ pendingToken, code }`. Returns the same shape `/auth/login` returns
+  for non-2FA users.
+- The existing `/auth/login` response is now either the legacy
+  `{ accessToken, user }` OR `{ pending2fa: true, pendingToken }` — the
+  frontend dispatches on the `pending2fa` flag.
+
+### Frontend
+
+- New two-step LoginPage
+  ([LoginPage.tsx](frontend/src/pages/LoginPage.tsx)). Step 1 unchanged;
+  step 2 is a TOTP / recovery-code input with autoFocus and a "back to
+  sign-in" escape hatch. Pending token lives only in component state — a
+  page reload drops it and the user starts over.
+- Settings → Security replaced with a real enrolment flow
+  ([SecurityPage.tsx](frontend/src/pages/settings/SecurityPage.tsx)):
+  `Enable 2FA` → QR + manual-key display → 6-digit input → one-shot
+  recovery-code reveal with Copy. When enabled: disable form (TOTP-only
+  guard against session-hijack) and recovery-code regenerate.
+- `AuthContext` gains `signInWith2fa` and `patchUser` — the 2FA panel
+  flips `user.totpEnabled` locally on enrol/disable without a refresh
+  round-trip.
+- Settings sidebar opens up the "Security" item to all roles (not just
+  ADMIN) so members can enrol themselves. Other sub-pages stay
+  admin-only.
+- Dashboard header now shows the "Settings" link to every signed-in user;
+  "Admin" stays admin-only.
+
+### Tests
+
+- New [tests/integration/twoFactor.test.ts](backend/tests/integration/twoFactor.test.ts)
+  — 8 cases: enrol happy path, wrong confirm code blocked, pending2fa →
+  step-2 happy path, step-2 with wrong TOTP returns 401, recovery code
+  logs in and burns on first use, disable wipes secret + recovery codes,
+  recovery-code regenerate invalidates the previous set, non-2FA login
+  keeps the legacy single-step response shape.
+- Suite: **140/140** (was 132 → +8 TOTP).
+
+### Verified
+
+- Live round-trip against the running stack: setup → confirm
+  (10 recovery codes) → login returns `pending2fa: true` → step-2 with
+  TOTP succeeds → step-2 with a recovery code succeeds → disable clears
+  `totpEnabled` + `totpSecretEnc` + recovery codes.
+
+### Known limitations / Phase 2C boundary
+
+- 2FA is per-user opt-in. There is no instance-wide "require 2FA for
+  admins" policy yet — that's a Settings → Security policy addition for
+  a later phase.
+- The pending token is sent in the response body and not bound to the
+  IP / user-agent. A perfectly-timed MITM with a captured pending token
+  could theoretically attempt the second factor; the 5-minute TTL +
+  401-on-wrong-code make brute force impractical.
+- LDAP-bound users *can* enrol TOTP (the branches are orthogonal). When
+  they do, both factors are required at login.
+
 ## [1.5.0] — 2026-05-23
 
 Phase 2B — SCIM 2.0 provisioning. Adds a SCIM-compliant `/scim/v2/Users` +

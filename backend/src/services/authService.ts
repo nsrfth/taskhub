@@ -6,6 +6,7 @@ import { parseDuration } from '../lib/time.js';
 import type { Env } from '../config/env.js';
 import { DirectoryService } from './directoryService.js';
 import { LdapService, type LdapAuthResult } from './ldapService.js';
+import { TwoFactorService } from './twoFactorService.js';
 
 // All token lifecycle logic lives here. Routes/controllers don't talk to Prisma directly.
 
@@ -20,6 +21,7 @@ export interface IssuedSession {
     globalRole: 'ADMIN' | 'MEMBER';
     directoryId: string | null;
     externalId: string | null;
+    totpEnabled: boolean;
     createdAt: Date;
   };
   // Set on `register` only — the raw email-verification token the controller
@@ -36,17 +38,66 @@ export interface AuthSigner {
   }): string;
   signRefresh(payload: { sub: string; jti: string }, expiresIn: string): string;
   verifyRefresh(token: string): { sub: string; jti: string };
+  signPending(sub: string): string;
+  verifyPending(token: string): { sub: string; kind: '2fa-pending' };
 }
+
+// Wrapped login result. When the user has 2FA enabled and the first factor
+// passed, we hand back a pending token + flag instead of full credentials.
+// The route layer maps `pending2fa` shapes to a 200 response that the
+// frontend recognises and switches its UI to the TOTP step.
+export type LoginOutcome =
+  | { kind: 'session'; session: IssuedSession }
+  | { kind: 'pending2fa'; pendingToken: string };
 
 export class AuthService {
   // Lazily constructed — only paid for when LDAP login actually fires.
   private readonly directories = new DirectoryService();
   private readonly ldap = new LdapService();
+  private readonly twoFactor = new TwoFactorService();
 
   constructor(
     private readonly env: Env,
     private readonly signer: AuthSigner,
   ) {}
+
+  // Wrap the legacy session-returning login into the new outcome shape so
+  // callers can branch on `pending2fa`. When the user has totpEnabled=true,
+  // first-factor success yields a pending token instead of a full session.
+  async loginOutcome(input: { email: string; password: string }): Promise<LoginOutcome> {
+    const session = await this.login(input);
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (user?.totpEnabled) {
+      // First-factor succeeded but we shouldn't have minted a full session.
+      // Revoke the just-issued refresh token and return the pending shape.
+      await prisma.refreshToken.updateMany({
+        where: { userId: session.user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return { kind: 'pending2fa', pendingToken: this.signer.signPending(session.user.id) };
+    }
+    return { kind: 'session', session };
+  }
+
+  // Second step of the 2FA login. Validates the pending token (still in
+  // its 5-minute TTL) AND the supplied code (TOTP or recovery), then mints
+  // a full session.
+  async completeLoginWith2fa(pendingToken: string, code: string): Promise<IssuedSession> {
+    let payload: { sub: string; kind: '2fa-pending' };
+    try {
+      payload = this.signer.verifyPending(pendingToken);
+    } catch {
+      throw Errors.unauthorized('Pending 2FA token invalid or expired');
+    }
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user || user.disabledAt) throw Errors.unauthorized('Invalid credentials');
+    if (!user.totpEnabled) throw Errors.unauthorized('2FA not enabled for this account');
+
+    const ok = await this.twoFactor.verifyForLogin(user.id, code);
+    if (!ok) throw Errors.unauthorized('Invalid 2FA code');
+
+    return this.issueSession(user);
+  }
 
   async register(input: { email: string; password: string; name: string }): Promise<IssuedSession> {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
@@ -381,6 +432,7 @@ export class AuthService {
         globalRole: user.globalRole,
         directoryId: user.directoryId,
         externalId: user.externalId,
+        totpEnabled: user.totpEnabled,
         createdAt: user.createdAt,
       },
     };

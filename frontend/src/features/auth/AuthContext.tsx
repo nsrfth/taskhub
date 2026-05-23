@@ -5,9 +5,19 @@ import * as authApi from './api';
 interface AuthState {
   user: authApi.AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  // Returns 'ok' if signed in, or 'pending2fa' with a pendingToken the
+  // caller hands to signInWith2fa. Pending state isn't stored in the
+  // context — the LoginPage owns it for the brief two-step window.
+  signIn: (email: string, password: string) => Promise<
+    | { kind: 'ok' }
+    | { kind: 'pending2fa'; pendingToken: string }
+  >;
+  signInWith2fa: (pendingToken: string, code: string) => Promise<void>;
   signUp: (email: string, name: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  // Used by Settings → Security after a successful 2FA enrol/disable so the
+  // ambient user.totpEnabled flips immediately without a refresh round-trip.
+  patchUser: (patch: Partial<authApi.AuthUser>) => void;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -44,6 +54,15 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       loading,
       signIn: async (email, password) => {
         const res = await authApi.login({ email, password });
+        if (authApi.isPending2fa(res)) {
+          return { kind: 'pending2fa', pendingToken: res.pendingToken };
+        }
+        setAccessToken(res.accessToken);
+        setUser(res.user);
+        return { kind: 'ok' };
+      },
+      signInWith2fa: async (pendingToken, code) => {
+        const res = await authApi.loginTwoFactor({ pendingToken, code });
         setAccessToken(res.accessToken);
         setUser(res.user);
       },
@@ -56,6 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
         await authApi.logout().catch(() => {});
         setAccessToken(null);
         setUser(null);
+      },
+      patchUser: (patch) => {
+        setUser((prev) => (prev ? { ...prev, ...patch } : prev));
       },
     }),
     [user, loading],

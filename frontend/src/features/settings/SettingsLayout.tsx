@@ -29,8 +29,11 @@ const NAV: NavItem[] = [
   {
     to: '/settings/security',
     label: 'Security',
-    description: 'Auth, sessions, password policy',
-    roles: ['ADMIN'],
+    // 2FA enrolment is user-scoped, so everyone (not just admins) gets
+    // this entry. Future instance-wide auth policy lands behind an extra
+    // 'Policy' sub-section that stays ADMIN-only.
+    description: '2FA + sessions',
+    roles: ['ADMIN', 'MEMBER'],
   },
   {
     to: '/settings/audit',

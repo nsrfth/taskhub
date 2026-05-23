@@ -97,6 +97,20 @@ model Directory {
   scimCredential ScimCredential?
 }
 
+// One-time 2FA recovery code. The raw code is shown to the user exactly once
+// at generation; only the sha256 hash is persisted. `usedAt` survives the
+// row to make burn-on-first-use observable in audit.
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 // Bearer credential an external IdP uses to push SCIM 2.0 provisioning calls
 // at this Directory. One credential per Directory — re-generation overwrites
 // the row. `tokenHash` is sha256(rawToken); the raw token is shown to the
@@ -151,6 +165,11 @@ model User {
   // this is non-null. SCIM deprovision (PATCH active=false) sets this and
   // revokes outstanding refresh tokens; reprovision (active=true) clears it.
   disabledAt      DateTime?
+  // TOTP 2FA (Phase 2C). totpSecretEnc holds the AES-256-GCM ciphertext of
+  // the shared secret; totpEnabled flips true only after the user confirms
+  // a code during setup. Both clear on disable.
+  totpSecretEnc   String?
+  totpEnabled     Boolean    @default(false)
   emailVerifiedAt DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -170,6 +189,7 @@ model User {
   passwordResets     PasswordReset[]
   emailVerifications EmailVerification[]
   uploads            Attachment[]
+  recoveryCodes      RecoveryCode[]
 
   @@index([email])
 }

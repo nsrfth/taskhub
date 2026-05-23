@@ -16,12 +16,22 @@ export interface RefreshTokenPayload {
   jti: string; // matches RefreshToken.id in DB
 }
 
+// Short-lived intermediate token issued after a correct password but before
+// the second factor. Carrying its own `kind` claim makes it impossible to
+// replay as a normal access token even though it's signed with the same key.
+export interface PendingTokenPayload {
+  sub: string;
+  kind: '2fa-pending';
+}
+
 declare module 'fastify' {
   interface FastifyInstance {
     signAccess(payload: AccessTokenPayload): string;
     verifyAccess(token: string): AccessTokenPayload;
     signRefresh(payload: RefreshTokenPayload, expiresIn: string): string;
     verifyRefresh(token: string): RefreshTokenPayload;
+    signPending(sub: string): string;
+    verifyPending(token: string): PendingTokenPayload;
   }
 }
 
@@ -50,4 +60,20 @@ export function decorateJwt(app: FastifyInstance, accessTtl: string): void {
     refreshJwt.sign(payload, { expiresIn }),
   );
   app.decorate('verifyRefresh', (token: string) => refreshJwt.verify(token) as RefreshTokenPayload);
+
+  // Pending-2FA tokens reuse the access secret so we don't need a separate env
+  // var. The 5-minute TTL is short enough to bound the replay window; the
+  // `kind` claim prevents the token from being interpreted as a real access
+  // token even if it leaks (verifyAccess casts to AccessTokenPayload without
+  // checking `kind`, so the route layer must call verifyPending instead).
+  app.decorate('signPending', (sub: string) =>
+    app.jwt.sign({ sub, kind: '2fa-pending' } as unknown as AccessTokenPayload, { expiresIn: '5m' }),
+  );
+  app.decorate('verifyPending', (token: string) => {
+    const payload = app.jwt.verify(token) as unknown as PendingTokenPayload;
+    if (payload?.kind !== '2fa-pending') {
+      throw new Error('Not a 2FA-pending token');
+    }
+    return payload;
+  });
 }
