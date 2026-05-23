@@ -4,6 +4,88 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-05-23
+
+Phase 3A — Audit-log viewer. Adds a paginated, filterable read surface
+over the existing `Activity` table. ADMIN sees the whole instance; team
+MANAGERs see the teams they manage; everyone else gets 403.
+
+### Schema
+
+- `Activity.teamId String?` — denormalized so the team-scoped query
+  (the common case) hits one index instead of joining `Activity → Task →
+  Project`.
+- `Activity.taskId String?` — was required. Loosened so future emitters
+  (LDAP/SCIM/2FA/webhook/token/recurring) can write rows that aren't
+  task-scoped without another migration.
+- `Activity.actorId String?` — was required + CASCADE. Loosened to
+  optional + `SetNull` on user delete so the audit trail survives the
+  actor being removed.
+- Three new indexes for the viewer's common filters:
+  `(teamId, createdAt)`, `(actorId, createdAt)`, `(action, createdAt)`.
+  Existing `(taskId, createdAt)` kept for the per-task drill-down.
+- Migration `20260523160000_audit_log_teamid` — additive + a one-pass
+  backfill (`UPDATE … SET teamId = Task.teamId`) for existing rows.
+
+### Backend
+
+- `logActivity` now accepts `teamId` (and a nullable `actorId`). When the
+  caller supplies `taskId` but not `teamId`, the helper auto-resolves the
+  team from `Task.teamId` — so existing callers don't need to thread
+  `teamId` everywhere.
+- New [AuditService](backend/src/services/auditService.ts) — performs the
+  role gating in-service (depends on dynamic team membership, not just
+  `globalRole`):
+  - ADMIN: any filter, any team. Omitting `teamId` returns instance-wide.
+  - Team MANAGER: server clamps the scope to teams they manage. Passing a
+    `teamId` they don't manage returns 403.
+  - Everyone else: 403.
+- Cursor pagination on `(createdAt desc, id desc)`. `limit` capped at 200.
+- New `GET /api/audit` endpoint with the filter/cursor query schema in
+  [schemas/audit.ts](backend/src/schemas/audit.ts).
+
+### Frontend
+
+- New [AuditPage](frontend/src/pages/settings/AuditPage.tsx) replaces the
+  v1.3.0 placeholder. Filters: action substring, team (admin-only), actor
+  id, date range. Infinite-scroll-style pagination via React Query's
+  `useInfiniteQuery` + "Load more" button. Timestamps via
+  `formatShamsiTimestamp`.
+- The table renders arbitrary action types — Phase 3A doesn't hard-code
+  the task vocabulary, so future emitters (`directory.created`,
+  `user.provisioned`, `auth.2fa_enabled`, `token.created`, `webhook.*`)
+  show up without UI changes.
+- Settings sidebar opens "Audit" to team MANAGERs. The layout now derives
+  effective roles from `globalRole` + `teams[].myRole` so the entry
+  appears whenever the user manages at least one team.
+
+### Tests
+
+- New [tests/integration/audit.test.ts](backend/tests/integration/audit.test.ts)
+  — 6 cases: end-to-end create-task-then-read-audit (verifies
+  denormalized teamId), ADMIN cross-team visibility, MANAGER team
+  isolation, MEMBER → 403, MANAGER asking for another team's data → 403,
+  filter + cursor pagination.
+- Suite: **146/146** (was 140 → +6 audit).
+
+### Verified
+
+- Live smoke against the running stack: PATCH on a real task → audit
+  row appears with `teamName`/`taskTitle`/`actorName` populated. A
+  freshly-registered non-manager gets 403 on the same endpoint.
+
+### Phase 3A boundary
+
+- Action types are still only the existing task + comment vocabulary
+  (`task.created`, `task.updated`, `task.status_changed`,
+  `comment.added/edited/deleted`). The auth-side emitters
+  (`auth.2fa_enabled`, `directory.created`, etc.) land alongside the
+  features they describe — the table can already render them, but
+  nothing writes them yet.
+- Date filters use absolute ISO timestamps from `<input type="datetime-local">`.
+  Relative quick-picks ("last 24h", "this week") can land later if the
+  filter bar gets crowded.
+
 ## [1.6.0] — 2026-05-23
 
 Phase 2C — Per-user TOTP 2FA. Adds an opt-in second factor on top of the

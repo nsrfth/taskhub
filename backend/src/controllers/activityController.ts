@@ -27,7 +27,10 @@ export class ActivityController {
         id: a.id,
         taskId: a.taskId,
         actorId: a.actorId,
-        actorName: a.actor.name,
+        // Phase 3A: actor is nullable now (SetNull on user delete preserves
+        // audit rows). Surface the conventional "(deleted user)" placeholder
+        // so the existing task-detail UI doesn't need a separate code path.
+        actorName: a.actor?.name ?? '(deleted user)',
         action: a.action,
         meta: a.meta,
         createdAt: a.createdAt.toISOString(),

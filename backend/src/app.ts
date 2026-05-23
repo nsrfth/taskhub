@@ -19,6 +19,7 @@ import { reportsRoutes } from './routes/reports.js';
 import { settingsRoutes } from './routes/settings.js';
 import { directoriesRoutes } from './routes/directories.js';
 import { scimRoutes } from './routes/scim.js';
+import { auditRoutes } from './routes/audit.js';
 import { prisma } from './data/prisma.js';
 
 // App factory — separate from server.ts so tests can spin up the app without
@@ -101,6 +102,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // SCIM 2.0. Registered as its own encapsulated child so the route-scoped
     // error handler (SCIM-shaped error envelope) doesn't leak to other paths.
     await api.register(scimRoutes, { prefix: '/scim/v2' });
+
+    await api.register(auditRoutes, { prefix: '/audit' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

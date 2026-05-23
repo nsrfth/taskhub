@@ -242,6 +242,7 @@ model Team {
   projects      Project[]
   labels        Label[]
   notifications Notification[]
+  activities    Activity[]       @relation("TeamActivity")
   directory     Directory?       @relation("TeamDirectory", fields: [directoryId], references: [id], onDelete: SetNull)
 
   @@index([directoryId])
@@ -394,18 +395,30 @@ model Comment {
 
 model Activity {
   id        String   @id @default(cuid())
-  taskId    String
-  // Cascade-delete activity rows authored by a deleted user. Activity is
-  // observability, not audit-of-record — losing rows on user delete is fine
-  // (a real audit table would live in a separate non-cascading model).
-  actorId   String
+  // Phase 3A: taskId is now nullable. Future event types (directory.created,
+  // user.provisioned, auth.2fa_enabled, token.created) don't belong to a
+  // task; teamId or neither is set instead.
+  taskId    String?
+  // Denormalized team scope. Filled by logActivity at write time — either
+  // explicitly by the caller, or auto-resolved from Task.teamId when only
+  // taskId is supplied. Indexed for the team-scoped audit-log query.
+  teamId    String?
+  // Phase 3A: nullable so system-emitted events (scheduler, SCIM
+  // auto-provision) have no human actor. SetNull on user delete preserves
+  // the row for audit forensics — the audit log is the one place where
+  // "(deleted user) did X" is more useful than dropping the row.
+  actorId   String?
   action    String
   meta      Json
   createdAt DateTime @default(now())
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  team      Team?    @relation("TeamActivity", fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([taskId, createdAt])
+  @@index([teamId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
 }
 
 // Global instance configuration. Key-value store for toggles that apply to

@@ -1,5 +1,6 @@
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
+import { useTeams } from '@/features/teams/TeamsContext';
 
 // Role-gated sidebar shell shared by every Settings sub-page. Each entry
 // declares the GlobalRole that may see it; entries the current user lacks are
@@ -38,8 +39,10 @@ const NAV: NavItem[] = [
   {
     to: '/settings/audit',
     label: 'Audit',
+    // ADMIN sees instance-wide; MANAGER sees their team(s) only (the server
+    // enforces the scope). MEMBERs don't see the link.
     description: 'Activity + sign-in log',
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER'],
   },
   {
     to: '/settings/api',
@@ -51,16 +54,20 @@ const NAV: NavItem[] = [
 
 export default function SettingsLayout(): JSX.Element {
   const { user, loading } = useAuth();
+  const { teams } = useTeams();
   const location = useLocation();
 
   if (loading) return <div className="p-8 text-sm text-slate-500">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
 
-  // Filter the sidebar to what this user may see. If they're not in any
-  // role bucket the layout has no entries, so we bounce them out.
-  const visible = NAV.filter((item) =>
-    item.roles.includes(user.globalRole as SettingsRole),
-  );
+  // Effective roles for sidebar gating. globalRole is always present;
+  // we additionally lift 'MANAGER' into the role set when the user manages
+  // at least one team (it's a team-scoped role, not a global one — but the
+  // sidebar treats it as a tier so MANAGERs see the Audit entry).
+  const effective = new Set<SettingsRole>([user.globalRole as SettingsRole]);
+  if (teams.some((t) => t.myRole === 'MANAGER')) effective.add('MANAGER');
+
+  const visible = NAV.filter((item) => item.roles.some((r) => effective.has(r)));
   if (visible.length === 0) return <Navigate to="/dashboard" replace />;
 
   // Bare /settings — land on the first item the user can actually see.
