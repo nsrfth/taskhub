@@ -10,6 +10,7 @@ import * as activityApi from '@/features/activity/api';
 import { LabelPicker } from '@/features/labels/LabelPicker';
 import { SubtaskList } from '@/features/subtasks/SubtaskList';
 import { AttachmentsSection } from '@/features/attachments/AttachmentsSection';
+import RecurrenceSection from '@/features/recurrence/RecurrenceSection';
 import {
   formatRelativeTime,
   formatShamsiCalendarLong,
@@ -280,6 +281,12 @@ export default function TaskDetailPage(): JSX.Element {
                 taskId={taskId!}
               />
             </div>
+
+            <RecurrenceSection
+              teamId={teamId!}
+              projectId={projectId!}
+              taskId={taskId!}
+            />
 
             <div className="mt-5 pt-4 border-t">
               <h3 className="text-xs font-medium text-slate-600 mb-2">Dates</h3>

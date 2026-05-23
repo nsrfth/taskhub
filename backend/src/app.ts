@@ -22,6 +22,7 @@ import { scimRoutes } from './routes/scim.js';
 import { auditRoutes } from './routes/audit.js';
 import { apiTokensRoutes } from './routes/apiTokens.js';
 import { webhooksRoutes } from './routes/webhooks.js';
+import { recurrenceRoutes } from './routes/recurrence.js';
 import { prisma } from './data/prisma.js';
 
 // App factory — separate from server.ts so tests can spin up the app without
@@ -109,6 +110,9 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
 
     await api.register(apiTokensRoutes, { prefix: '/settings/api-tokens' });
     await api.register(webhooksRoutes, { prefix: '/teams/:teamId/webhooks' });
+    await api.register(recurrenceRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/recurrence',
+    });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

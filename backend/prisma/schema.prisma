@@ -283,6 +283,47 @@ model Project {
   @@index([ownerId])
 }
 
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// Recurrence rule attached to a source Task. When the scheduler ticks past
+// `nextRunAt`, it spawns a fresh Task with `spawnedFromTemplateId` pointing
+// back here. One template per task (`sourceTaskId` is unique). Disable
+// without deleting by flipping `active`.
+model TaskTemplate {
+  id              String              @id @default(cuid())
+  sourceTaskId    String              @unique
+  frequency       RecurrenceFrequency
+  interval        Int                 @default(1)
+  // Optional weekday filter — only meaningful for WEEKLY. 0 = Sunday … 6 = Saturday.
+  byWeekday       Int[]
+  // First eligible spawn date — UTC midnight per the v1.1.3 calendar-date rules.
+  startsOn        DateTime
+  // Optional cutoff (inclusive). After this, the rule stops spawning.
+  endsOn          DateTime?
+  // Optional cap on total spawns. Null = no cap.
+  maxCount        Int?
+  // Offsets applied to the spawned Task: spawn date + N days = dueDate /
+  // plannedDate. Null = don't copy that date field at all.
+  dueOffsetDays     Int?
+  plannedOffsetDays Int?
+  // Next time the scheduler should consider this rule. Always UTC-midnight.
+  nextRunAt       DateTime
+  spawnedCount    Int                 @default(0)
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  sourceTask      Task                @relation("TaskTemplateSource", fields: [sourceTaskId], references: [id], onDelete: Cascade)
+  spawnedTasks    Task[]              @relation("TaskSpawnedFrom")
+
+  @@index([active, nextRunAt])
+}
+
 model Task {
   id          String       @id @default(cuid())
   projectId   String
@@ -310,6 +351,11 @@ model Task {
   // scheduler to avoid re-notifying every tick. Reset to null whenever dueDate
   // changes so the next due date triggers a fresh reminder.
   dueNotifiedAt DateTime?
+  // Phase 4: spawned-by-recurrence linkage. spawnedForPeriod is the ISO date
+  // of the period this task fulfils (e.g. "2026-05-23"); the unique pair
+  // (templateId, period) prevents a double-spawn on retried scheduler ticks.
+  spawnedFromTemplateId String?
+  spawnedForPeriod      String?
   position    Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -322,11 +368,14 @@ model Task {
   attachments Attachment[]
   comments    Comment[]
   activities  Activity[]
+  template          TaskTemplate? @relation("TaskTemplateSource")
+  spawnedFromTemplate TaskTemplate? @relation("TaskSpawnedFrom", fields: [spawnedFromTemplateId], references: [id], onDelete: SetNull)
 
   @@index([teamId, status])
   @@index([teamId, assigneeId])
   @@index([teamId, dueDate])
   @@index([projectId, status, position])
+  @@unique([spawnedFromTemplateId, spawnedForPeriod])
 }
 
 model Subtask {

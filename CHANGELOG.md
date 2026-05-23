@@ -4,6 +4,105 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] — 2026-05-23
+
+Phase 4 — Recurring tasks. A task can now carry a recurrence rule; the
+scheduler materialises a fresh copy of it on each occurrence. Spawned
+tasks link back to the source via `spawnedFromTemplateId` for traceability,
+and a unique `(templateId, period)` key prevents a retried tick from
+double-spawning the same period.
+
+### Schema
+
+- New `TaskTemplate` model (one per task via unique `sourceTaskId`):
+  `frequency` enum (DAILY/WEEKLY/MONTHLY/YEARLY), `interval`, `byWeekday`
+  (int[], for WEEKLY), `startsOn`, optional `endsOn`, optional
+  `maxCount`, optional `dueOffsetDays` / `plannedOffsetDays`, `nextRunAt`,
+  `spawnedCount`, `active`.
+- `Task.spawnedFromTemplateId` (nullable FK, `SetNull` on template
+  delete) + `Task.spawnedForPeriod` (e.g. `"2026-05-23"`). Unique
+  `(spawnedFromTemplateId, spawnedForPeriod)` is the idempotency key —
+  the spawn transaction relies on the constraint to reject a duplicate
+  insert from a concurrent tick.
+- Migration `20260523200000_add_task_template` — additive only.
+
+### Backend
+
+- New [lib/recurrence.ts](backend/src/lib/recurrence.ts) — UTC-midnight
+  date math (`utcMidnight`, `addDays`, `addMonths`, `addYears`,
+  `nextOccurrenceAfter`, `firstOccurrenceOnOrAfter`). Calendar dates
+  stay UTC-midnight per the v1.1.3 three-picker rules. Subset of RRULE:
+  frequency + interval + (for WEEKLY) byWeekday.
+- New [TaskTemplatesService](backend/src/services/taskTemplatesService.ts):
+  - `upsert` re-computes `nextRunAt` from `max(startsOn, today)` on every
+    save so a paused-then-resumed rule doesn't replay missed periods.
+  - `spawnDue(now)`:
+    1. Finds active templates with `nextRunAt <= now`.
+    2. Per template, checks the cap (`maxCount`) and the cutoff
+       (`endsOn` — applied to the spawn PERIOD, not to `now`, so a
+       tick that runs late still owes the rule its in-window periods).
+    3. In one transaction: inserts the spawned `Task` (copying title /
+       description / priority / assigneeId, fresh labels + subtasks,
+       NEVER `completedAt` or `status`), then advances `nextRunAt` and
+       increments `spawnedCount`.
+    4. Catches `P2002` (duplicate `spawnedForPeriod` key) and advances
+       past the period anyway, so a concurrent tick can't loop forever.
+- New [recurrenceScheduler](backend/src/scheduler/recurrenceScheduler.ts)
+  — opt-in via `RECURRENCE_ENABLED=true`, mirrors the other two background
+  loops. Default off so tests don't materialise tasks unexpectedly.
+- Endpoints under `/api/teams/:teamId/projects/:projectId/tasks/:taskId/recurrence`
+  (any team MEMBER+):
+  - `GET /` — returns the rule, or 204.
+  - `PUT /` — create or replace.
+  - `DELETE /` — remove (already-spawned tasks survive via SetNull).
+  - `POST /tick` — manual scheduler kick for ops + tests.
+
+### Frontend
+
+- New [RecurrenceSection](frontend/src/features/recurrence/RecurrenceSection.tsx)
+  rendered on the Task detail page between Attachments and Dates. When
+  no rule exists: a single "Set up recurrence" button. When one exists:
+  a human-readable summary ("Every 2 weeks on Mon, Wed · next run … ·
+  spawned N of M") plus Edit / Remove. Form uses `ShamsiDatePicker` for
+  `startsOn` / `endsOn` so calendar dates stay UTC-midnight; checkbox
+  weekday picker appears only when `frequency=WEEKLY`.
+
+### Tests
+
+- New [tests/integration/recurrence.test.ts](backend/tests/integration/recurrence.test.ts)
+  — 8 cases:
+  - PUT then GET round-trip; 204 when no rule.
+  - DELETE removes template but keeps spawned tasks (FK SetNull verified).
+  - `spawnDue` spawns once per period; re-tick before `nextRunAt` no-ops.
+  - Spawned task copies labels + subtasks (with `done=false`); never copies
+    `completedAt`; applies due/planned offsets.
+  - WEEKLY byWeekday advances to the next matching weekday after each spawn.
+  - `maxCount` cap deactivates the template after the Nth spawn.
+  - `endsOn` cutoff applied to the period: late ticks still settle in-window
+    spawns, but skip after-cutoff periods.
+- Suite: **160/160** (was 152 → +8 recurrence).
+
+### Verified
+
+- Live smoke against the running stack: PUT a daily rule on an existing
+  task (startsOn=−2 days) → `POST /tick` spawns 1 row for today's period
+  with `spawnedFromTemplateId` set + `spawnedForPeriod=2026-05-23` →
+  second `/tick` returns `spawned: 0` (nextRunAt already advanced past
+  now) → DELETE returns 204 and the spawned task survives.
+
+### Phase 4 boundary
+
+- Single-instance scheduling. Multi-instance deploys must enable
+  `RECURRENCE_ENABLED=true` on exactly one node (the unique constraint
+  protects correctness, but each N-th instance would generate N-1
+  wasted insert-and-rollback round-trips per period).
+- RRULE subset only — no `BYMONTHDAY`, no `BYSETPOS`, no `COUNT/UNTIL`
+  combinations beyond what `maxCount` + `endsOn` cover. The schema can
+  grow into these without an API rename.
+- The scheduler default interval is 60 minutes (`RECURRENCE_CHECK_INTERVAL_MIN`).
+  Sub-minute resolution isn't supported anyway because the period key is
+  `YYYY-MM-DD`.
+
 ## [1.8.0] — 2026-05-23
 
 Phase 3B — API tokens + outbound webhooks. Adds a second authentication

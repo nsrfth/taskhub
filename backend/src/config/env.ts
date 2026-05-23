@@ -61,6 +61,15 @@ const envSchema = z.object({
     .transform((v) => v === 'true'),
   WEBHOOK_DISPATCH_INTERVAL_SEC: z.coerce.number().int().positive().default(5),
   WEBHOOK_DISPATCH_BATCH: z.coerce.number().int().positive().default(10),
+
+  // Recurrence scheduler (Phase 4). Same opt-in shape. Disabled by default
+  // so tests + dev runs don't materialise tasks unexpectedly. Multi-instance
+  // deploys: enable on exactly one node.
+  RECURRENCE_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  RECURRENCE_CHECK_INTERVAL_MIN: z.coerce.number().int().positive().default(60),
 });
 
 export type Env = z.infer<typeof envSchema> & { corsOrigins: string[] };

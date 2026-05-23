@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { createDueDateScheduler } from './scheduler/dueDateScheduler.js';
 import { createWebhookDispatcher } from './scheduler/webhookDispatcher.js';
+import { createRecurrenceScheduler } from './scheduler/recurrenceScheduler.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -29,11 +30,21 @@ async function main(): Promise<void> {
     : null;
   webhookDispatcher?.start();
 
+  // Recurrence — spawns repeating tasks when their nextRunAt elapses.
+  const recurrenceScheduler = env.RECURRENCE_ENABLED
+    ? createRecurrenceScheduler({
+        intervalMin: env.RECURRENCE_CHECK_INTERVAL_MIN,
+        logger: app.log,
+      })
+    : null;
+  recurrenceScheduler?.start();
+
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
     try {
       dueScheduler?.stop();
       webhookDispatcher?.stop();
+      recurrenceScheduler?.stop();
       await app.close();
       process.exit(0);
     } catch (err) {
