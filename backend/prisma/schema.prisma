@@ -251,6 +251,9 @@ model Team {
   // mappings rather than manually managed. Manager-driven invites are
   // disabled in the UI for directory-managed teams.
   directoryId   String?
+  // v1.12: per-team accent colour shown on kanban cards + calendar views.
+  // Hex like "#3b82f6"; null = default slate. Admins / team managers set it.
+  color         String?
   createdAt     DateTime         @default(now())
   memberships   TeamMembership[]
   projects      Project[]

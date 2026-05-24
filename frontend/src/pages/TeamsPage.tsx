@@ -140,9 +140,21 @@ export default function TeamsPage(): JSX.Element {
           {currentTeamId && detailLoading && <p className="text-sm text-slate-500">Loading…</p>}
           {detail && (
             <>
-              <div className="mb-4">
-                <h2 className="text-lg font-medium">{detail.name}</h2>
-                <p className="text-xs font-mono text-slate-500">{detail.slug}</p>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-medium flex items-center gap-2">
+                    {detail.color && (
+                      <span
+                        aria-hidden
+                        className="inline-block w-4 h-4 rounded-full border border-slate-200"
+                        style={{ background: detail.color }}
+                      />
+                    )}
+                    {detail.name}
+                  </h2>
+                  <p className="text-xs font-mono text-slate-500">{detail.slug}</p>
+                </div>
+                {isManager && <TeamColourPicker team={detail} />}
               </div>
 
               <h3 className="text-sm font-medium mb-2">Members</h3>
@@ -221,6 +233,60 @@ export default function TeamsPage(): JSX.Element {
           )}
         </main>
       </section>
+    </div>
+  );
+}
+
+// v1.12: per-team accent colour picker (manager-only). 8 preset swatches +
+// a native colour input for arbitrary values. Saves through teamsApi.updateTeam
+// + invalidates the cached detail / list so the new value lands everywhere.
+const PRESET_COLOURS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
+  '#8b5cf6', '#ec4899', '#14b8a6', '#64748b',
+];
+
+function TeamColourPicker({ team }: { team: teamsApi.TeamDetail }): JSX.Element {
+  const qc = useQueryClient();
+  const { refresh } = useTeams();
+  const updateMut = useMutation({
+    mutationFn: (color: string | null) => teamsApi.updateTeam(team.id, { color }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['teams', 'detail', team.id] }),
+        refresh(),
+      ]);
+    },
+  });
+  const current = team.color ?? '';
+  return (
+    <div className="flex items-center gap-1">
+      {PRESET_COLOURS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          aria-label={`Set colour ${c}`}
+          onClick={() => updateMut.mutate(c)}
+          className={`w-5 h-5 rounded-full border ${current === c ? 'ring-2 ring-offset-1 ring-slate-900' : 'border-slate-200'}`}
+          style={{ background: c }}
+        />
+      ))}
+      <input
+        type="color"
+        value={current || '#000000'}
+        onChange={(e) => updateMut.mutate(e.target.value)}
+        title="Custom colour"
+        className="w-5 h-5 rounded border border-slate-200 cursor-pointer"
+      />
+      {team.color && (
+        <button
+          type="button"
+          onClick={() => updateMut.mutate(null)}
+          title="Clear colour"
+          className="text-xs text-slate-500 underline ml-1"
+        >
+          clear
+        </button>
+      )}
     </div>
   );
 }

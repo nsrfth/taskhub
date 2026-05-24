@@ -93,6 +93,9 @@ export default function DashboardPage(): JSX.Element {
             <Link to="/reports" className="underline text-slate-600">
               Reports
             </Link>
+            <Link to="/calendar" className="underline text-slate-600">
+              Calendar
+            </Link>
           </div>
         )}
         <p className="mt-2 text-xs text-slate-500">

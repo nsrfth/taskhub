@@ -71,10 +71,15 @@ function SortableCard({ task, onOpen, onDelete, onStatusChange }: SortableCardPr
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+  // v1.12: paint the team's accent colour as a left stripe so cards from
+  // different teams (in cross-team views) read instantly. Falls back to
+  // slate when the team has no colour configured.
+  const { currentTeam } = useTeams();
+  const accent = currentTeam?.color ?? '#cbd5e1';
   return (
     <li
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, borderLeft: `4px solid ${accent}` }}
       className="rounded border border-slate-200 p-2 text-sm bg-white"
       {...attributes}
     >

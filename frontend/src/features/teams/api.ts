@@ -6,6 +6,9 @@ export interface Team {
   id: string;
   name: string;
   slug: string;
+  // v1.12: per-team accent colour shown on kanban cards + calendar views.
+  // Hex (#RRGGBB); null = default slate.
+  color: string | null;
   createdAt: string;
   myRole: TeamRole;
 }
@@ -26,12 +29,20 @@ export async function listMyTeams(): Promise<Team[]> {
   return (await api.get<Team[]>('/teams')).data;
 }
 
-export async function createTeam(input: { name: string; slug: string }): Promise<Team> {
+export async function createTeam(input: { name: string; slug: string; color?: string }): Promise<Team> {
   return (await api.post<Team>('/teams', input)).data;
 }
 
 export async function getTeam(teamId: string): Promise<TeamDetail> {
   return (await api.get<TeamDetail>(`/teams/${teamId}`)).data;
+}
+
+// v1.12: PATCH team metadata. color: null explicitly clears it.
+export async function updateTeam(
+  teamId: string,
+  input: { name?: string; slug?: string; color?: string | null },
+): Promise<Team> {
+  return (await api.patch<Team>(`/teams/${teamId}`, input)).data;
 }
 
 export async function addMember(

@@ -4,6 +4,70 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] — 2026-05-24
+
+Team colours + cross-project Calendar views page. The Calendar page reads
+every task in the current team across every project, lays them on a date
+grid (work-week / week / month), paints each task pill with its team's
+accent colour, and tints admin-configured off-days red.
+
+### Schema
+
+- `Team.color: String?` — hex like `#3b82f6`; null = default slate.
+  Migration `20260524100000_team_color`, additive.
+
+### Backend
+
+- Team routes accept + return `color` (validated as `^#[0-9a-fA-F]{6}$`).
+  Service layer + Zod schemas updated.
+- Default seed team gets `#3b82f6` so fresh installs show colour immediately.
+- New `GET /api/teams/:teamId/calendar?since=ISO&until=ISO&field=due|planned`
+  returning every task whose chosen date sits in the window, with the
+  joined `projectName` + `teamName` + `teamColor` attached.
+
+### Frontend
+
+- **Teams page** — manager-only colour picker on each team detail: 8
+  presets + a native `<input type="color">` + a Clear button. Saving
+  invalidates `teams.detail` + the team list cache so every consumer
+  picks up the new colour without a refresh.
+- **Kanban cards** ([TasksPage](frontend/src/pages/TasksPage.tsx)) — left
+  border now uses the active team's colour. Falls back to slate.
+- **Bug fix** carried over: the `/about` route from v1.11.0 was wired to
+  AboutButton but missing from the router. Now registered.
+- **New Calendar page** ([CalendarPage.tsx](frontend/src/pages/CalendarPage.tsx))
+  at `/calendar`. Linked from the Dashboard.
+  - Three view modes:
+    - **Work-week** — 5 cells starting on the first non-off-day. With
+      Sat+Sun off the cursor lands on Monday; with Thu+Fri off it lands
+      on Saturday. Pure off-day-driven, no separate config.
+    - **Week** — 7 cells, Sun-leading.
+    - **Month** — 6-week grid (42 cells), days outside the current
+      month dimmed.
+  - Off-days painted red (header label + cell background tint).
+  - Tasks render as coloured pills inside each day cell; click → task
+    detail. Pill colour = team accent. Cells show up to 8 tasks in
+    week / work-week modes, 3 + "+N more" in month mode.
+  - Toolbar: view tabs, previous / today / next nav, month label,
+    and a "Date field" dropdown to switch between `dueDate` (default)
+    and `plannedDate` bucketing.
+
+### Verified
+
+- Live: PATCH team colour → calendar feed returns it on every item →
+  picker tints kanban cards.
+- Frontend + backend build clean.
+
+### Phase boundary
+
+- Calendar is read-only — no drag-and-drop reschedule yet (a follow-up
+  would PATCH the task's `dueDate` from the source cell to the drop cell).
+- Work-week mode shows the 5 cells starting from the cursor's first
+  workday. A "previous / next" click jumps by 7 calendar days; the
+  cursor then re-aligns to the next workday on render. This is the
+  obvious behaviour; users wanting strict "work-week N → work-week N+1"
+  iteration can simply click next twice on a Friday.
+
 ## [1.11.1] — 2026-05-24
 
 Workweek presets. The v1.11.0 admin Workweek section is now driven by two

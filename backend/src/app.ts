@@ -24,6 +24,7 @@ import { apiTokensRoutes } from './routes/apiTokens.js';
 import { webhooksRoutes } from './routes/webhooks.js';
 import { recurrenceRoutes } from './routes/recurrence.js';
 import { systemRoutes } from './routes/system.js';
+import { calendarRoutes } from './routes/calendar.js';
 import { prisma } from './data/prisma.js';
 
 // App factory — separate from server.ts so tests can spin up the app without
@@ -118,6 +119,9 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // v1.11: public read-only system info. No auth, no rate limit — used
     // by the About page + the calendar weekend reader.
     await api.register(systemRoutes, { prefix: '/system' });
+
+    // v1.12: team-scoped cross-project calendar feed.
+    await api.register(calendarRoutes, { prefix: '/teams/:teamId/calendar' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

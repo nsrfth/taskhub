@@ -15,6 +15,8 @@ import AuditPage from '@/pages/settings/AuditPage';
 import ApiWebhooksPage from '@/pages/settings/ApiWebhooksPage';
 import PreferencesPage from '@/pages/settings/PreferencesPage';
 import HelpPage from '@/pages/HelpPage';
+import AboutPage from '@/pages/AboutPage';
+import CalendarPage from '@/pages/CalendarPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -31,7 +33,9 @@ export const router = createBrowserRouter([
       { path: '/projects/:projectId/tasks/:taskId', element: <TaskDetailPage /> },
       { path: '/admin', element: <AdminPage /> },
       { path: '/reports', element: <ReportsPage /> },
+      { path: '/calendar', element: <CalendarPage /> },
       { path: '/help', element: <HelpPage /> },
+      { path: '/about', element: <AboutPage /> },
       {
         path: '/settings',
         element: <SettingsLayout />,

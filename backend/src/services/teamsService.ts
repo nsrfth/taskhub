@@ -10,6 +10,7 @@ export interface TeamWithRole {
   id: string;
   name: string;
   slug: string;
+  color: string | null;
   createdAt: Date;
   myRole: TeamRole;
 }
@@ -25,13 +26,14 @@ export interface TeamMemberView {
 export class TeamsService {
   async create(
     creatorId: string,
-    input: { name: string; slug: string },
+    input: { name: string; slug: string; color?: string },
   ): Promise<TeamWithRole> {
     try {
       const team = await prisma.team.create({
         data: {
           name: input.name,
           slug: input.slug,
+          color: input.color ?? null,
           memberships: { create: { userId: creatorId, role: 'MANAGER' } },
         },
       });
@@ -39,6 +41,7 @@ export class TeamsService {
         id: team.id,
         name: team.name,
         slug: team.slug,
+        color: team.color,
         createdAt: team.createdAt,
         myRole: 'MANAGER',
       };
@@ -60,6 +63,7 @@ export class TeamsService {
       id: m.team.id,
       name: m.team.name,
       slug: m.team.slug,
+      color: m.team.color,
       createdAt: m.team.createdAt,
       myRole: m.role,
     }));
@@ -83,6 +87,7 @@ export class TeamsService {
         id: team.id,
         name: team.name,
         slug: team.slug,
+        color: team.color,
         createdAt: team.createdAt,
         myRole: myMembership.role,
       },
@@ -98,9 +103,9 @@ export class TeamsService {
 
   async update(
     teamId: string,
-    input: { name?: string; slug?: string },
+    input: { name?: string; slug?: string; color?: string | null },
   ): Promise<TeamWithRole & { myRole: TeamRole }> {
-    if (input.name === undefined && input.slug === undefined) {
+    if (input.name === undefined && input.slug === undefined && input.color === undefined) {
       throw Errors.badRequest('Provide at least one field to update');
     }
     try {

@@ -88,10 +88,12 @@ async function main(): Promise<void> {
     },
   });
 
+  // v1.12: seed an accent colour so the kanban + calendar render the
+  // team in colour out of the box.
   const team = await prisma.team.upsert({
     where: { slug: 'demo-team' },
     update: {},
-    create: { name: 'Demo Team', slug: 'demo-team' },
+    create: { name: 'Demo Team', slug: 'demo-team', color: '#3b82f6' },
   });
 
   // Memberships — admin + riley as MANAGERs so the demo exercises both roles.

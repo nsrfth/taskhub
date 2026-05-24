@@ -9,14 +9,22 @@ export const slugSchema = z
   .max(60)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug must be lowercase letters/digits separated by single hyphens');
 
+// v1.12: 7-char hex (#RRGGBB) — strict so we don't render arbitrary
+// strings into a CSS background-color and confuse the parser. Null
+// means "use the default slate accent" (handled by the frontend).
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Hex colour like #3b82f6');
+
 export const createTeamBody = z.object({
   name: z.string().min(1).max(120).trim(),
   slug: slugSchema,
+  color: hexColor.optional(),
 });
 
 export const updateTeamBody = z.object({
   name: z.string().min(1).max(120).trim().optional(),
   slug: slugSchema.optional(),
+  // Accept `null` to explicitly clear the colour.
+  color: hexColor.nullable().optional(),
 });
 
 export const addMemberBody = z.object({
@@ -35,6 +43,7 @@ export const teamResponse = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
+  color: z.string().nullable(),
   createdAt: z.string(),
   myRole: z.enum(['MANAGER', 'MEMBER']),
 });
