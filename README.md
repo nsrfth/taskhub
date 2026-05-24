@@ -27,6 +27,7 @@ cp .env.example .env
 #   openssl rand -base64 48   # JWT_REFRESH_SECRET
 # Edit .env: secrets, SITE_HOST, ACME_EMAIL, CORS_ORIGINS, POSTGRES_PASSWORD.
 docker compose up -d --build
+docker compose exec backend npx prisma db seed
 ```
 
 Caddy listens on ports 80 and 443. Set `SITE_HOST` to your public hostname and
@@ -35,6 +36,10 @@ local-only HTTP, leave `SITE_HOST=:80`.
 
 Visit `http://<host>/` for the SPA and `http://<host>/api/docs` for the
 OpenAPI / Swagger UI.
+
+**For the full install walkthrough** — every env var, optional integrations
+(SMTP / LDAP / SCIM / webhooks), background schedulers, upgrades, and
+troubleshooting — see [INSTALL.md](INSTALL.md).
 
 ## Quick start (local development)
 
@@ -48,7 +53,7 @@ cd backend
 cp .env.example .env
 npm install
 npx prisma migrate dev
-npx prisma db seed     # creates the first admin: admin@example.com / ChangeMe123!
+npx prisma db seed     # creates admin@taskhub.local / admin (+ 3 demo members + demo data)
 npm run dev            # http://localhost:4000
 
 # Frontend (new terminal)

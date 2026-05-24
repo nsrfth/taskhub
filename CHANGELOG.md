@@ -4,6 +4,19 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Docs
+
+- New [INSTALL.md](INSTALL.md) — full deployment walkthrough: prerequisites,
+  compose + local-dev paths, full env catalog (v1.0 → v1.15), HTTPS with
+  Caddy, optional integrations (SMTP / LDAP / SCIM / webhooks / API tokens
+  / recurrence), background schedulers, verification probes, common ops,
+  upgrade flow, troubleshooting.
+- README quick-start updated to call out the post-`up` seed step and link
+  to INSTALL.md. Stale `admin@example.com` / `ChangeMe123!` reference
+  corrected to the current `admin@taskhub.local` / `admin` seed.
+
 ## [1.15.0] — 2026-05-24
 
 Persistent top navigation bar.
