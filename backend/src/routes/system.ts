@@ -27,6 +27,13 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
           // convention) that the instance treats as off-days. Public so
           // the date picker can colour cells red before login.
           calendarWeekend: z.array(z.number().int().min(0).max(6)),
+          // v1.18: who can MODIFY (vs add) the due/planned dates on a task.
+          //   open         — anyone in the team can edit (default)
+          //   manager-only — members can only ADD dates when null;
+          //                  modifying a non-null date or clearing it
+          //                  requires team MANAGER or global ADMIN
+          // Public so the SPA can render the disabled state for everyone.
+          dateEditRestriction: z.enum(['open', 'manager-only']),
           counts: z.object({
             users: z.number().int(),
             teams: z.number().int(),
@@ -57,6 +64,19 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
         // Leave default.
       }
 
+      // v1.18: read the date-edit restriction setting tolerantly. Unknown
+      // values fall back to "open" (the safe default — preserves pre-v1.18
+      // behaviour for any instance that never set this key).
+      let dateEditRestriction: 'open' | 'manager-only' = 'open';
+      try {
+        const row = await prisma.instanceSetting.findUnique({
+          where: { key: 'tasks.dateEditRestriction' },
+        });
+        if (row?.value === 'manager-only') dateEditRestriction = 'manager-only';
+      } catch {
+        // Leave default.
+      }
+
       const [users, teams, tasks] = await Promise.all([
         prisma.user.count().catch(() => 0),
         prisma.team.count().catch(() => 0),
@@ -72,6 +92,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
         buildTime: process.env.TASKHUB_BUILD_TIME ?? null,
         nodeEnv: process.env.NODE_ENV ?? 'unknown',
         calendarWeekend: weekend,
+        dateEditRestriction,
         counts: { users, teams, tasks },
       });
     },

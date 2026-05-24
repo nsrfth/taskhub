@@ -57,6 +57,63 @@ Opt-in "update available" check.
 - Cache is in-memory per replica. In a multi-replica deploy each backend
   gets its own GitHub call; harmless at ~4 calls/day/replica.
 
+## [1.18.0] — 2026-05-24
+
+Admin-controlled task-date editing restriction.
+
+### Backend
+
+- New InstanceSetting key `tasks.dateEditRestriction` (`"open"` |
+  `"manager-only"`). Default is unset → behaves as `"open"`, preserving
+  pre-v1.18 behaviour.
+- `tasksService.update()` now takes `actorTeamRole` + `actorGlobalRole`
+  and consults the setting. When `manager-only` AND the caller is a
+  team MEMBER (not a MANAGER, not a global ADMIN):
+  - ADDING a date to a task where the field was null → allowed
+  - MODIFYING an existing non-null date → 403
+  - CLEARING an existing non-null date → 403
+  Applies independently to `dueDate`, `plannedDate`, and `completedAt`.
+- `tasksController.update` reads the resolved team membership from the
+  request context (already stashed by `requireTeamRole`) and threads
+  both roles through.
+- `/api/system/info` now exposes `dateEditRestriction` so the SPA
+  knows the active rule without an auth round-trip (the
+  /settings endpoints are admin-only).
+
+### Frontend
+
+- New admin-only "Task dates — who can change them?" section in
+  Settings → Preferences. Two radios (Open / Manager-only); PUT to
+  `/settings/instance/tasks.dateEditRestriction` and invalidates the
+  cached `system/info` so other components pick up the change without
+  a hard reload.
+- `SystemInfo` type extended with the new field.
+- 403 from the date-edit gate flows through the existing TaskDetail
+  mutation-error handler — the user sees the friendly
+  "dueDate can only be changed by team managers or admins" message
+  inline. No per-input disabled state added in this release; that's a
+  small follow-up if you want it.
+
+### Tests
+
+- 8 new integration tests covering: default open behaviour,
+  manager-only add-allowed, manager-only modify-forbidden,
+  manager-only clear-forbidden, ADMIN bypass, non-date PATCH still
+  works for members, and the public system/info exposure of the
+  setting. 22/22 in the relevant files (14 existing task tests +
+  8 new) pass.
+
+### Verified
+
+- Backend typecheck clean; frontend build clean.
+
+### Phase boundary
+
+- Per-input disabled state on the date pickers isn't wired this
+  release — the server-side rule is the source of truth and the 403
+  surfaces as a toast. If you want the inputs greyed out before the
+  attempt, surface specific pages and I'll do a small follow-up.
+
 ## [1.17.0] — 2026-05-24
 
 Project Accountable field · dark-theme sweep · upgrade-safety doc.

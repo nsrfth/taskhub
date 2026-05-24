@@ -163,7 +163,81 @@ export default function PreferencesPage(): JSX.Element {
 
       {/* Admin-only Workweek section — instance-wide. Untouched from v1.11. */}
       {user?.globalRole === 'ADMIN' && <WorkweekSection />}
+
+      {/* v1.18: admin-only date-edit restriction. Instance-wide. */}
+      {user?.globalRole === 'ADMIN' && <DateEditRestrictionSection />}
     </section>
+  );
+}
+
+function DateEditRestrictionSection(): JSX.Element {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['system', 'info'],
+    queryFn: fetchSystemInfo,
+    staleTime: 5 * 60_000,
+  });
+  const [draft, setDraft] = useState<'open' | 'manager-only'>(() => data?.dateEditRestriction ?? 'open');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data) setDraft(data.dateEditRestriction);
+  }, [data]);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      // The InstanceSetting endpoint takes any JSON value at the chosen key.
+      await api.put('/settings/instance/tasks.dateEditRestriction', { value: draft });
+      return draft;
+    },
+    onSuccess: () => {
+      setError(null);
+      qc.invalidateQueries({ queryKey: ['system', 'info'] });
+      // No reload needed — task pages re-fetch systemInfo on next mount.
+    },
+    onError: (err) => setError(errorMessage(err, 'Could not save')),
+  });
+
+  const dirty = data && draft !== data.dateEditRestriction;
+
+  return (
+    <form
+      onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate(); }}
+      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+    >
+      <h3 className="font-medium">Task dates — who can change them? (admin · instance-wide)</h3>
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        Controls who can MODIFY the due / planned / completed dates on a task.
+        Adding a date when none exists is always allowed for everyone.
+      </p>
+      {isLoading && <p className="text-xs text-slate-400">Loading…</p>}
+      <div className="space-y-2">
+        <Radio
+          name="date-edit-restriction"
+          value="open"
+          checked={draft === 'open'}
+          onChange={() => setDraft('open')}
+          label={<><strong>Open</strong> — anyone in the team can add, change, or clear any date.</>}
+        />
+        <Radio
+          name="date-edit-restriction"
+          value="manager-only"
+          checked={draft === 'manager-only'}
+          onChange={() => setDraft('manager-only')}
+          label={<><strong>Manager-only</strong> — members can ADD a date when none is set, but only team MANAGERS or global ADMINS can change or clear an existing date.</>}
+        />
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={saveMut.isPending || !dirty}
+          className="bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
+        >
+          {saveMut.isPending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
   );
 }
 

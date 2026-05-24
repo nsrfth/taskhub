@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { TeamMembership } from '@prisma/client';
 import type { TasksService, TaskView } from '../services/tasksService.js';
 import type {
   CreateTaskBody,
@@ -10,6 +11,15 @@ import { Errors } from '../lib/errors.js';
 
 type ProjectParams = { teamId: string; projectId: string };
 type TaskParams = { teamId: string; projectId: string; taskId: string };
+
+// requireTeamRole stashes the resolved membership on the request so handlers
+// can read the caller's role without an extra DB hit. Same helper pattern as
+// projectsController.
+function callerMembership(req: FastifyRequest): TeamMembership {
+  const m = (req as unknown as { membership?: TeamMembership }).membership;
+  if (!m) throw Errors.internal('Missing team membership context');
+  return m;
+}
 
 function serialize(t: TaskView) {
   return {
@@ -52,11 +62,14 @@ export class TasksController {
     reply: FastifyReply,
   ) => {
     if (!req.user) throw Errors.unauthorized();
+    const m = callerMembership(req);
     const t = await this.svc.update(
       req.params.teamId,
       req.params.projectId,
       req.params.taskId,
       req.user.sub,
+      m.role,
+      req.user.globalRole,
       req.body,
     );
     return reply.send(serialize(t));

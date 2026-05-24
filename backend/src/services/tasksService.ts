@@ -1,9 +1,48 @@
-import { Prisma, type TaskPriority, type TaskStatus } from '@prisma/client';
+import { Prisma, type GlobalRole, type TaskPriority, type TaskStatus, type TeamRole } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import { logActivity } from './activityLogger.js';
 import { notifications } from './notificationsService.js';
 import { WebhookService } from './webhookService.js';
+
+// v1.18: read the instance-level date-edit restriction at PATCH time. Members
+// can always ADD a date that's null; only MANAGERS / global ADMINs can MODIFY
+// or CLEAR a non-null date when the setting is "manager-only".
+async function readDateEditRestriction(): Promise<'open' | 'manager-only'> {
+  try {
+    const row = await prisma.instanceSetting.findUnique({
+      where: { key: 'tasks.dateEditRestriction' },
+    });
+    return row?.value === 'manager-only' ? 'manager-only' : 'open';
+  } catch {
+    return 'open';
+  }
+}
+
+// Throws 403 with a friendly message if the caller is gated out of modifying
+// the supplied date field. Pure helper — no DB calls.
+function assertCanEditDate(
+  fieldLabel: string,
+  existingValue: Date | null,
+  incomingValue: string | null,
+  callerTeamRole: TeamRole,
+  callerGlobalRole: GlobalRole,
+  restriction: 'open' | 'manager-only',
+): void {
+  if (restriction !== 'manager-only') return;
+  if (callerTeamRole === 'MANAGER' || callerGlobalRole === 'ADMIN') return;
+  // Adding a date when none exists is always allowed (the wording from the
+  // user request: "they can add but they can't modify"). Modification +
+  // clearing both require manager/admin.
+  const incomingDate = incomingValue === null ? null : new Date(incomingValue);
+  const existingIso = existingValue?.toISOString() ?? null;
+  const incomingIso = incomingDate?.toISOString() ?? null;
+  if (existingIso === incomingIso) return; // no-op
+  if (existingValue === null) return; // adding
+  throw Errors.forbidden(
+    `${fieldLabel} can only be changed by team managers or admins on this instance`,
+  );
+}
 
 // Webhook emitter shared across task-mutating paths. emit() is best-effort
 // and runs after the transaction commits — failures don't bubble.
@@ -229,6 +268,8 @@ export class TasksService {
     projectId: string,
     taskId: string,
     actorId: string,
+    actorTeamRole: TeamRole,
+    actorGlobalRole: GlobalRole,
     input: {
       title?: string;
       description?: string | null;
@@ -247,6 +288,47 @@ export class TasksService {
         where: { userId_teamId: { userId: input.assigneeId, teamId } },
       });
       if (!membership) throw Errors.badRequest('Assignee is not a member of this team');
+    }
+
+    // v1.18: date-edit restriction. Only consulted when the caller is
+    // touching one of the three date fields; the DB read is cheap but
+    // skipping it on no-op patches keeps the hot path quick.
+    if (
+      input.dueDate !== undefined ||
+      input.plannedDate !== undefined ||
+      input.completedAt !== undefined
+    ) {
+      const restriction = await readDateEditRestriction();
+      if (input.dueDate !== undefined) {
+        assertCanEditDate(
+          'dueDate',
+          existing.dueDate,
+          input.dueDate,
+          actorTeamRole,
+          actorGlobalRole,
+          restriction,
+        );
+      }
+      if (input.plannedDate !== undefined) {
+        assertCanEditDate(
+          'plannedDate',
+          existing.plannedDate,
+          input.plannedDate,
+          actorTeamRole,
+          actorGlobalRole,
+          restriction,
+        );
+      }
+      if (input.completedAt !== undefined) {
+        assertCanEditDate(
+          'completedAt',
+          existing.completedAt,
+          input.completedAt,
+          actorTeamRole,
+          actorGlobalRole,
+          restriction,
+        );
+      }
     }
 
     // Moving across status columns: re-append to the end of the new column so
