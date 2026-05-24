@@ -21,8 +21,12 @@ function day(y: number, m: number, d: number): Date {
 const TODAY = day(2026, 5, 22);
 
 async function main(): Promise<void> {
-  const adminEmail = 'admin@taskhub.local';
-  const adminPassword = 'admin';
+  // Installer hook (install.sh / install.ps1): seed honours these env vars so
+  // the first admin lands with operator-chosen credentials instead of the
+  // weak default. Fall back to the legacy demo defaults when unset so
+  // `prisma db seed` keeps working stand-alone.
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@taskhub.local';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'admin';
   const memberPassword = 'demo1234';
 
   // Idempotent: if the demo admin already exists with at least one project,

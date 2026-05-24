@@ -59,6 +59,33 @@ The compose stack is five services: `postgres`, `redis`, `backend`,
 `frontend-build` (one-shot), and `caddy`. There is also an `openldap` service
 behind the `ldap` profile (off by default).
 
+### Easiest: the interactive installer
+
+If you just want to get TaskHub up, run the installer for your shell — it
+prompts only for things that need a human decision (site host, admin email,
+admin password) and auto-generates the rest (JWT secrets, MASTER_KEY,
+Postgres password). It writes `.env`, brings the stack up, waits for the
+backend to be healthy, then seeds with your chosen admin credentials.
+
+```bash
+# Linux / macOS / WSL
+./install.sh
+```
+
+```powershell
+# Windows PowerShell
+.\install.ps1
+```
+
+Optional integrations (SMTP, LDAP, schedulers) are intentionally **not**
+prompted — the installer writes "off" defaults so you can flip them by
+editing `.env` later. See [Optional integrations](#optional-integrations).
+
+If you'd rather configure `.env` by hand, follow the manual steps below
+instead.
+
+### Manual configuration
+
 ### 1. Clone + configure
 
 ```bash

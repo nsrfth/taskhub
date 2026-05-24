@@ -6,13 +6,31 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Tooling
+
+- New interactive installers at the repo root: `install.sh` (Linux / macOS /
+  WSL) and `install.ps1` (Windows PowerShell). Each prompts only for things
+  that need a human decision (site host, ACME email, admin email + password)
+  and auto-generates the rest (JWT secrets, MASTER_KEY, Postgres password).
+  Writes `.env`, brings the stack up, waits for backend health, then seeds
+  with the chosen admin credentials. Optional integrations (SMTP, LDAP,
+  schedulers) are left as "off" defaults — flip in `.env` later.
+
+### Backend
+
+- `prisma/seed.ts` now reads `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` env
+  vars and falls back to the legacy `admin@taskhub.local` / `admin` defaults
+  when unset. The installers use this hook to land an operator-chosen admin
+  on first seed.
+
 ### Docs
 
 - New [INSTALL.md](INSTALL.md) — full deployment walkthrough: prerequisites,
   compose + local-dev paths, full env catalog (v1.0 → v1.15), HTTPS with
   Caddy, optional integrations (SMTP / LDAP / SCIM / webhooks / API tokens
   / recurrence), background schedulers, verification probes, common ops,
-  upgrade flow, troubleshooting.
+  upgrade flow, troubleshooting. Now leads with the installer for the
+  easy path.
 - README quick-start updated to call out the post-`up` seed step and link
   to INSTALL.md. Stale `admin@example.com` / `ChangeMe123!` reference
   corrected to the current `admin@taskhub.local` / `admin` seed.
