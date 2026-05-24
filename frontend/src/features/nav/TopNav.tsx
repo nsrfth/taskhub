@@ -27,6 +27,7 @@ export default function TopNav(): JSX.Element {
     { to: '/calendar', label: t('nav.calendar') },
     { to: '/reports', label: t('nav.reports') },
     { to: '/teams', label: t('nav.teams') },
+    { to: '/trash', label: 'Trash' },
   ];
 
   return (

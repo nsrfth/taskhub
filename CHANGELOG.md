@@ -57,6 +57,79 @@ Opt-in "update available" check.
 - Cache is in-memory per replica. In a multi-replica deploy each backend
   gets its own GitHub call; harmless at ~4 calls/day/replica.
 
+## [1.21.0] — 2026-05-24
+
+Trash: soft-delete for Tasks + Comments, restore, admin-gated purge.
+
+### Schema
+
+- `Task.deletedAt` + `Task.deletedById` (FK → User SET NULL).
+  Index `(teamId, deletedAt)`.
+- `Comment.deletedAt` + `Comment.deletedById` (same shape).
+  Index `(taskId, deletedAt)`.
+- Migration `20260524150000_trash`, additive — existing rows get
+  `deletedAt = NULL` (live).
+
+### Backend
+
+- `tasksService.remove` + `commentsService.remove` now SOFT-delete:
+  stamp `deletedAt = now()` + `deletedById = actorId`. The row
+  survives. Every read path (`list`, `get`) filters `deletedAt IS NULL`,
+  so existing API behaviour is identical from the caller's point of
+  view: DELETE then GET returns 404, as before.
+- New `services/trashService.ts` + `routes/trash.ts` mounted at
+  `/api/teams/:teamId/trash`:
+  - `GET /` — list deleted tasks + comments scoped to the team,
+    newest first, with `deletedByName` joined for the UI
+  - `POST /tasks/:id/restore` + `POST /comments/:id/restore` — any
+    team member can undo
+  - `DELETE /tasks/:id` + `DELETE /comments/:id` — hard delete
+    (purge); role-gated
+  - `POST /empty` — bulk hard-delete every soft-deleted row in the
+    team's trash; same role gate; returns
+    `{ tasksPurged, commentsPurged }` counts
+- New InstanceSetting key `trash.emptyAllowedRoles`
+  (`"admin"` default · `"admin-and-manager"`). Default = global
+  ADMINs only can purge or empty. The setting echoes back in the
+  trash list response so the SPA greys out unavailable buttons
+  without trial-and-error.
+
+### Frontend
+
+- New `/trash` route + `pages/TrashPage.tsx`:
+  - Two sections: Tasks and Comments, with relative-time deletion
+    timestamps + the user who deleted each item
+  - Restore button on every row (any team member)
+  - "Delete forever" + "Empty trash" buttons greyed out when the
+    viewer's role doesn't satisfy `emptyAllowedRoles`
+  - Confirmation prompts on permanent delete
+- Trash link in the TopNav after Teams.
+
+### Tests
+
+- 5 new trash integration tests: soft-delete-then-list filter,
+  any-member restore, MEMBER purge forbidden (403), ADMIN purge +
+  empty with counts, MANAGER-can-purge when setting is widened.
+- Existing 22 task + comment tests still pass (soft-delete is
+  invisible to the existing 404-on-delete expectations).
+
+### Verified
+
+- Backend typecheck clean; frontend build clean.
+
+### Phase boundary
+
+- **Projects, subtasks, attachments, labels keep hard-delete in this
+  release.** Soft-deleting a project would require breaking the
+  current Prisma cascade-delete (which would otherwise drag every
+  child task with it) — a much bigger surgery. Same for the
+  remaining entity types. The trash UI shows only what's in scope.
+- No retention policy yet. Trash grows until someone empties it.
+  A scheduler-driven auto-purge (e.g. "anything older than 30 days
+  is permanently deleted") is the obvious next iteration.
+- No per-row "deleted by" reason / undo notification — restore is
+  silent.
+
 ## [1.20.0] — 2026-05-24
 
 Kanban view-mode toggle: "by Status" / "by Technician".

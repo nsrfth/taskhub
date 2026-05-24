@@ -25,6 +25,7 @@ import { webhooksRoutes } from './routes/webhooks.js';
 import { recurrenceRoutes } from './routes/recurrence.js';
 import { systemRoutes } from './routes/system.js';
 import { calendarRoutes } from './routes/calendar.js';
+import { trashRoutes } from './routes/trash.js';
 import { prisma } from './data/prisma.js';
 
 // App factory — separate from server.ts so tests can spin up the app without
@@ -122,6 +123,10 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
 
     // v1.12: team-scoped cross-project calendar feed.
     await api.register(calendarRoutes, { prefix: '/teams/:teamId/calendar' });
+
+    // v1.21: soft-delete trash. List + restore for any team member; purge +
+    // empty gated by the per-instance trash.emptyAllowedRoles setting.
+    await api.register(trashRoutes, { prefix: '/teams/:teamId/trash' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

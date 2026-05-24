@@ -138,7 +138,9 @@ export class CommentsService {
 
   async list(taskId: string): Promise<CommentView[]> {
     const rows = await prisma.comment.findMany({
-      where: { taskId },
+      // v1.21: hide soft-deleted comments from the task view. Trash queries
+      // opt back in via the trash service.
+      where: { taskId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
       include: { author: { select: { name: true } } },
     });
@@ -190,6 +192,8 @@ export class CommentsService {
     });
   }
 
+  // v1.21: Delete is now a SOFT delete. The row survives, hidden from list().
+  // Restore / purge are exposed via the Trash service.
   async remove(
     taskId: string,
     commentId: string,
@@ -197,20 +201,18 @@ export class CommentsService {
     callerRole: TeamRole,
   ): Promise<void> {
     const existing = await prisma.comment.findUnique({ where: { id: commentId } });
-    if (!existing || existing.taskId !== taskId) throw Errors.notFound('Comment not found');
+    if (!existing || existing.taskId !== taskId || existing.deletedAt !== null) {
+      throw Errors.notFound('Comment not found');
+    }
     if (existing.authorId !== callerId && callerRole !== 'MANAGER') {
       throw Errors.forbidden('Only the author or a team MANAGER can delete this comment');
     }
 
     await prisma.$transaction(async (tx) => {
-      try {
-        await tx.comment.delete({ where: { id: commentId } });
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-          throw Errors.notFound('Comment not found');
-        }
-        throw err;
-      }
+      await tx.comment.update({
+        where: { id: commentId },
+        data: { deletedAt: new Date(), deletedById: callerId },
+      });
       await logActivity(tx, {
         taskId,
         actorId: callerId,

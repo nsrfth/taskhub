@@ -218,6 +218,8 @@ model User {
   createdTasks   Task[]           @relation("TaskCreator")
   technicianForTasks    Task[]    @relation("TaskTechnician")
   technicianForSubtasks Subtask[] @relation("SubtaskTechnician")
+  deletedTasks    Task[]    @relation("TaskDeletedBy")
+  deletedComments Comment[] @relation("CommentDeletedBy")
   comments       Comment[]
   activities     Activity[]
   notifications  Notification[]
@@ -415,11 +417,17 @@ model Task {
   position    Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  // v1.21: soft-delete. deletedAt = null means "live"; non-null means
+  // "in trash". Every read query in the service layer filters on this.
+  // Restoring sets it back to null; purging hard-deletes the row.
+  deletedAt   DateTime?
+  deletedById String?
 
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   creator     User?        @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   technician  User?        @relation("TaskTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  deletedBy   User?        @relation("TaskDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   subtasks    Subtask[]
   labels      TaskLabel[]
   attachments Attachment[]
@@ -432,6 +440,7 @@ model Task {
   @@index([teamId, assigneeId])
   @@index([teamId, technicianId])
   @@index([teamId, dueDate])
+  @@index([teamId, deletedAt])
   @@index([projectId, status, position])
   @@unique([spawnedFromTemplateId, spawnedForPeriod])
 }
@@ -502,10 +511,15 @@ model Comment {
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // v1.21: soft-delete. Same shape as Task — null = live; set = in trash.
+  deletedAt   DateTime?
+  deletedById String?
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  deletedBy User?    @relation("CommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([taskId, createdAt])
+  @@index([taskId, deletedAt])
 }
 
 model Activity {

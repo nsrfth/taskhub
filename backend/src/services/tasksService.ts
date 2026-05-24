@@ -265,7 +265,14 @@ export class TasksService {
   ): Promise<TaskView[]> {
     await this.ensureProjectInTeam(teamId, projectId);
     const rows = await prisma.task.findMany({
-      where: { teamId, projectId, ...(filter.status && { status: filter.status }) },
+      // v1.21: hide soft-deleted tasks. Trash queries opt back in via
+      // listTrashedTasks() below.
+      where: {
+        teamId,
+        projectId,
+        deletedAt: null,
+        ...(filter.status && { status: filter.status }),
+      },
       // Same ordering as the kanban view — by column (status), then position.
       orderBy: [{ status: 'asc' }, { position: 'asc' }],
       include: TASK_INCLUDE,
@@ -278,7 +285,15 @@ export class TasksService {
       where: { id: taskId },
       include: TASK_INCLUDE,
     });
-    if (!task || task.teamId !== teamId || task.projectId !== projectId) {
+    // v1.21: a soft-deleted task is treated as a 404 from the regular get path —
+    // it's "gone" as far as the kanban / task detail UI is concerned. The Trash
+    // surface uses its own queries that opt in to deleted rows.
+    if (
+      !task ||
+      task.teamId !== teamId ||
+      task.projectId !== projectId ||
+      task.deletedAt !== null
+    ) {
       throw Errors.notFound('Task not found');
     }
     return toView(task);
@@ -643,12 +658,15 @@ export class TasksService {
     return myPos;
   }
 
-  async remove(teamId: string, projectId: string, taskId: string, _actorId: string): Promise<void> {
+  // v1.21: Delete is now a SOFT delete. Stamps deletedAt + deletedById; the
+  // row survives, hidden from list/get. Use restore() / purge() from the
+  // Trash service to bring it back or destroy it permanently.
+  async remove(teamId: string, projectId: string, taskId: string, actorId: string): Promise<void> {
     const existing = await this.get(teamId, projectId, taskId); // 404 if not in this project/team
-    // No activity row on delete: Activity FK cascades from Task, so any row we
-    // wrote would vanish with the task. A real audit trail belongs in a
-    // separate non-cascading table; that's a deliberate later step.
-    await prisma.task.delete({ where: { id: taskId } });
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { deletedAt: new Date(), deletedById: actorId },
+    });
     // Webhook subscribers DO want to know — the delete event fires from the
     // service layer because it's the only place we have the team scope after
     // the row is gone. Awaited so the delivery row exists synchronously.
