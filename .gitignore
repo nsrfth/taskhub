@@ -37,6 +37,8 @@ backend/prisma/*.db
 # Claude Code session metadata (user-local, never relevant to others)
 .claude/
 
-# v1.10.1: USER_MANUAL.md is canonical at the repo root; the frontend copy
-# is auto-synced by `npm run sync-manual` (also runs pre-build / pre-dev).
+# v1.10.1 + v1.13.0: USER_MANUAL{,.fa}.md are canonical at the repo root;
+# the frontend copies are auto-synced by `npm run sync-manual` (also runs
+# pre-build / pre-dev).
 frontend/public/USER_MANUAL.md
+frontend/public/USER_MANUAL.fa.md
