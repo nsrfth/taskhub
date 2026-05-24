@@ -4,6 +4,59 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] — 2026-05-24
+
+Opt-in "update available" check.
+
+### Backend
+
+- New `services/updateCheckService.ts` — fetches the latest release tag from
+  the hardcoded `nsrfth/taskhub` GitHub repo, caches the answer in-process
+  for `UPDATE_CHECK_CACHE_HOURS` (default 6 h), single-flights concurrent
+  callers, semver-compares against `TASKHUB_VERSION`. 10-second fetch
+  timeout; network errors cache a "no info" answer rather than retrying
+  on every admin click.
+- New admin-only endpoint `GET /api/admin/update-check` returns
+  `{ currentVersion, enabled, latestVersion, updateAvailable, releaseUrl,
+  publishedAt, checkedAt }`. Returns `enabled: false` when the operator
+  hasn't opted in.
+- Two new env vars (both off / sensible-default by design):
+  `UPDATE_CHECK_ENABLED` (default `false`) and `UPDATE_CHECK_CACHE_HOURS`
+  (default `6`). Read directly from `process.env` so an operator can flip
+  them with a `docker compose up -d --force-recreate backend`.
+
+### Frontend
+
+- `pages/AboutPage.tsx` shows a quiet emerald "↑ Update available: vX.Y.Z"
+  pill next to the version field, **only** when the viewer is a global
+  ADMIN, the operator enabled the check, and GitHub reported a strictly
+  newer tag. Pill links to the release notes on GitHub.
+- React Query gates the fetch on `globalRole === 'ADMIN'` so members never
+  trigger a 403.
+
+### Tests
+
+- 13 new tests (178 → 191 total). 8 unit tests on the semver compare
+  (handles `v` prefix, pre-release suffix, equal/older/newer, null inputs).
+  5 integration tests on the endpoint (auth/role gates, disabled default,
+  GitHub fetch mocked via `fetch` stub for higher + equal tags).
+
+### Verified
+
+- Suite: 186/191 passing + 5 skipped (lone failing file is the
+  pre-existing LDAP integration test).
+- Backend typecheck clean; frontend build clean.
+
+### Phase boundary
+
+- Hardcoded to `nsrfth/taskhub`. Forks that want a different upstream edit
+  the `GITHUB_REPO` constant in `services/updateCheckService.ts`.
+- No notification when a new release lands — admins still need to open
+  the About page to see the badge. A toast / nav-banner is the obvious
+  follow-up if "I missed the release" becomes a real complaint.
+- Cache is in-memory per replica. In a multi-replica deploy each backend
+  gets its own GitHub call; harmless at ~4 calls/day/replica.
+
 ## Unreleased
 
 ### Tooling

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchSystemInfo } from '@/features/system/api';
+import { fetchSystemInfo, fetchUpdateCheck } from '@/features/system/api';
+import { useAuth } from '@/features/auth/AuthContext';
 
 // "About" view — quick reference to the running instance: version, build
 // info, environment, headline counts, license, and links to deeper docs.
@@ -8,10 +9,28 @@ import { fetchSystemInfo } from '@/features/system/api';
 // auth-less so even the login page could pull from it if needed).
 
 export default function AboutPage(): JSX.Element {
+  const { user } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ['system', 'info'],
     queryFn: fetchSystemInfo,
     staleTime: 5 * 60_000,
+  });
+
+  // Admin-only opt-in update check. We gate the fetch on globalRole so
+  // non-admins never hit the 403; the endpoint is also no-op (enabled:false)
+  // when the operator hasn't set UPDATE_CHECK_ENABLED, so we still hide the
+  // badge in that case.
+  const isAdmin = user?.globalRole === 'ADMIN';
+  const { data: update } = useQuery({
+    queryKey: ['system', 'update-check'],
+    queryFn: fetchUpdateCheck,
+    enabled: isAdmin,
+    // Backend caches for 6h; the SPA caches for 5 min so refreshing the page
+    // doesn't fire a new request, but switching tabs after a while does.
+    staleTime: 5 * 60_000,
+    // The badge is purely informational — a flaky network shouldn't surface
+    // a red error in the UI.
+    retry: false,
   });
 
   return (
@@ -29,7 +48,30 @@ export default function AboutPage(): JSX.Element {
         {data && (
           <>
             <Field label="Application">{data.name}</Field>
-            <Field label="Version"><code>{data.version}</code></Field>
+            <Field label="Version">
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <code>{data.version}</code>
+                {/* Admin-only "update available" badge. Only renders when the
+                    operator enabled UPDATE_CHECK_ENABLED AND GitHub returned
+                    a newer tag than what's running. Quiet by design — a small
+                    inline pill, not a banner. */}
+                {isAdmin && update?.enabled && update.updateAvailable && update.latestVersion && (
+                  <a
+                    href={update.releaseUrl ?? '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs hover:bg-emerald-200"
+                    title={
+                      update.publishedAt
+                        ? `Released ${new Date(update.publishedAt).toLocaleDateString()}`
+                        : 'View release on GitHub'
+                    }
+                  >
+                    ↑ Update available: {update.latestVersion}
+                  </a>
+                )}
+              </span>
+            </Field>
             {data.buildTime && (
               <Field label="Built">
                 <time dateTime={data.buildTime}>{data.buildTime}</time>

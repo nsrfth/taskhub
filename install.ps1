@@ -230,6 +230,10 @@ SMTP_PASS=
 SMTP_FROM=
 PUBLIC_APP_URL=$PUBLIC_APP_URL
 
+# --- Update check (off by default — opt in to phone GitHub for the latest release) ---
+UPDATE_CHECK_ENABLED=false
+UPDATE_CHECK_CACHE_HOURS=6
+
 # --- Frontend (build-time) ---
 VITE_API_BASE_URL=/api
 

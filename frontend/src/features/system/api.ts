@@ -18,3 +18,21 @@ export interface SystemInfo {
 export async function fetchSystemInfo(): Promise<SystemInfo> {
   return (await api.get<SystemInfo>('/system/info')).data;
 }
+
+// v1.16 "update available" check. Admin-only on the backend; the SPA
+// gates the call by role so non-admins never trigger a 403.
+export interface UpdateCheck {
+  currentVersion: string;
+  // False when the operator hasn't set UPDATE_CHECK_ENABLED. UI hides the
+  // whole badge in that case (the check is opt-in, not a missing feature).
+  enabled: boolean;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+  publishedAt: string | null;
+  checkedAt: string | null;
+}
+
+export async function fetchUpdateCheck(): Promise<UpdateCheck> {
+  return (await api.get<UpdateCheck>('/admin/update-check')).data;
+}

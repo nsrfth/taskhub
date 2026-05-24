@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.15.0** (2026-05-24)
+Version **v1.16.0** (2026-05-24)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -79,7 +79,7 @@ The corner buttons (ℹ️ About / 📖 Help / 🔔 Notifications) stay in the t
 
 Three small pill buttons live in the top-right corner of every authenticated page:
 
-- **ℹ️ About** — opens `/about` with the running instance's version, build time, environment, off-day set, headline counts, license, and links to the manual + changelog.
+- **ℹ️ About** — opens `/about` with the running instance's version, build time, environment, off-day set, headline counts, license, and links to the manual + changelog. **v1.16:** if your operator opted in (`UPDATE_CHECK_ENABLED=true`) and you're an admin, an "↑ Update available: vX.Y.Z" pill appears next to the version when GitHub has a newer release. Clicking it opens the release notes on GitHub.
 - **📖 Help** — opens `/help`, an in-app render of this manual. The same content GitHub readers see, formatted with proper headings, tables, code blocks. Has an "Open raw markdown" link in the corner for ops scripts.
 - **🔔 Notifications** — the existing notification bell; opens a dropdown of recent items + an unread badge.
 

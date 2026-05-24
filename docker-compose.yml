@@ -60,6 +60,8 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+      UPDATE_CHECK_ENABLED: ${UPDATE_CHECK_ENABLED}
+      UPDATE_CHECK_CACHE_HOURS: ${UPDATE_CHECK_CACHE_HOURS}
     volumes:
       - uploads_data:/app/uploads
     expose:

@@ -94,6 +94,21 @@ const envSchema = z.object({
   //   ${PUBLIC_APP_URL}/projects/:id/tasks/:id (TASK_DUE)
   // Falls back to the first CORS_ORIGINS entry when unset.
   PUBLIC_APP_URL: z.string().url().optional(),
+
+  // v1.16: optional "update available" check. When enabled the backend
+  // calls https://api.github.com/repos/nsrfth/taskhub/releases/latest on
+  // demand (admin-only endpoint) and caches the result for the configured
+  // window. Default OFF — self-hosted convention is no outbound calls
+  // without operator consent. The repo is hardcoded; forks that want a
+  // different upstream should edit services/updateCheckService.ts.
+  UPDATE_CHECK_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  // How long the cached "latest release" answer is reused before the next
+  // GitHub call. Unauthenticated GitHub API is 60 req/hr/IP — 6 h keeps
+  // a busy instance well under the limit even with multiple admin tabs.
+  UPDATE_CHECK_CACHE_HOURS: z.coerce.number().positive().default(6),
 });
 
 export type Env = z.infer<typeof envSchema> & { corsOrigins: string[] };

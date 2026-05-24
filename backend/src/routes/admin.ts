@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AdminService } from '../services/adminService.js';
 import { AdminController } from '../controllers/adminController.js';
 import { requireAuth, requireGlobalRole } from '../middleware/auth.js';
+import { updateCheckService } from '../services/updateCheckService.js';
 import {
   adminUserResponse,
   listQuery,
@@ -75,5 +76,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.deleteUser,
+  });
+
+  // v1.16: opt-in "update available" check. Disabled by default — the
+  // backend only contacts GitHub when the operator sets UPDATE_CHECK_ENABLED.
+  // Admin-only because the badge only matters to people who can actually
+  // upgrade the deployment.
+  r.get('/update-check', {
+    schema: {
+      tags: ['admin'],
+      summary:
+        'Check whether a newer TaskHub release exists on GitHub (cached). Returns enabled=false when UPDATE_CHECK_ENABLED is not set.',
+      response: {
+        200: z.object({
+          currentVersion: z.string(),
+          enabled: z.boolean(),
+          latestVersion: z.string().nullable(),
+          updateAvailable: z.boolean(),
+          releaseUrl: z.string().nullable(),
+          publishedAt: z.string().nullable(),
+          checkedAt: z.string().nullable(),
+        }),
+      },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: async (_req, reply) => reply.send(await updateCheckService.getStatus()),
   });
 }
