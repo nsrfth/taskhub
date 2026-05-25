@@ -380,6 +380,9 @@ async function main(): Promise<void> {
         teamId: team.id,
         creatorId: admin.id,
         assigneeId: t.assignee ? USERS[t.assignee] : null,
+        // v1.19: technician defaults to creator (matches tasksService.create).
+        // The seed bypasses the service, so set it explicitly here.
+        technicianId: admin.id,
         title: t.title,
         description: t.description ?? null,
         status: t.status,
