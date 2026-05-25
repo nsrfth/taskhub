@@ -2,24 +2,43 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useTeams } from '@/features/teams/TeamsContext';
-import { fetchSummary } from '@/features/reports/api';
+import { fetchDoneReport, fetchSummary, fetchWorkload } from '@/features/reports/api';
 import { useT } from '@/lib/i18n';
+import StatusDonut from '@/features/dashboard/StatusDonut';
+import CompletionTrend from '@/features/dashboard/CompletionTrend';
+import WorkloadBar from '@/features/dashboard/WorkloadBar';
 
 export default function DashboardPage(): JSX.Element {
   const { user } = useAuth();
   const { teams, currentTeam, currentTeamId, setCurrentTeamId, loading } = useTeams();
   const t = useT();
 
-  // Cheap summary endpoint feeds the dashboard widget. Disabled until a team
-  // is selected so the first render after sign-in doesn't fire a 404.
+  // Cheap summary endpoint feeds the headline numbers + the status donut.
+  // Disabled until a team is selected so the first render after sign-in
+  // doesn't fire a 404.
   const { data: summary } = useQuery({
     queryKey: ['reports', 'summary', currentTeam?.id],
     queryFn: () => fetchSummary(currentTeam!.id),
     enabled: !!currentTeam,
   });
 
+  // v1.25: dashboard charts. Both queries fan out in parallel with the
+  // summary query above. ~staleTime: 60s so re-mounts don't refetch.
+  const { data: done } = useQuery({
+    queryKey: ['reports', 'done', currentTeam?.id, 30],
+    queryFn: () => fetchDoneReport(currentTeam!.id, 30),
+    enabled: !!currentTeam,
+    staleTime: 60_000,
+  });
+  const { data: workload } = useQuery({
+    queryKey: ['reports', 'workload', currentTeam?.id],
+    queryFn: () => fetchWorkload(currentTeam!.id),
+    enabled: !!currentTeam,
+    staleTime: 60_000,
+  });
+
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6">{t('dashboard.title')}</h1>
 
       <div className="bg-white dark:bg-slate-800 rounded shadow p-6 mb-6">
@@ -121,6 +140,50 @@ export default function DashboardPage(): JSX.Element {
           </div>
         </div>
       )}
+
+      {/* v1.25: three visual widgets — one card each. Grid stacks on
+          mobile, two-up on lg, three-up on xl. */}
+      {currentTeam && (
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {summary && (
+            <ChartCard title="Where work sits" subtitle="By status">
+              <StatusDonut byStatus={summary.byStatus} />
+            </ChartCard>
+          )}
+          {done && (
+            <ChartCard title="Throughput" subtitle="Tasks completed">
+              <CompletionTrend rows={done.items} days={30} />
+            </ChartCard>
+          )}
+          {workload && (
+            <ChartCard title="Workload" subtitle="Open tasks per person">
+              <WorkloadBar rows={workload.items} />
+            </ChartCard>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function ChartCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <section className="bg-white dark:bg-slate-800 rounded shadow p-5">
+      <div className="mb-3">
+        <h3 className="font-medium text-sm text-slate-900 dark:text-slate-100">{title}</h3>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          {subtitle}
+        </p>
+      </div>
+      {children}
+    </section>
   );
 }

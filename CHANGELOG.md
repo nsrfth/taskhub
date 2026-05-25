@@ -57,6 +57,46 @@ Opt-in "update available" check.
 - Cache is in-memory per replica. In a multi-replica deploy each backend
   gets its own GitHub call; harmless at ~4 calls/day/replica.
 
+## [1.25.0] — 2026-05-25
+
+Three charts on the Dashboard.
+
+### Frontend
+
+- New `features/dashboard/StatusDonut.tsx` — pure-SVG donut of `byStatus`
+  counts (TODO / IN_PROGRESS / REVIEW / DONE). Centre label shows the
+  open-task total. Legend on the right.
+- New `features/dashboard/CompletionTrend.tsx` — 30-day daily-bars chart
+  with a 7-day moving-average overlay. Header carries "X total · +N vs
+  prior 7d" so the trend reads at a glance.
+- New `features/dashboard/WorkloadBar.tsx` — horizontal stacked bars per
+  assignee (top 6 by open-task count), split by status. Truncated tail
+  ("+ N open across M others") for teams with more than 6 active people.
+- `DashboardPage` grows a responsive grid of three chart cards under
+  the existing "At a glance" headline numbers. Max width bumped from
+  `3xl` to `5xl` so the three-up layout breathes on xl screens.
+- All charts read **existing** `/reports/summary`, `/reports/done`, and
+  `/reports/workload` endpoints — zero new backend work, zero new
+  dependencies. ~280 LoC total of inline SVG.
+
+### Verified
+
+- Frontend typecheck + production build clean.
+- Bundle: +6 KiB gzipped from v1.24 (three small components).
+- Frontend bundle redeployed to `frontend_dist` volume.
+
+### Phase boundary
+
+- No interactivity yet — bars/slices have title tooltips on hover but
+  no click-through to filtered task lists. Easy follow-up: each donut
+  slice and each workload row can `nav('/projects')` with a status /
+  assignee filter once that filter exists on the task list page.
+- Throughput chart's tooltips are HTML `<title>` elements, which means
+  they only show on mouse hover. Touch users see the bars but not the
+  per-day count. A v2 could wire `pointerdown` + a custom tooltip.
+- No weekly / monthly throughput option. The 30-day window is hardcoded
+  matching the most-asked "how are we trending lately?" question.
+
 ## [1.24.0] — 2026-05-25
 
 Nav redesign: left sidebar + slim top bar + user-menu dropdown.
