@@ -61,10 +61,19 @@ export async function teamsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.patch('/:teamId', {
-    preHandler: [requireTeamRole('MANAGER'), requireScope('admin')],
+    // v1.30.8 (S-22): now gated by `team.edit_details` (v1.23
+    // permission system) instead of the legacy MANAGER-only enum
+    // check. requireTeamRole runs first to stash the membership for
+    // the permission lookup; requirePermission enforces the specific
+    // capability so a custom role can grant or withhold it.
+    preHandler: [
+      requireTeamRole('MEMBER', 'MANAGER'),
+      requirePermission('team.edit_details'),
+      requireScope('admin'),
+    ],
     schema: {
       tags: ['teams'],
-      summary: 'Update team name/slug (MANAGER only)',
+      summary: 'Update team name/slug/colour (requires team.edit_details)',
       params: z.object({ teamId: z.string() }),
       body: updateTeamBody,
       response: { 200: teamResponse },

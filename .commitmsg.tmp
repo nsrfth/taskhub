@@ -1,53 +1,38 @@
-﻿v1.30.7 - SECURITY: SSRF guard on webhook URLs (S-11)
+﻿v1.30.8 - SECURITY: PATCH /teams/:teamId via team.edit_details permission (S-22)
 
-A user with webhooks.manage could create a webhook pointed at
-127.0.0.1, 169.254.169.254 (cloud metadata), updater:9000, or any
-RFC 1918 host on the compose network. On every matching event the
-backend POSTed the team payload + HMAC headers, turning TaskHub into
-an SSRF probe into otherwise unreachable infrastructure.
+The only write site still gated solely by the legacy
+requireTeamRole('MANAGER') enum after the v1.23 RBAC migration was
+PATCH /api/teams/:teamId. A grep across routes/*.ts confirms it - every
+other use of the legacy enum sits on read endpoints (MEMBER, MANAGER)
+where the v1.23 permission system doesn't apply.
 
 Fix:
-- New lib/ssrfGuard.ts uses ipaddr.js (added as a runtime dep) to
-  classify addresses into named ranges. Refuses loopback, private
-  (RFC 1918), link-local (INCLUDES 169.254.169.254 metadata), CGN,
-  reserved, unspecified, broadcast, multicast, plus IPv6 loopback,
-  unique-local, link-local. IPv4-mapped IPv6 (::ffff:10.0.0.1) is
-  detected and the underlying IPv4 re-classified - the classic SSRF
-  bypass.
-- HTTP/HTTPS schemes only. file://, gopher://, ftp:// are refused at
-  the scheme check.
-- Hostnames are resolved via dns.lookup({ all: true }); ANY internal
-  A/AAAA record refuses.
-- Operator escape hatch: WEBHOOK_ALLOWED_HOSTS env, comma-list,
-  default empty. Exact hostname match (no CIDR / wildcard) for
-  deliberate internal receivers.
-- Two-point enforcement: WebhookService.create + update (when URL
-  changes) for fast admin feedback; WebhookService.deliverOnce
-  re-resolves before EVERY fetch to defend against DNS rebinding.
-  Delivery refusal marks the row failed with the guard reason - no
-  HTTP request leaves the backend.
+- New permission constant team.edit_details (UI group: Team).
+- Migration 20260527180000_team_edit_details_permission backfills the
+  new permission onto every existing system Manager role (v1.23/v1.29
+  convention) so default behaviour doesn't change.
+- routes/teams.ts PATCH /:teamId preHandler migrated from
+  [requireTeamRole('MANAGER'), requireScope('admin')] to
+  [requireTeamRole('MEMBER','MANAGER'), requirePermission('team.edit_details'),
+   requireScope('admin')]. requireTeamRole still runs first to stash
+  membership; requirePermission enforces the capability. Global ADMIN
+  bypass unchanged.
 
-15 new tests in webhookSsrf.test.ts: unit-level classifier coverage
-(7 cases including the 169.254.169.254 cloud-metadata IP and the
-::ffff:10.0.0.1 IPv4-mapped IPv6 bypass), create endpoint refusal
-(7 cases for various private targets + a sanity check that the
-explicitly allow-listed 127.0.0.1 still creates), and a delivery
-refusal that mutates the URL in the DB to simulate DNS rebinding.
+Regression tests (4 cases in roles.test.ts):
+- Custom role granted team.edit_details CAN rename the team
+  (before grant: 403; after: 200).
+- Custom role WITHOUT it returns 403.
+- Default system Manager role CAN rename (migration backfill).
+- Global ADMIN still bypasses.
 
-tests/setup.ts sets WEBHOOK_ALLOWED_HOSTS=127.0.0.1 so the existing
-receiver-stub tests in apiTokensAndWebhooks.test.ts keep working. The
-new tests use 127.0.0.2 / 192.168.x / 10.x / 169.254.x / [::1] /
-[::ffff:10.x] so the guard's refusal IS exercised.
+Permission-catalog count 15 -> 16; allPerms helper in roles.test.ts
+now lists all 16 constants explicitly (caught a stale-helper drift
+where task.manage_dependencies was missing since v1.29).
 
-Phase boundary:
-- Allow-list is literal hostname match - no CIDR, no wildcard.
-  Documented; operators add each host explicitly.
-- fetch() does its own DNS lookup after our guard returns; a racy
-  attacker could theoretically slip a bad address between them.
-  Pinning the address via a custom undici dispatcher is a v1.31+
-  follow-up.
-- ipaddr.js is the first new runtime dep since v1.27.
+Verified: tsc clean (backend + frontend). roles.test.ts 14/14. Full
+suite 313 passed, 5 skipped (LDAP), 1 pre-existing backups order-flake
+(passes in isolation).
 
-Verified: tsc clean. webhookSsrf.test.ts 15/15.
-apiTokensAndWebhooks.test.ts 15/15. Full suite 309 passed, 5 skipped
-(LDAP), 1 pre-existing backups order-flake (passes in isolation).
+Phase boundary: legacy TeamMembership.role enum remains as the v1.23
+fallback for null-roleId rows; dropping it is a v1.31+ schema cleanup
+flagged in the v1.23 phase boundary.

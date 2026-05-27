@@ -87,6 +87,8 @@ async function ensureSystemRoles(teamId: string) {
     'task.modify_dates',
     'task.change_technician',
     'task.change_assignee',
+    // v1.29 added; the migration backfilled this onto system Manager roles.
+    'task.manage_dependencies',
     'comment.delete_others',
     'project.edit',
     'project.delete',
@@ -95,6 +97,8 @@ async function ensureSystemRoles(teamId: string) {
     'team.remove_member',
     'team.change_role',
     'team.manage_roles',
+    // v1.30.8 (S-22) added.
+    'team.edit_details',
     'webhooks.manage',
     'trash.purge',
   ];
@@ -311,15 +315,104 @@ describe('permission gates end-to-end', () => {
   });
 });
 
+describe('S-22 PATCH /teams/:teamId gated by team.edit_details', () => {
+  // The legacy `requireTeamRole('MANAGER')` solo gate has been
+  // replaced with `requirePermission('team.edit_details')` (v1.23
+  // convention). Verifies all four expected behaviours.
+  it('a custom role granted team.edit_details CAN rename the team', async () => {
+    const { adminToken, memberToken, memberId, teamId } = await setup();
+    await ensureSystemRoles(teamId);
+
+    // Default Member role lacks the permission.
+    const before = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${teamId}`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: 'renamed-by-member' },
+    });
+    expect(before.statusCode).toBe(403);
+
+    // Grant team.edit_details to the Member role.
+    const memberRole = await prisma.role.findFirst({
+      where: { teamId, isSystem: true, name: 'Member' },
+    });
+    await inject({
+      method: 'PUT',
+      url: `/api/teams/${teamId}/roles/${memberRole!.id}/permissions`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        permissions: ['task.delete', 'task.modify_dates', 'team.edit_details'],
+      },
+    });
+
+    // Now the same member can rename.
+    const after = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${teamId}`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: 'renamed-by-member' },
+    });
+    expect(after.statusCode).toBe(200);
+    expect(after.json().name).toBe('renamed-by-member');
+    expect(memberId).toBeDefined();
+  });
+
+  it('a custom role WITHOUT team.edit_details gets 403', async () => {
+    const { memberToken, teamId } = await setup();
+    await ensureSystemRoles(teamId);
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${teamId}`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: 'still-blocked' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('the default system Manager role CAN rename (migration backfill)', async () => {
+    // setup() seeds a manager-team membership for the admin. Even if
+    // we didn't have global-admin bypass, the system Manager role's
+    // permission set (populated by ensureSystemRoles → DEFAULT_MANAGER_
+    // PERMISSIONS, which includes team.edit_details) is sufficient.
+    const { adminToken, teamId } = await setup();
+    await ensureSystemRoles(teamId);
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${teamId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: 'manager-renamed' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().name).toBe('manager-renamed');
+  });
+
+  it('global ADMIN still bypasses (unchanged behaviour)', async () => {
+    // requirePermission has a globalRole=ADMIN early return — even a
+    // user with no team membership at all can act here.
+    const { adminToken, teamId } = await setup();
+    await ensureSystemRoles(teamId);
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${teamId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: 'admin-bypass' },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
 describe('/api/system/permissions catalog', () => {
-  it('returns the 15 permission constants + UI groups', async () => {
+  it('returns the 16 permission constants + UI groups', async () => {
     const res = await inject({ method: 'GET', url: '/api/system/permissions' });
     expect(res.statusCode).toBe(200);
-    // v1.29 added `task.manage_dependencies`.
-    expect(res.json().permissions).toHaveLength(15);
+    // v1.29 added `task.manage_dependencies`; v1.30.8 added
+    // `team.edit_details` (migrated off the legacy team-role gate).
+    expect(res.json().permissions).toHaveLength(16);
     expect(res.json().permissions).toContain('task.change_technician');
     expect(res.json().permissions).toContain('task.manage_dependencies');
+    expect(res.json().permissions).toContain('team.edit_details');
     expect(res.json().groups.Tasks).toContain('task.delete');
     expect(res.json().groups.Tasks).toContain('task.manage_dependencies');
+    expect(res.json().groups.Team).toContain('team.edit_details');
   });
 });

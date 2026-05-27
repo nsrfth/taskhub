@@ -39,6 +39,11 @@ export const PERMISSIONS = [
   'team.remove_member',
   'team.change_role',
   'team.manage_roles', // Create / edit / delete role definitions themselves.
+  // v1.30.8 (S-22): rename / re-slug / re-colour the team. Was gated
+  // solely by the legacy requireTeamRole('MANAGER') enum check; that
+  // bypassed the v1.23 custom-role system, so a team could not grant
+  // (or withhold) team-detail edits via a custom role.
+  'team.edit_details',
 
   // Integrations.
   'webhooks.manage',
@@ -63,7 +68,13 @@ export const PERMISSION_GROUPS: Record<string, readonly Permission[]> = {
   ],
   Comments: ['comment.delete_others'],
   Projects: ['project.edit', 'project.delete', 'project.set_accountable'],
-  Team: ['team.invite_member', 'team.remove_member', 'team.change_role', 'team.manage_roles'],
+  Team: [
+    'team.invite_member',
+    'team.remove_member',
+    'team.change_role',
+    'team.manage_roles',
+    'team.edit_details',
+  ],
   Integrations: ['webhooks.manage'],
   Trash: ['trash.purge'],
 };

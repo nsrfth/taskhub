@@ -4,6 +4,80 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.8] — 2026-05-27
+
+**Security patch — S-22: `PATCH /api/teams/:teamId` was gated solely
+by the legacy `requireTeamRole('MANAGER')` enum, so the v1.23 custom-
+role system couldn't grant or withhold team-detail editing.**
+
+### Summary
+
+The v1.23 changelog explicitly deferred this one — team rename / slug /
+colour was the only write site still gated by the legacy enum after
+the v1.23 migration finished. A custom role couldn't grant this
+capability to a non-MANAGER member, and an admin who tightened the
+Manager role couldn't take it away. A grep across `routes/*.ts` for
+`requireTeamRole('MANAGER')` / `requireTeamManager` confirms this was
+the only such write site — every other use of the legacy enum sits on
+read endpoints (`('MEMBER', 'MANAGER')`) where the v1.23 system
+doesn't apply.
+
+### Fix
+
+- **New permission constant** `team.edit_details` in
+  `lib/permissions.ts` (UI group: `Team`).
+- **Migration `20260527180000_team_edit_details_permission`** backfills
+  the new permission onto every existing system Manager role so
+  default behaviour doesn't change (the v1.23 + v1.29 convention).
+  Member roles do NOT get it by default — explicitly grant via Settings
+  → Roles & permissions to opt a non-MANAGER role into team editing.
+- **`routes/teams.ts`** `PATCH /:teamId` preHandler migrated from
+  `[requireTeamRole('MANAGER'), requireScope('admin')]` to
+  `[requireTeamRole('MEMBER', 'MANAGER'), requirePermission('team.edit_details'), requireScope('admin')]`.
+  `requireTeamRole` still runs first to stash the membership on the
+  request for the permission lookup; `requirePermission` enforces the
+  capability. Global ADMIN bypass in `requirePermission` is unchanged
+  — admins still pass without a team membership.
+
+### Regression tests
+
+`describe('S-22 PATCH /teams/:teamId gated by team.edit_details')` —
+4 cases in `roles.test.ts`:
+
+- A custom role granted `team.edit_details` CAN rename the team
+  (before the grant: 403; after: 200 with the new name).
+- A custom role WITHOUT it returns 403 on the same endpoint.
+- The default system Manager role CAN rename (migration backfill).
+- Global ADMIN still bypasses (unchanged).
+
+Plus:
+
+- `roles.test.ts` permission-catalog count bumped 15 → 16 (the
+  recurring v1.23/v1.29/v1.30.8 pattern — every new constant needs
+  the assertion update). Adds `team.edit_details` to the expected
+  `groups.Team` list.
+- Local `allPerms` helper in `roles.test.ts` now lists ALL 16
+  constants explicitly (caught a quiet drift where `task.manage_dependencies`
+  was missing from the helper since v1.29).
+
+### Verified
+
+- Backend `tsc` ✅. Frontend `vite build` ✅ (no UI changes).
+- `roles.test.ts` 14/14 (10 existing + 4 new S-22).
+- Full integration suite: **313 passed, 5 skipped** (LDAP, pre-existing).
+  One pre-existing flake on `backups.test.ts`. +4 from v1.30.7.
+
+### Phase boundary
+
+- Frontend Roles & permissions matrix already renders the new
+  `team.edit_details` permission automatically — the page reads
+  `PERMISSION_GROUPS` via `GET /api/system/permissions`, which now
+  surfaces the new entry under `Team`. No UI patch needed.
+- We did NOT migrate the legacy `TeamMembership.role` enum away. It
+  remains the v1.23 fallback for memberships whose `roleId` is null
+  (mid-migration rows). Dropping the enum is a v1.31+ schema cleanup
+  flagged in the v1.23 phase boundary.
+
 ## [1.30.7] — 2026-05-27
 
 **Security patch — S-11: webhook URLs unvalidated, usable as an SSRF
