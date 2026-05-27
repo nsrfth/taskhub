@@ -71,6 +71,18 @@
   "deps.enforcement.block.label": "حالت مسدود",
   "deps.enforcement.block.help": "این وظیفه تا زمانی که مسدودکننده ناتمام دارد نمی‌تواند به «در حال انجام» یا «انجام شده» منتقل شود.",
 
+  "search.title": "جستجو",
+  "search.placeholder": "جستجو در وظایف، نظرات و پروژه‌ها…",
+  "search.hint": "عبارتی را در نوار بالا تایپ کنید و Enter بزنید.",
+  "search.loading": "در حال جستجو…",
+  "search.error": "جستجو با خطا مواجه شد.",
+  "search.noResults": "نتیجه‌ای در تیم‌های شما پیدا نشد.",
+  "search.resultsFor": "نتایج برای «{q}»",
+  "search.tasks": "وظایف",
+  "search.comments": "نظرات",
+  "search.projects": "پروژه‌ها",
+  "search.loadMore": "نمایش بیشتر",
+
   "preferences.title": "ترجیحات",
   "preferences.subtitle": "تنظیمات شخصی نمایش. فقط روی حساب شما اعمال می‌شود.",
   "preferences.calendar": "تقویم",

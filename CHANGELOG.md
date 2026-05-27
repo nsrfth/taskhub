@@ -4,6 +4,129 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] — 2026-05-27
+
+Full-text search across tasks, comments, and projects.
+
+### Schema
+
+- Three new `searchVector tsvector GENERATED ALWAYS AS (...) STORED`
+  columns on `Task`, `Comment`, and `Project`, each backed by its own
+  GIN index. Configuration is `simple` (no stemming) because TaskHub
+  content is heavily Persian and the english stemmer would mangle
+  Persian tokens.
+- `Task` and `Project` use `setweight()` to bias title hits over
+  description hits: `setweight(to_tsvector('simple', title), 'A') ||
+  setweight(to_tsvector('simple', description), 'B')`. With Postgres'
+  default `{1.0, 0.4, 0.2, 0.1}` weight vector, a title-only hit
+  outranks a description-heavy hit at the same term frequency.
+- `Comment` carries an unweighted vector — there's only one
+  searchable field (`body`).
+- Migration `20260527000000_full_text_search` is additive: it creates
+  three columns + three GIN indexes. Existing rows are populated
+  automatically by the `STORED` generation expression.
+- `schema.prisma` declares each column as
+  `searchVector Unsupported("tsvector")?`. `Unsupported(...)` keeps
+  Prisma from drift-detecting the column AND auto-excludes it from
+  the generated TypeScript client — the search service is the only
+  reader, via `$queryRaw`.
+
+### Backend
+
+- New `services/searchService.ts`. Per-bucket parameterised
+  `$queryRaw` calls (Task / Comment / Project) with `plainto_tsquery
+  ('simple', $q)` so caller input — including punctuation — never
+  reaches the SQL parser as syntax. Uses `ts_headline` to produce
+  HTML excerpts with `<b>`/`</b>` highlights around each match.
+- **Tenant isolation** (the critical rule): every query is restricted
+  to `teamId = ANY(allowedTeams)` where `allowedTeams` is the list of
+  teams the caller belongs to (resolved via `teamMembership.findMany`
+  at the top of each request, same pattern as
+  `auditService.list`). Comments scope through their parent Task's
+  `teamId` since `Comment` doesn't carry a denormalised `teamId`. No
+  global-ADMIN bypass — search reflects "what I have access to", not
+  "what exists on this instance". Admins who need the latter use the
+  audit log.
+- Soft-deleted rows are excluded: `Task.deletedAt IS NULL` AND
+  `Comment.deletedAt IS NULL` (with the parent Task also live).
+  `Project` has no soft-delete (consistent with v1.21 — Trash was
+  scoped to Task + Comment).
+- Cursor pagination is per-bucket, keyset on `(ts_rank, id)`. Format
+  `<rank>:<id>`. The predicate casts the cursor rank to `real` to
+  match Postgres' `ts_rank` output precision — without the cast, JS
+  numbers were binding as `double precision` and the equality arm of
+  the tiebreak silently missed when many rows shared the same rank.
+
+### Routes
+
+- New `routes/search.ts` at `GET /api/search`. Query params:
+  `q`, `type` (task/comment/project, optional), `taskCursor`,
+  `commentCursor`, `projectCursor`, `limit` (default 20, max 50 —
+  matching the audit endpoint shape).
+- `requireAuth` only — the endpoint is intentionally cross-team. No
+  `requireTeamRole` (there's no `:teamId` in the path).
+
+### Frontend
+
+- New `features/search/api.ts` client.
+- New `features/search/SearchInput.tsx` in the top nav. Enter-to-submit;
+  navigates to `/search?q=<encoded>`. Hidden on `xs` viewports.
+- New `pages/SearchPage.tsx` reads `?q=` from the URL and renders three
+  buckets (Tasks / Comments / Projects). Each bucket has its own
+  "Load more" button driven by per-bucket cursors so the user can
+  page through one bucket without re-fetching the others. Excerpts
+  render through a sanitiser that strips everything except `<b>` and
+  `</b>` (ts_headline already HTML-escapes the surrounding text).
+- New `/search` route under `<ProtectedRoute>`.
+- New `search.*` i18n keys in `en.json` + `fa.json`.
+
+### Tests
+
+- 11 new integration tests in `tests/integration/search.test.ts`:
+  basic match (title / comment body / project description),
+  title-weighted ranking (`setweight('A')` beats `setweight('B')`),
+  **cross-team isolation** (THE critical test — user A and user B
+  in separate teams must not see each other's hits), soft-deleted
+  exclusion for both Task and Comment, per-bucket keyset cursor
+  pagination across 25 same-keyword rows (3 pages, no overlap, last
+  page returns `nextCursor: null`), `type=` filter (only the
+  requested bucket populates), empty `q` short-circuit, caller with
+  zero memberships returns empty buckets (not 500), anonymous caller
+  returns 401.
+- Full suite: **258 passed, 5 skipped** (LDAP — pre-existing, needs
+  the `ldap` profile).
+
+### Verified
+
+- Backend `tsc` ✅, frontend `tsc --noEmit && vite build` ✅.
+- Migration applied via `prisma migrate deploy` against the
+  `postgres-test` container. `information_schema.columns` shows
+  three `tsvector` columns; `pg_indexes` shows three GIN indexes
+  named `*_searchVector_idx`.
+- Live smoke against the running stack: searching "alpha" returned
+  matches with title hits ranked above description-heavy hits
+  (`0.669 > 0.331`), excerpts contained `<b>alpha</b>`. A freshly
+  admin-provisioned user with no team memberships saw 0 hits across
+  all three buckets.
+
+### Phase boundary
+
+- `simple` text-search config: no language-specific stemming. For
+  English content, "deploying" / "deploy" / "deployed" don't unify.
+  Acceptable for Persian-heavy content; a v1.31 follow-up could ship
+  a per-instance `tasks.searchConfig` InstanceSetting and a one-shot
+  migration that drops + re-creates the generated columns with the
+  chosen config.
+- Per-bucket cursors. Mixed-rank single-cursor pagination is a
+  reasonable future change if the UX wants a single "Load more"
+  button — for now grouped+per-bucket reads more naturally on the
+  results page.
+- The ADMIN bypass is INTENTIONALLY not extended to search. Search
+  reflects "what I have access to", not "what exists on this instance".
+- `pg_trgm` (fuzzy similarity) is not used. `plainto_tsquery`
+  doesn't handle typos; if users ask for typo tolerance, that's a
+  follow-up.
+
 ## [1.29.0] — 2026-05-26
 
 Task dependencies — one task can be marked as blocked by another.

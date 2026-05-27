@@ -381,6 +381,12 @@ model Project {
   accountable   User?         @relation("ProjectAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   tasks         Task[]
 
+  // v1.30: tsvector for full-text search. See Task.searchVector for
+  // rationale + lifecycle (managed by raw SQL, never read via Prisma).
+  // Unsupported(...) auto-excludes the column from the Prisma client; the
+  // SearchService talks to it via $queryRaw only.
+  searchVector Unsupported("tsvector")?
+
   @@index([teamId, status])
   @@index([ownerId])
   @@index([accountableId])
@@ -498,6 +504,14 @@ model Task {
   dependencies TaskDependency[] @relation("TaskDependencyFrom")
   blockedTasks TaskDependency[] @relation("TaskDependencyTo")
 
+  // v1.30: tsvector for full-text search. Managed by raw SQL — the column
+  // is GENERATED ALWAYS AS STORED with a GIN index. Prisma never reads it
+  // (it's @ignore-d on the client); the SearchService talks to it via
+  // $queryRaw. Declared here so prisma migrate dev doesn't see drift.
+  // Unsupported(...) auto-excludes the column from the Prisma client; the
+  // SearchService talks to it via $queryRaw only.
+  searchVector Unsupported("tsvector")?
+
   @@index([teamId, status])
   @@index([teamId, assigneeId])
   @@index([teamId, technicianId])
@@ -603,6 +617,12 @@ model Comment {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   deletedBy User?    @relation("CommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  // v1.30: tsvector for full-text search. See Task.searchVector for
+  // rationale + lifecycle (managed by raw SQL, never read via Prisma).
+  // Unsupported(...) auto-excludes the column from the Prisma client; the
+  // SearchService talks to it via $queryRaw only.
+  searchVector Unsupported("tsvector")?
 
   @@index([taskId, createdAt])
   @@index([taskId, deletedAt])

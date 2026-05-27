@@ -3,6 +3,7 @@ import NotificationBell from '@/features/notifications/NotificationBell';
 import UserMenu from './UserMenu';
 import LeftSidebar from './LeftSidebar';
 import { IconMenu } from './icons';
+import SearchInput from '@/features/search/SearchInput';
 
 // v1.24: slim top bar. Primary nav moved to the left sidebar; the top bar
 // now carries just three things on the right:
@@ -36,10 +37,12 @@ export default function TopNav(): JSX.Element {
           <IconMenu size={20} />
         </button>
 
-        {/* Page title placeholder — gives the bar visual weight on mobile when
-            the sidebar is hidden. md+ : flex spacer pushes the right cluster
-            against the edge. */}
-        <div className="flex-1" />
+        {/* v1.30: global search input sits in the centre, growing to fill
+            the available width on sm+. On xs viewports it hides itself —
+            the SearchInput wraps in `flex-1 hidden sm:block` — and a
+            bare spacer carries the flex weight instead. */}
+        <SearchInput />
+        <div className="flex-1 sm:hidden" />
 
         <div className="flex items-center gap-1">
           {/* Bell rides in the nav as a regular icon button now (no more

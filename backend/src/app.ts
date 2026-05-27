@@ -24,6 +24,7 @@ import { apiTokensRoutes } from './routes/apiTokens.js';
 import { webhooksRoutes } from './routes/webhooks.js';
 import { recurrenceRoutes } from './routes/recurrence.js';
 import { dependenciesRoutes } from './routes/dependencies.js';
+import { searchRoutes } from './routes/search.js';
 import { systemRoutes } from './routes/system.js';
 import { calendarRoutes } from './routes/calendar.js';
 import { trashRoutes } from './routes/trash.js';
@@ -129,6 +130,10 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     await api.register(dependenciesRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/dependencies',
     });
+    // v1.30: cross-team full-text search. Top-level mount — the endpoint
+    // spans every team the caller is a member of, so it isn't nested
+    // under /teams/:teamId like most read endpoints.
+    await api.register(searchRoutes, { prefix: '/search' });
 
     // v1.11: public read-only system info. No auth, no rate limit — used
     // by the About page + the calendar weekend reader.
