@@ -536,6 +536,11 @@ model Task {
   @@index([teamId, technicianId])
   @@index([teamId, dueDate])
   @@index([teamId, deletedAt])
+  // v1.30.10 (S-18): /reports/done + the CompletionTrend dashboard
+  // chart filter on `completedAt >= now - Nd AND deletedAt IS NULL`.
+  // Pre-v1.30.10 the planner sequentially scanned the team partition
+  // on every render. This composite covers both predicates.
+  @@index([teamId, completedAt])
   @@index([projectId, status, position])
   @@unique([spawnedFromTemplateId, spawnedForPeriod])
 }

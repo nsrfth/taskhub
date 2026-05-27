@@ -211,12 +211,26 @@ describe('POST /api/auth/refresh', () => {
       expect(families.size).toBe(1);
     });
 
-    it('reuse — replaying R1 after R2 was issued revokes the whole family', async () => {
+    it('reuse — replaying R1 after R2 was issued (outside the grace window) revokes the whole family', async () => {
+      // v1.30.10 added a 5-second grace window: an immediate replay
+      // looks like a benign client race and 401s without family
+      // revocation. To exercise the actual-theft path we backdate the
+      // first token's revokedAt past the window before the replay.
+      // Before v1.30.10 this test rotated then immediately replayed;
+      // v1.30.10 needs the backdate so the replay lands OUTSIDE the
+      // window — the original assertion (R2 also revoked) still holds.
       const R1 = await registerAndGetCookie('reuse@example.com');
       // Rotate R1 → R2.
       const rot = await refreshOnce(R1);
       expect(rot.status).toBe(200);
       const R2 = rot.nextCookie!;
+
+      // Backdate R1's revokedAt past the 5s grace window so the next
+      // replay is treated as theft rather than a benign race.
+      await prisma.refreshToken.updateMany({
+        where: { user: { email: 'reuse@example.com' }, revokedAt: { not: null } },
+        data: { revokedAt: new Date(Date.now() - 60_000) },
+      });
 
       // Replay R1. Should 401 AND trip family revocation.
       const replay = await refreshOnce(R1);
@@ -236,6 +250,37 @@ describe('POST /api/auth/refresh', () => {
       for (const row of rows) {
         expect(row.revokedAt).not.toBeNull();
       }
+    });
+
+    it('within-window replay — a replay <=5s after rotation is treated as a benign race (401, no family revocation)', async () => {
+      // v1.30.10 (S-18 / grace window): the operational pain point the
+      // v1.30.5 phase boundary flagged. SPA double-tabs and retried
+      // fetches that landed just after rotation logged the user out
+      // everywhere. The grace window 401s the replay but leaves R2
+      // (the sibling rotation produced) fully working — a fresh
+      // /refresh on R2 still rotates.
+      const R1 = await registerAndGetCookie('within@example.com');
+      const rot = await refreshOnce(R1);
+      expect(rot.status).toBe(200);
+      const R2 = rot.nextCookie!;
+      // DON'T backdate — the replay lands inside the 5s window.
+      const replay = await refreshOnce(R1);
+      expect(replay.status).toBe(401);
+      // The sibling token is NOT revoked. Its /refresh rotates cleanly.
+      const r2Rotate = await refreshOnce(R2);
+      expect(r2Rotate.status).toBe(200);
+      // DB-side: R2 is still live (revokedAt null after one more
+      // rotation we just did, then revoked — so look at the family
+      // and assert at least ONE row was never revoked before the
+      // rotation we just performed). Simpler: assert the family was
+      // not all-revoked immediately after the within-window replay.
+      const livesAfterReplay = await prisma.refreshToken.count({
+        where: { user: { email: 'within@example.com' }, revokedAt: null },
+      });
+      // The most-recent rotation produced a new live token, so the
+      // count is at least 1. Crucially it's not zero — which it
+      // WOULD be if the family was revoked.
+      expect(livesAfterReplay).toBeGreaterThanOrEqual(1);
     });
 
     it('family isolation — two separate logins for the same user create independent families', async () => {
@@ -260,9 +305,17 @@ describe('POST /api/auth/refresh', () => {
       expect(beforeFamilies.size).toBe(2);
 
       // Force a reuse on family A: rotate A → A2, then replay A.
+      // v1.30.10 grace window: backdate the revoked sibling so the
+      // replay lands OUTSIDE the 5s window and triggers actual family
+      // revocation (without the backdate it'd be a benign-race 401
+      // and the rest of the assertions would no longer hold).
       const rotA = await refreshOnce(A);
       expect(rotA.status).toBe(200);
       const A2 = rotA.nextCookie!;
+      await prisma.refreshToken.updateMany({
+        where: { user: { email: 'two@example.com' }, revokedAt: { not: null } },
+        data: { revokedAt: new Date(Date.now() - 60_000) },
+      });
       const replayA = await refreshOnce(A);
       expect(replayA.status).toBe(401);
       // Family A is now nuked.

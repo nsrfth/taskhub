@@ -13,6 +13,12 @@ import { systemRoleIdFor } from '../lib/teamRoles.js';
 
 // All token lifecycle logic lives here. Routes/controllers don't talk to Prisma directly.
 
+// v1.30.10 (S-18 / grace window): how long after a refresh token is
+// rotated we still treat its replay as a benign client race rather
+// than detected theft. Narrow enough that a real attacker can't hide
+// inside it; wide enough to cover SPA double-tabs and retried fetches.
+const REUSE_GRACE_MS = 5_000;
+
 export interface IssuedSession {
   accessToken: string;
   refreshTokenRaw: string;
@@ -327,11 +333,25 @@ export class AuthService {
 
     // ── Reuse-of-revoked-token detection ────────────────────────────────
     // The record EXISTS (so the caller had a real, valid-shaped token at
-    // some point) but it's already revoked. Either the legitimate client
-    // is racing its own retry against rotation (unlikely with a proper
-    // SPA — refresh is single-flighted) or someone is replaying a token
-    // already rotated away. We assume theft and revoke the family.
+    // some point) but it's already revoked. Either someone is replaying
+    // a token already rotated away — assume theft, revoke the whole
+    // family — OR the legitimate client just race-retried.
+    //
+    // v1.30.10 (S-18 / grace window): the v1.30.5 fix's "revoke on ANY
+    // replay" was operationally noisy — a benign client race (a second
+    // tab, a network-retried fetch landing just after rotation) logged
+    // the user out everywhere. The phase boundary called this out as
+    // "if it becomes a pain, add a grace window". A 5-second window is
+    // narrow enough that a real attacker can't hide a stolen-token
+    // replay inside it (the attacker has no way to time when rotation
+    // happened), and wide enough to cover every benign race we've
+    // observed.
     if (record.revokedAt) {
+      const revokedAgeMs = Date.now() - record.revokedAt.getTime();
+      if (revokedAgeMs <= REUSE_GRACE_MS) {
+        // Benign race — silently 401 without family revocation.
+        throw Errors.unauthorized('Refresh token revoked');
+      }
       await prisma.refreshToken.updateMany({
         where: { familyId: record.familyId, revokedAt: null },
         data: { revokedAt: new Date() },

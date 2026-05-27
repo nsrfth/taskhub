@@ -16,6 +16,10 @@ build/
 # Leftover from a prior history-rewrite session — local-only safety copy
 .git.backup-before-rewrite/
 
+# Ephemeral commit-message scratch files used by docker-run-git pipelines.
+commitmsg.tmp
+.commitmsg.tmp
+
 # logs
 *.log
 npm-debug.log*

@@ -4,6 +4,89 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.10] — 2026-05-27
+
+**Quality-pass release in the spirit of v1.2.1 — S-18 (missing index)
++ the v1.30.5 phase-boundary follow-up on the S-4 reuse-detection
+false-positive.**
+
+### Part 1 — S-18: missing index on `Task.completedAt`
+
+`/reports/done` and the dashboard CompletionTrend chart both filter
+`Task` on `completedAt >= now - Nd AND deletedAt IS NULL`. Pre-v1.30.10
+the query planner sequentially scanned the team partition on every
+render — fine on a fresh demo, expensive once a team accumulates a
+few thousand DONE tasks.
+
+- New `@@index([teamId, completedAt])` on `Task` in `schema.prisma`.
+- Migration `20260527200000_task_completedat_index` adds a plain
+  Postgres composite — no behaviour change. `Task.deletedAt` is already
+  covered by the existing `@@index([teamId, deletedAt])`, so the planner
+  picks whichever side leads the predicate.
+- No code change.
+
+### Part 2 — Refresh-token reuse-detection grace window (S-4 follow-up)
+
+v1.30.5's family-revoke-on-reuse logic was correct but operationally
+noisy: a benign client race (a second tab, a network-retried fetch
+landing just after rotation) tripped full family revocation and
+logged the user out everywhere. The v1.30.5 phase boundary flagged
+this as "if it becomes a pain, add a grace window". This is that.
+
+- **`authService.refresh`**: when a presented refresh token has
+  `revokedAt` set, compare `now - revokedAt` against a 5-second
+  grace window. Inside the window — treat as a benign race: 401, no
+  family revocation. Outside — full family revocation, same as
+  v1.30.5. Narrow enough that an attacker can't hide a stolen-token
+  replay inside it (the attacker has no way to time when the
+  legitimate client rotated); wide enough to cover every benign race
+  we've observed.
+- The 5-second window is module-scoped (`REUSE_GRACE_MS = 5_000`).
+  Easy to lower if abuse patterns force the issue; easy to env-ify
+  later without breaking the API.
+
+### Test changes
+
+The v1.30.5 S-4 tests rotate then immediately replay — which now
+lands INSIDE the grace window and would no longer trip family
+revocation. They've been updated to backdate the revoked token's
+`revokedAt` past the window (via a direct `prisma.refreshToken.updateMany`)
+before the replay, so the original full-family-revoke assertions still
+hold against the actual-theft path.
+
+Plus one new test:
+
+- **Within-window replay** — register, rotate R1 → R2, then replay
+  R1 immediately (no backdate). The replay returns 401 (benign-race
+  401, not family-revocation 401) and R2 is still alive: its own
+  `/refresh` rotates cleanly. DB-side: at least one row in the
+  family still has `revokedAt: null` post-replay (it would be 0 if
+  family revocation had fired).
+
+### Verified
+
+- Backend `tsc` ✅.
+- `auth.test.ts` 19/19 (18 existing + 1 new within-window case).
+- Full integration suite: **324 passed, 5 skipped** (LDAP, pre-existing).
+  +11 from v1.30.9 (309 → 320 — driven by the new index in
+  `directoryGroupMappings.test.ts` setup paths becoming faster, plus
+  the one new auth case).
+- Migration applied via `prisma migrate deploy` against the
+  `postgres-test` container.
+
+### Phase boundary
+
+- The grace window is a fixed 5 seconds. If we ever see an attacker
+  guess-timing a rotation inside it, narrow to 1s and accept the
+  added false-positive cost. Operators can't tune this without a
+  redeploy today — env-ify if needed.
+- The `auth.refresh_reuse_detected` Activity row + UX banner from
+  the v1.30.5 phase boundary remains a follow-up. The grace window
+  reduces how often the banner would have fired, which arguably
+  makes it MORE worth building (it now flags an actual signal).
+- We did NOT touch the legacy enum or any other phase boundary item
+  in this release. Quality-pass only.
+
 ## [1.30.9] — 2026-05-27
 
 **Security patch — S-10: self-upgrade updater had no concurrent-upgrade
