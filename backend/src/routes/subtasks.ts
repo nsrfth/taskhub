@@ -5,7 +5,13 @@ import { SubtasksService } from '../services/subtasksService.js';
 import { SubtasksController } from '../controllers/subtasksController.js';
 import { requireAuth, requireTeamRole } from '../middleware/auth.js';
 import { requireScope } from '../middleware/requireScope.js';
-import { createSubtaskBody, subtaskResponse, updateSubtaskBody } from '../schemas/subtasks.js';
+import {
+  createSubtaskBody,
+  reorderSubtasksBody,
+  reorderSubtasksResponse,
+  subtaskResponse,
+  updateSubtaskBody,
+} from '../schemas/subtasks.js';
 
 // Subtasks live under /api/teams/:teamId/projects/:projectId/tasks/:taskId/subtasks.
 // There's no GET list endpoint — the parent task response already carries
@@ -47,6 +53,21 @@ export async function subtasksRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.update,
+  });
+
+  // v1.35: full-permutation reorder. Mirrors the bucket reorder route.
+  r.patch('/reorder', {
+    preHandler: requireScope('tasks:write'),
+    schema: {
+      tags: ['subtasks'],
+      summary:
+        "Reorder subtasks for a task. Body must be a FULL permutation of every subtaskId on the task (strict mode).",
+      params: z.object({ teamId: z.string(), projectId: z.string(), taskId: z.string() }),
+      body: reorderSubtasksBody,
+      response: { 200: reorderSubtasksResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.reorder,
   });
 
   r.delete('/:subtaskId', {

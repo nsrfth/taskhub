@@ -4,6 +4,92 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.0] — 2026-06-08
+
+**Subtasks: reorder + UI polish.** Tier-1 sub-feature 2 (Checklists /
+subtasks) lands as a gap-closer rather than a rebuild — the `Subtask`
+model and CRUD endpoints already shipped in earlier releases.
+
+### What was already there (and stayed)
+
+- `Subtask` Prisma model (id, taskId FK, `title`, `done`, `position`,
+  technicianId/Name) with cascade-on-task-delete and the relevant
+  indexes. The original Tier-1.2 spec called this `ChecklistItem`
+  (`text` / `order`) — same shape; the spec is honoured by mapping
+  the fields onto the existing names rather than adding a parallel
+  model.
+- `POST/PATCH/DELETE /api/teams/:teamId/projects/:projectId/tasks/:taskId/subtasks(/...)` —
+  create / toggle / edit text / change technician / delete.
+- Subtask array returned inline on every Task response
+  (`TASK_INCLUDE.subtasks`).
+- Inline `☑ done/total` count on both Kanban and Buckets cards
+  (Kanban was earlier; Buckets shipped in v1.34.3).
+
+### Backend
+
+- **New endpoint** `PATCH /api/teams/:teamId/projects/:projectId/tasks/:taskId/subtasks/reorder`
+  — full-permutation, strict mode. Body `{ subtaskIds: string[] }`
+  must contain every subtaskId for the parent task in the desired
+  order. Duplicate / missing / foreign id → **400**. Mirrors the
+  bucket reorder contract from v1.34.0.
+- Two-phase write inside one `prisma.$transaction`: bump every row
+  to `position += 1_000_000` (collision-free temporary range), then
+  settle to `(i + 1) * POSITION_GAP` in the requested order.
+  `Subtask.position` stays a non-unique sort key — matches
+  `Task.position` / `Bucket.order` precedent.
+- No model, schema, or migration change.
+
+### Frontend
+
+- `features/subtasks/SubtaskList.tsx` rewritten with `@dnd-kit`:
+  - Each row gets a `⋮⋮` drag handle and a sortable wrapper.
+  - On drop, the client computes the full permutation locally + fires
+    one `PATCH /subtasks/reorder`. On 400 the list rolls back via
+    `onChange()` (the parent task query refetches).
+  - Local-order state mirrors props between drags so a server refetch
+    can't stomp a mid-drag order.
+  - Dark-mode polish on the checkbox row + add-subtask form.
+- `features/subtasks/api.ts` — new `reorderSubtasks` client.
+- Inline `☑ done/total` count on Kanban cards — already shipped
+  earlier; verified present in the bundle.
+
+### Tests
+
+- `subtasks.test.ts` gains 6 new cases:
+  - Happy path: positions follow the requested permutation; no duplicate
+    position values left in the task (via `groupBy`).
+  - Missing id → 400.
+  - Duplicate id → 400.
+  - Foreign id (from another task on the same project) → 400.
+  - Cross-tenant: another team's caller → 403 at `requireTeamRole`.
+  - Parent task missing in the chain → 404.
+- Full subtasks suite: **13/13 pass**.
+
+### Verified
+
+- Backend `tsc` ✅; frontend `tsc --noEmit` ✅.
+- Production bundle markers: `/subtasks/reorder` path (1),
+  `subtaskIds` body field (1), `☑` count badge already in place.
+
+### Phase boundary
+
+- **No parallel `ChecklistItem` model.** Reusing the existing
+  `Subtask` (mapping `text` → `title`, `order` → `position`) avoids
+  fragmenting the schema. UI labelling stays "Subtasks" for
+  continuity.
+- **`Subtask.position` is a non-unique sort key.** Concurrent
+  reorders settle to one of the two orderings depending on commit
+  interleaving — same trade-off as Bucket.order and Task.position.
+- **No per-subtask assignment in this release**, even though the
+  model carries `technicianId` (from v1.19). Out of scope; the
+  existing PATCH supports it for clients that need it.
+- **No optimistic reorder.** The list applies the move locally for
+  paint smoothness; on server error it rolls back via the parent
+  refetch. A real optimistic mutation (server response writes back
+  into cache) is a follow-up if it ever feels laggy.
+- **Within-bucket card reorder is still not wired in Buckets view.**
+  Status (Kanban) remains the authoritative task-position surface.
+
 ## [1.34.3] — 2026-06-08
 
 **Buckets, Planner-style: default view + card polish + `+ Add task` per column.**

@@ -9,6 +9,9 @@ import { userHasPermission } from '../middleware/requirePermission.js';
 // return 404 instead of leaking existence.
 
 const POSITION_GAP = 1000;
+// v1.35: two-phase reorder bumps every row into a collision-free range
+// before settling. Matches the bucket reorder pattern.
+const REORDER_BUMP = 1_000_000;
 
 export interface SubtaskView {
   id: string;
@@ -129,5 +132,77 @@ export class SubtasksService {
     const existing = await prisma.subtask.findUnique({ where: { id: subtaskId } });
     if (!existing || existing.taskId !== taskId) throw Errors.notFound('Subtask not found');
     await prisma.subtask.delete({ where: { id: subtaskId } });
+  }
+
+  // v1.35: full-permutation reorder. Mirrors bucketsService.reorder —
+  // strict mode (no duplicates / no missing / no foreign ids) and a
+  // two-phase write so no intermediate state has duplicate `position`
+  // values within a task. `position` stays non-unique (sort key, not
+  // identity) — matches the Bucket.order / Task.position precedent.
+  async reorder(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    input: { subtaskIds: string[] },
+  ): Promise<SubtaskView[]> {
+    await this.ensureTaskInChain(teamId, projectId, taskId);
+
+    const ids = input.subtaskIds;
+    const seen = new Set<string>();
+    for (const id of ids) {
+      if (seen.has(id)) {
+        throw Errors.badRequest(
+          'Reorder list contains a duplicate subtask id',
+          { reason: 'SUBTASK_REORDER_MISMATCH', duplicate: id },
+        );
+      }
+      seen.add(id);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const current = await tx.subtask.findMany({
+        where: { taskId },
+        select: { id: true },
+      });
+      const currentIds = new Set(current.map((s) => s.id));
+
+      if (current.length !== ids.length) {
+        throw Errors.badRequest(
+          `Reorder list must contain every subtask on the task (got ${ids.length}, expected ${current.length})`,
+          { reason: 'SUBTASK_REORDER_MISMATCH', got: ids.length, expected: current.length },
+        );
+      }
+      for (const id of ids) {
+        if (!currentIds.has(id)) {
+          throw Errors.badRequest(
+            `Subtask ${id} is not on this task`,
+            { reason: 'SUBTASK_REORDER_MISMATCH', strayId: id },
+          );
+        }
+      }
+
+      // Phase 1: lift every row into the collision-free range.
+      await tx.subtask.updateMany({
+        where: { taskId },
+        data: { position: { increment: REORDER_BUMP } },
+      });
+
+      // Phase 2: settle to the requested order. We keep the POSITION_GAP
+      // sparsity for parity with task position so future inline-insert
+      // endpoints have room.
+      for (let i = 0; i < ids.length; i++) {
+        await tx.subtask.update({
+          where: { id: ids[i]! },
+          data: { position: (i + 1) * POSITION_GAP },
+        });
+      }
+
+      return tx.subtask.findMany({
+        where: { taskId },
+        include: SUBTASK_INCLUDE,
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      });
+    });
+    return result.map(toView);
   }
 }

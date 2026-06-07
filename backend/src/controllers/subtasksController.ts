@@ -1,7 +1,11 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { TeamMembership } from '@prisma/client';
 import type { SubtasksService } from '../services/subtasksService.js';
-import type { CreateSubtaskBody, UpdateSubtaskBody } from '../schemas/subtasks.js';
+import type {
+  CreateSubtaskBody,
+  ReorderSubtasksBody,
+  UpdateSubtaskBody,
+} from '../schemas/subtasks.js';
 import { Errors } from '../lib/errors.js';
 
 type TaskParams = { teamId: string; projectId: string; taskId: string };
@@ -61,5 +65,21 @@ export class SubtasksController {
       req.params.subtaskId,
     );
     return reply.status(204).send();
+  };
+
+  // v1.35: bulk reorder. Body must be the FULL permutation of every
+  // subtaskId for the parent task; partial / mismatched lists are
+  // rejected with 400.
+  reorder = async (
+    req: FastifyRequest<{ Params: TaskParams; Body: ReorderSubtasksBody }>,
+    reply: FastifyReply,
+  ) => {
+    const items = await this.svc.reorder(
+      req.params.teamId,
+      req.params.projectId,
+      req.params.taskId,
+      req.body,
+    );
+    return reply.send({ items });
   };
 }

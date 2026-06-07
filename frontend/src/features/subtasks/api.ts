@@ -52,3 +52,21 @@ export async function deleteSubtask(
     `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/subtasks/${subtaskId}`,
   );
 }
+
+// v1.35: full-permutation reorder. Body must contain every subtaskId on
+// the task in the desired order; partial / mismatched lists are rejected
+// by the server with 400. Drag-and-drop UIs naturally send the full
+// permutation on each drop.
+export async function reorderSubtasks(
+  teamId: string,
+  projectId: string,
+  taskId: string,
+  subtaskIds: string[],
+): Promise<{ items: Subtask[] }> {
+  return (
+    await api.patch<{ items: Subtask[] }>(
+      `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/subtasks/reorder`,
+      { subtaskIds },
+    )
+  ).data;
+}

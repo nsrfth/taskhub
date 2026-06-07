@@ -199,6 +199,125 @@ describe('task response carries subtasks[] ordered by position', () => {
   });
 });
 
+describe('PATCH /api/.../subtasks/reorder (v1.35)', () => {
+  async function setupWithThree() {
+    const s = await setup('team-reorder');
+    const ids: string[] = [];
+    for (const title of ['A', 'B', 'C']) {
+      const r = await inject({
+        method: 'POST',
+        url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+        headers: { authorization: `Bearer ${s.token}` },
+        payload: { title },
+      });
+      ids.push(r.json().id);
+    }
+    return { ...s, ids };
+  }
+
+  function reorder(s: { token: string; teamId: string; projectId: string; taskId: string }, ids: string[]) {
+    return inject({
+      method: 'PATCH',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks/reorder`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: { subtaskIds: ids },
+    });
+  }
+
+  it('happy path: positions follow the requested permutation', async () => {
+    const s = await setupWithThree();
+    const [a, b, c] = s.ids;
+    const res = await reorder(s, [c!, a!, b!]);
+    expect(res.statusCode).toBe(200);
+    const items = res.json().items as Array<{ id: string; position: number }>;
+    // Items come back in position-asc order — so the first item is the
+    // first id we requested.
+    expect(items.map((i) => i.id)).toEqual([c, a, b]);
+    // Positions are strictly increasing.
+    for (let i = 1; i < items.length; i++) {
+      expect(items[i]!.position).toBeGreaterThan(items[i - 1]!.position);
+    }
+
+    // No duplicate position values left in the task.
+    const groups = await prisma.subtask.groupBy({
+      by: ['position'],
+      where: { taskId: s.taskId },
+      _count: { _all: true },
+    });
+    for (const g of groups) expect(g._count._all).toBe(1);
+  });
+
+  it('missing id → 400', async () => {
+    const s = await setupWithThree();
+    const [a, b] = s.ids;
+    const res = await reorder(s, [a!, b!]);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('duplicate id → 400', async () => {
+    const s = await setupWithThree();
+    const [a, b, c] = s.ids;
+    const res = await reorder(s, [a!, a!, b!, c!]);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('foreign id (from another task) → 400', async () => {
+    const s = await setupWithThree();
+    // Make a second task on the SAME project and put a subtask on it.
+    const otherTask = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks`,
+        headers: { authorization: `Bearer ${s.token}` },
+        payload: { title: 'other' },
+      })
+    ).json();
+    const otherSub = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${otherTask.id}/subtasks`,
+        headers: { authorization: `Bearer ${s.token}` },
+        payload: { title: 'foreigner' },
+      })
+    ).json();
+
+    const [a, b, c] = s.ids;
+    const res = await reorder(s, [a!, b!, c!, otherSub.id]);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('cross-tenant: another team trying to reorder this tasks subtasks → 404 on the task', async () => {
+    const s = await setupWithThree();
+    const stranger = await bootstrapUser(app, {
+      email: 'stranger@example.com',
+      name: 'Stranger',
+      password: PASSWORD,
+    });
+    // Stranger has no team; they POST against the original team URL.
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks/reorder`,
+      headers: { authorization: `Bearer ${stranger.token}` },
+      payload: { subtaskIds: s.ids },
+    });
+    // Caller isn't a member of teamS → requireTeamRole 403 before the
+    // service runs. (Cross-team service-layer 404 would only fire if
+    // the caller was in some OTHER team that didn't own the resource.)
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('parent task does not exist (or not in this chain) → 404', async () => {
+    const s = await setupWithThree();
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/c00000000000000000000000/subtasks/reorder`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: { subtaskIds: s.ids },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 describe('DELETE /api/.../subtasks/:subtaskId', () => {
   it('removes the subtask', async () => {
     const s = await setup();
