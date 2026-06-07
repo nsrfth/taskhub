@@ -13,6 +13,7 @@ import {
   IconTeams,
   IconTrash,
 } from './icons';
+import { BrandMark, BrandWordmark } from '@/features/brand/BrandMark';
 
 // v1.24: persistent side rail. v1.31: dashboard redesign. The rail is now
 // pinned to the inline-start edge — `start-0` resolves to left in LTR and
@@ -95,29 +96,17 @@ export default function LeftSidebar({ open, onClose }: Props): JSX.Element {
         ].join(' ')}
         aria-label="Primary navigation"
       >
-        {/* Brand header — TaskHub with a small checkmark mark. */}
+        {/* v1.38: brand header uses the new Quad mark + split wordmark
+            ("Task" + indigo "Hub"). Persian renders the localised name
+            unsplit — see BrandWordmark. */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800">
           <Link
             to="/dashboard"
             className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white"
             onClick={onClose}
           >
-            <span className="w-7 h-7 rounded-md bg-indigo-500 flex items-center justify-center">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </span>
-            {t('app.name')}
+            <BrandMark variant="filled" size={28} />
+            <BrandWordmark name={t('app.name')} />
           </Link>
           <button
             type="button"

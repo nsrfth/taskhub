@@ -4,6 +4,65 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.38.0] — 2026-06-09
+
+**Brand: new "Quad" logo + split wordmark + favicon.** Cosmetic
+release — no model, schema, endpoint, or contract changes. Replaces
+the single-checkmark glyph that shipped in v1.31 with the Quad design
+(four rounded squares, top-right carrying an indigo checkmark) and
+adds the favicon the project never had.
+
+### Frontend
+
+- New `features/brand/BrandMark.tsx`:
+  - `<BrandMark variant="filled" size={n} />` — standalone tile
+    (indigo rounded square + four inner white-tint squares + indigo
+    checkmark). Used by the sidebar header today; matches the
+    favicon pixel-for-pixel.
+  - `<BrandMark variant="inset" />` — transparent inner-only variant
+    for callers that already provide a coloured backdrop. Stroke
+    inherits `currentColor` so dark-mode overrides are one rule away.
+  - New `<BrandWordmark name={t('app.name')} />` — when the
+    localised name is exactly `"TaskHub"`, renders "Task" in the
+    surrounding text colour and `Hub` in indigo (matches the
+    dribbble lockup). Persian (`تسک‌هاب`) renders flat — the two-
+    syllable split doesn't transfer.
+- `features/nav/LeftSidebar.tsx` — replaces the inline checkmark SVG
+  + plain text wordmark with `<BrandMark variant="filled" />` and
+  `<BrandWordmark />`. The 28-pixel tile slots into the existing
+  14-pixel header without layout shift.
+- `index.html` — new `<link rel="icon" type="image/svg+xml" ...>`
+  pointing at an inline SVG data URI that mirrors the filled BrandMark
+  exactly. No new binary asset; the project's `public/` directory stays
+  doc-only.
+
+### Verified
+
+- Frontend `tsc --noEmit` ✅.
+- Served HTML carries the SVG favicon (`rel="icon" type="image/svg+xml"`).
+- Production bundle markers: `>Hub<` wordmark split (1), `#6366f1`
+  indigo tile fill (1).
+- No backend, schema, or contract changes — no tests required.
+
+### Phase boundary
+
+- **Two sources of truth for the SVG geometry.** The favicon (data URI
+  in `index.html`) and the `<BrandMark variant="filled">` React
+  component share the same coordinates by hand. If we ever need to
+  re-tweak the design, both have to be updated together. Worth it
+  vs. adding a build step that injects the data URI from the
+  component.
+- **No multi-colour Quad variant.** The dribbble lockup also showed a
+  multi-colour version (blue / purple / teal / orange inner squares).
+  Not used in the app yet; the monochrome / split-opacity rendering
+  reads better at the 28px sizes the sidebar uses.
+- **No login-page lockup.** LoginPage doesn't show a brand header
+  today (only the form). If we want to add one, `<BrandMark
+  variant="filled" />` + `<BrandWordmark />` drop in directly.
+- **Wordmark split is English-only.** Other future locales render the
+  app name flat. Easy to extend: add the locale code to the
+  `BrandWordmark` matcher.
+
 ## [1.37.0] — 2026-06-09
 
 **Task.startDate.** Tier-1 sub-feature 4 (Task progress/status + start
