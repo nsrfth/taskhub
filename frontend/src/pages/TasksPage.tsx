@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import {
@@ -293,11 +293,25 @@ export default function TasksPage(): JSX.Element {
   //   - buckets    — v1.34.1: project-defined bucket columns (independent of
   //     status). Cross-bucket drag → PATCH /tasks/:taskId { bucketId }.
   type ViewMode = 'status' | 'technician' | 'list' | 'buckets';
+  // v1.34.2: honour `?view=buckets` (and friends) on the URL so the
+  // ProjectBucketStrip's "Manage →" link lands directly in the buckets
+  // view. The query param wins over the stored localStorage preference
+  // on first render only; subsequent toggles persist as usual.
+  // v1.34.3: default view is now Buckets — matches the Planner-style
+  // "open a plan, see the board" UX. Users who picked a different
+  // view previously keep their stored preference.
+  const [searchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window === 'undefined') return 'status';
+    const fromUrl = searchParams.get('view');
+    if (fromUrl === 'status' || fromUrl === 'technician' || fromUrl === 'list' || fromUrl === 'buckets') {
+      return fromUrl;
+    }
+    if (typeof window === 'undefined') return 'buckets';
     const stored = window.localStorage.getItem('kanban.viewMode');
-    if (stored === 'technician' || stored === 'list' || stored === 'buckets') return stored;
-    return 'status';
+    if (stored === 'status' || stored === 'technician' || stored === 'list' || stored === 'buckets') {
+      return stored;
+    }
+    return 'buckets';
   });
   useEffect(() => {
     if (typeof window !== 'undefined') {

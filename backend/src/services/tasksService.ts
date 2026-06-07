@@ -194,6 +194,10 @@ export class TasksService {
       dueDate?: string | null;
       plannedDate?: string | null;
       completedAt?: string | null;
+      // v1.34.3: pre-bucket the new task. Omitted / null = unbucketed.
+      // String = move into that bucket; validated to belong to the
+      // same project (cross-project → 400, cross-team → 404).
+      bucketId?: string | null;
     },
   ): Promise<TaskView> {
     await this.ensureProjectInTeam(teamId, projectId);
@@ -205,6 +209,20 @@ export class TasksService {
         where: { userId_teamId: { userId: input.assigneeId, teamId } },
       });
       if (!membership) throw Errors.badRequest('Assignee is not a member of this team');
+    }
+
+    // v1.34.3: bucket validation mirrors the PATCH path from v1.34.0.
+    if (typeof input.bucketId === 'string') {
+      const target = await prisma.bucket.findUnique({
+        where: { id: input.bucketId },
+        select: { projectId: true, teamId: true },
+      });
+      if (!target || target.teamId !== teamId) {
+        throw Errors.notFound('Bucket not found');
+      }
+      if (target.projectId !== projectId) {
+        throw Errors.badRequest('Bucket belongs to a different project');
+      }
     }
 
     const status = input.status ?? 'TODO';
@@ -249,6 +267,9 @@ export class TasksService {
           plannedDate: input.plannedDate ? new Date(input.plannedDate) : null,
           completedAt,
           position,
+          // v1.34.3: explicit null and omission both result in NULL
+          // (unbucketed); a string ID was validated above.
+          bucketId: input.bucketId ?? null,
         },
         include: TASK_INCLUDE,
       });

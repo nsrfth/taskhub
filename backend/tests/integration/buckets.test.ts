@@ -328,6 +328,74 @@ describe('Buckets — delete preserves tasks', () => {
   });
 });
 
+describe('Task CREATE bucketId integration (v1.34.3)', () => {
+  it('creates a task pre-bucketed when a valid bucketId is supplied', async () => {
+    const me = await register('me@example.com');
+    const teamId = await createTeam(me.token, 'team-1');
+    const projectId = await createProject(me.token, teamId);
+    const bucketId = (await createBucket(me.token, teamId, projectId, 'B')).json().id as string;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/projects/${projectId}/tasks`,
+      headers: { authorization: `Bearer ${me.token}` },
+      payload: { title: 'pre-bucketed', bucketId },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().bucketId).toBe(bucketId);
+  });
+
+  it('cross-project bucketId on create → 400', async () => {
+    const me = await register('me@example.com');
+    const teamId = await createTeam(me.token, 'team-1');
+    const projectA = await createProject(me.token, teamId, 'A');
+    const projectB = await createProject(me.token, teamId, 'B');
+    const bucketB = (await createBucket(me.token, teamId, projectB, 'B')).json().id as string;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/projects/${projectA}/tasks`,
+      headers: { authorization: `Bearer ${me.token}` },
+      payload: { title: 'mismatch', bucketId: bucketB },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('cross-team bucketId on create → 404', async () => {
+    const owner = await register('owner@example.com');
+    const teamA = await createTeam(owner.token, 'team-a');
+    const projA = await createProject(owner.token, teamA);
+
+    const stranger = await register('stranger@example.com');
+    const teamB = await createTeam(stranger.token, 'team-b');
+    const projB = await createProject(stranger.token, teamB);
+    const bucketB = (await createBucket(stranger.token, teamB, projB, 'B')).json().id as string;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamA}/projects/${projA}/tasks`,
+      headers: { authorization: `Bearer ${owner.token}` },
+      payload: { title: 'stolen bucket', bucketId: bucketB },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('omitted bucketId on create → unbucketed (null)', async () => {
+    const me = await register('me@example.com');
+    const teamId = await createTeam(me.token, 'team-1');
+    const projectId = await createProject(me.token, teamId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/projects/${projectId}/tasks`,
+      headers: { authorization: `Bearer ${me.token}` },
+      payload: { title: 'naked' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().bucketId).toBeNull();
+  });
+});
+
 describe('Task PATCH bucketId integration', () => {
   it('string moves the task; null unbuckets it', async () => {
     const me = await register('me@example.com');

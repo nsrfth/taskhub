@@ -4,6 +4,148 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.3] — 2026-06-08
+
+**Buckets, Planner-style: default view + card polish + `+ Add task` per column.**
+Tier-1.1 (Buckets) UX iteration. Combines two parallel changes that
+together produce the "open a project → see the board" feel of
+Microsoft Planner.
+
+### Backend
+
+- `POST /api/teams/:teamId/projects/:projectId/tasks` now accepts an
+  optional `bucketId` in the body. Validation mirrors the v1.34.0 PATCH
+  path: omitted / `null` = unbucketed, string = pre-bucket the new
+  task (cross-project → 400, cross-team → 404). One round-trip instead
+  of create + PATCH.
+- No schema change. The `Task.bucketId` column from v1.34.0 carries it.
+
+### Frontend
+
+- `pages/TasksPage.tsx` — the default view-mode is now **Buckets**.
+  Users with a stored `kanban.viewMode` preference keep their choice;
+  fresh installs and new users land in Buckets — matches Planner's
+  "open a plan, see the board" UX.
+- `features/buckets/BucketBoard.tsx` — substantial polish:
+  - **`+ Add task` inline form inside each bucket column** (and inside
+    the unbucketed column when it has tasks). Submits via the new
+    create-with-bucketId path so the task lands in the right column on
+    the first round-trip.
+  - **`(unbucketed)` column is hidden when empty.** Planner doesn't
+    have one. Keeping it for pre-v1.34.0 tasks (`bucketId === NULL`)
+    so they remain visible until you bucket them; otherwise the UI
+    stays clean.
+  - **Card polish:**
+    - Priority shown as a small colored dot (`bg-slate-400` /
+      `bg-amber-500` / `bg-red-600`) at the top-left instead of a text
+      label.
+    - Due-date pill at the bottom (`📅 1404/03/17`) — red border +
+      text when the task is overdue and not done.
+    - Inline checklist count `☑ 3/5` rendered from existing `Subtask`
+      data (no new endpoint).
+    - Technician initials in a small circular avatar at the bottom-
+      right.
+    - Blocker lock badge `🔒 N` carried over from v1.34.1.
+  - `PRIORITY_CLASS` text-coloring lookup retired; the dot replaces it.
+- `features/tasks/api.ts` — `createTask` input type accepts
+  `bucketId: string | null`.
+- `i18n/en.json` + `i18n/fa.json` — two new keys: `buckets.addTask`
+  (en "Add task", fa "افزودن تسک") and `buckets.taskPlaceholder`
+  (en "Enter a task title…", fa "عنوان تسک را وارد کنید…").
+
+### Tests
+
+- New cases in `buckets.test.ts` covering the create-with-bucketId
+  path: happy path, cross-project 400, cross-team 404, omitted
+  bucketId = unbucketed. Full buckets + tasks suites: **34/34 pass**.
+
+### Verified
+
+- Backend `tsc` ✅; frontend `tsc --noEmit` ✅.
+- Production bundle markers: `buckets.addTask` (3), `buckets.taskPlaceholder`
+  (3), priority-dot classes present.
+- Backend regression: `tasks.test.ts` and `buckets.test.ts` together
+  34/34.
+
+### Phase boundary
+
+- **Buckets is the new default view.** Users who previously toggled
+  away keep their stored preference. There's no migration of
+  `kanban.viewMode` from "status" → "buckets" — the stored value still
+  wins for the user's existing session, so this is purely a new-user
+  default change.
+- **The unbucketed column shows whenever it has tasks** — so old
+  pre-v1.34.0 tasks remain visible. A future "Migrate unbucketed" UI
+  affordance (bulk-assign to a bucket) is the natural follow-up if
+  operators want to converge to "every task lives in a bucket."
+- **Card avatar shows the technician**, not the assignee. Backend
+  denormalizes `technicianName` onto every `Task` response; assignee
+  name isn't denormalised. The technician is "the person actually
+  doing the work" (per v1.19), which is the more useful badge on a
+  glance-board.
+- **No optimistic create.** The "+ Add task" PATCHes synchronously
+  and the card appears after the invalidation. Optimistic create is a
+  follow-up if it feels slow in real use.
+- **Within-column card reorder is still not wired in Buckets view.**
+  The Status (Kanban) view remains the authoritative position-reorder
+  surface.
+
+## [1.34.2] — 2026-06-08
+
+**Buckets on the Projects page: per-row strip + "Manage →" deep-link.**
+Small UX add-on to v1.34.1. No backend, no schema, no contract change —
+reuses the v1.34.0 endpoints.
+
+### Frontend
+
+- New `features/buckets/ProjectBucketStrip.tsx` — a compact row of
+  chips rendered under each project on `/projects`. Per project it
+  surfaces:
+  - One chip per `Bucket` (ordered by `order` asc).
+  - Click a chip name → inline rename (Enter saves, Esc cancels,
+    blur saves). The trailing `×` deletes with a confirm — tasks fall
+    back to unbucketed via the existing FK SET NULL.
+  - A trailing "+ Add bucket" pill that opens a tiny inline input.
+  - A right-aligned **Manage →** link that deep-links to the
+    project's task page in Buckets view (full DnD reorder lives there).
+- `pages/ProjectsPage.tsx` renders the strip under each project row.
+  `teamId` comes from the page-level `currentTeam` since the project
+  list is currentTeam-scoped (every rendered row shares the same
+  `teamId`).
+- `pages/TasksPage.tsx` now honours `?view=` on the URL — the
+  Manage → link drops you straight into the Buckets view. Honored
+  values: `status` / `technician` / `list` / `buckets`. The URL
+  param wins over the stored `kanban.viewMode` preference on first
+  render only; subsequent toggles persist as usual.
+- One new i18n key: `buckets.manage` (Persian: مدیریت). Persian
+  translations of all v1.34.1 keys remain in place.
+
+### Verified
+
+- Frontend `tsc --noEmit` ✅.
+- Production bundle markers: `?view=buckets` deep-link target (1),
+  `buckets.manage` key (3), URL-param reader present.
+- Backend untouched — v1.34.0 endpoints, v1.34.1 backend invariant
+  unchanged.
+
+### Phase boundary
+
+- **No reorder on the Projects page strip.** The BucketBoard
+  (TasksPage view-mode "Buckets") remains the authoritative
+  drag-and-drop surface for ordering. The strip is for "name
+  management" — add, rename, remove.
+- **No per-bucket task counts on the projects page.** Counts would
+  require fetching every project's task list per row, which doesn't
+  scale on a busy team. Counts live on the BucketBoard itself.
+- **Strip query is per-project**, so a Projects page with N projects
+  fires N parallel `listBuckets` calls. `staleTime: 60_000` caps the
+  refetch rate on revisit, but at extreme N this becomes a request
+  storm. For instances with hundreds of projects we'd want a
+  team-level "list buckets across all my projects" endpoint —
+  deferred until it's actually a problem.
+- **Affordance gating is inline-403**, not a pre-check. Same pattern
+  as every other gated affordance today.
+
 ## [1.34.1] — 2026-06-08
 
 **Buckets frontend: board grouping + drag-and-drop reorder.** Follow-up

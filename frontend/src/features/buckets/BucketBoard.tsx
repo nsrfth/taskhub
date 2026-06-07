@@ -41,12 +41,9 @@ const PRIORITY_LABEL: Record<tasksApi.TaskPriority, string> = {
   HIGH: 'High',
   URGENT: 'Urgent',
 };
-const PRIORITY_CLASS: Record<tasksApi.TaskPriority, string> = {
-  LOW: 'text-slate-500',
-  MEDIUM: 'text-slate-700 dark:text-slate-300',
-  HIGH: 'text-amber-700 dark:text-amber-400',
-  URGENT: 'text-red-700 dark:text-red-400 font-semibold',
-};
+// v1.34.3: PRIORITY_CLASS replaced by PRIORITY_DOT (defined alongside
+// BucketTaskCard) — the polished card uses a small colored dot instead
+// of the text-coloured label string.
 
 const UNBUCKETED = '__unbucketed__';
 
@@ -197,15 +194,24 @@ export default function BucketBoard({ teamId, projectId, onOpenTask }: Props): J
     return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
   }
 
+  // v1.34.3: hide the (unbucketed) column when it has no tasks — Planner
+  // doesn't have one because every task lives in a bucket. We still keep
+  // it around for tasks created pre-v1.34.0 (bucketId = NULL) so they
+  // remain visible, but otherwise the UI stays clean.
+  const unbucketedTasks = byBucket.get(UNBUCKETED) ?? [];
+
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-2">
-        {/* Unbucketed column — always first. Not draggable / not deletable. */}
-        <UnbucketedColumn
-          tasks={byBucket.get(UNBUCKETED) ?? []}
-          onOpenTask={onOpenTask}
-          t={t}
-        />
+        {unbucketedTasks.length > 0 && (
+          <UnbucketedColumn
+            tasks={unbucketedTasks}
+            teamId={teamId}
+            projectId={projectId}
+            onOpenTask={onOpenTask}
+            t={t}
+          />
+        )}
 
         {/* Bucket columns — draggable. */}
         <SortableContext
@@ -236,10 +242,14 @@ export default function BucketBoard({ teamId, projectId, onOpenTask }: Props): J
 
 function UnbucketedColumn({
   tasks,
+  teamId,
+  projectId,
   onOpenTask,
   t,
 }: {
   tasks: tasksApi.Task[];
+  teamId: string;
+  projectId: string;
   onOpenTask: (id: string) => void;
   t: (k: string) => string;
 }): JSX.Element {
@@ -261,6 +271,7 @@ function UnbucketedColumn({
         </span>
         <span className="text-xs text-slate-400">{tasks.length}</span>
       </div>
+      <AddTaskInline teamId={teamId} projectId={projectId} bucketId={null} t={t} />
       <ColumnTaskList tasks={tasks} columnId={UNBUCKETED} onOpenTask={onOpenTask} />
     </div>
   );
@@ -376,8 +387,81 @@ function BucketColumn({
           ×
         </button>
       </div>
+      <AddTaskInline teamId={teamId} projectId={projectId} bucketId={bucket.id} t={t} />
       <ColumnTaskList tasks={tasks} columnId={bucket.id} onOpenTask={onOpenTask} />
     </div>
+  );
+}
+
+// v1.34.3: Planner-style "+ Add task" affordance inside each column.
+// Collapsed to a one-line button; expands to a title input + Enter to
+// submit. Creates the task pre-bucketed via the createTask endpoint that
+// gained `bucketId` support in v1.34.3 — no second PATCH round-trip.
+function AddTaskInline({
+  teamId,
+  projectId,
+  bucketId,
+  t,
+}: {
+  teamId: string;
+  projectId: string;
+  bucketId: string | null;
+  t: (k: string) => string;
+}): JSX.Element {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+
+  const createMut = useMutation({
+    mutationFn: (input: { title: string }) =>
+      tasksApi.createTask(teamId, projectId, { title: input.title, bucketId }),
+    onSuccess: () => {
+      setTitle('');
+      qc.invalidateQueries({ queryKey: ['tasks', teamId, projectId] });
+    },
+    onError: (err) => window.alert(errorMessage(err, 'Could not create task')),
+  });
+
+  function submit(e: FormEvent): void {
+    e.preventDefault();
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    createMut.mutate({ title: trimmed });
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full text-left text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded px-1.5 py-1 mb-2 hover:bg-slate-100 dark:hover:bg-slate-700/40"
+      >
+        + {t('buckets.addTask')}
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mb-2">
+      <input
+        autoFocus
+        type="text"
+        value={title}
+        maxLength={200}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => {
+          if (!title.trim()) setOpen(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setOpen(false);
+            setTitle('');
+          }
+        }}
+        placeholder={t('buckets.taskPlaceholder')}
+        className="w-full rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-xs"
+      />
+    </form>
   );
 }
 
@@ -459,6 +543,25 @@ function ColumnTaskList({
   );
 }
 
+// v1.34.3: Planner-style task card. Visual signals at a glance:
+//   - priority colored dot (top-left, beside the drag handle)
+//   - inline checklist count: ☑ done/total — using existing Subtask data
+//   - due-date pill at the bottom (red if overdue)
+//   - technician initials avatar bottom-right
+//   - blocker lock badge (unchanged from v1.34.1)
+const PRIORITY_DOT: Record<tasksApi.TaskPriority, string> = {
+  LOW: 'bg-slate-300 dark:bg-slate-600',
+  MEDIUM: 'bg-slate-400 dark:bg-slate-500',
+  HIGH: 'bg-amber-500',
+  URGENT: 'bg-red-600',
+};
+
+function initialsOf(name: string | null): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
 function BucketTaskCard({
   task,
   columnId,
@@ -477,54 +580,102 @@ function BucketTaskCard({
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
+  const subtaskTotal = task.subtasks.length;
+  const subtaskDone = task.subtasks.filter((s) => s.done).length;
+  const overdue =
+    task.dueDate &&
+    new Date(task.dueDate).getTime() < Date.now() &&
+    task.status !== 'DONE';
+
   return (
     <li
       ref={setNodeRef}
       style={style}
-      className="rounded border border-slate-200 dark:border-slate-700 p-2 text-sm bg-white dark:bg-slate-800"
+      className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow text-sm overflow-hidden"
       {...attributes}
     >
-      <div className="flex items-start gap-2">
-        <span
-          {...listeners}
-          className="cursor-grab text-slate-400 text-xs select-none"
-          aria-label="Drag handle"
-        >
-          ⋮⋮
-        </span>
-        <button
-          type="button"
-          onClick={() => onOpen(task.id)}
-          className="font-medium break-words text-left hover:underline flex-1 min-w-0"
-        >
-          {task.title}
-        </button>
+      <div className="p-2.5 space-y-2">
+        <div className="flex items-start gap-2">
+          <span
+            className={`mt-1.5 inline-block w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[task.priority]}`}
+            title={`Priority: ${PRIORITY_LABEL[task.priority]}`}
+            aria-label={`Priority ${PRIORITY_LABEL[task.priority]}`}
+          />
+          <span
+            {...listeners}
+            className="cursor-grab text-slate-400 text-xs select-none mt-0.5"
+            aria-label="Drag handle"
+          >
+            ⋮⋮
+          </span>
+          <button
+            type="button"
+            onClick={() => onOpen(task.id)}
+            className="text-left hover:underline flex-1 min-w-0 break-words text-slate-800 dark:text-slate-100 font-medium"
+          >
+            {task.title}
+          </button>
+        </div>
+
+        {task.labels.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {task.labels.map((l) => (
+              <LabelChip key={l.id} label={l} />
+            ))}
+          </div>
+        )}
+
+        {/* Bottom meta row: due-date pill on the left, badges + avatar on the right. */}
+        <div className="flex items-center gap-2 text-[11px]">
+          {task.dueDate && (
+            <span
+              className={[
+                'inline-flex items-center gap-1 rounded border px-1.5 py-0.5',
+                overdue
+                  ? 'border-red-300 dark:border-red-700 text-red-700 dark:text-red-400'
+                  : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300',
+              ].join(' ')}
+              title={overdue ? 'Overdue' : 'Due date'}
+            >
+              <span aria-hidden>📅</span>
+              <span dir="rtl">{formatShamsiDate(task.dueDate)}</span>
+            </span>
+          )}
+
+          {subtaskTotal > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400"
+              title={`${subtaskDone} of ${subtaskTotal} subtasks done`}
+            >
+              <span aria-hidden>☑</span>
+              <span className="tabular-nums">
+                {subtaskDone}/{subtaskTotal}
+              </span>
+            </span>
+          )}
+
+          {task.incompleteBlockerCount > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400"
+              title={`Blocked by ${task.incompleteBlockerCount} incomplete task${task.incompleteBlockerCount === 1 ? '' : 's'}`}
+            >
+              <span aria-hidden>🔒</span>
+              <span>{task.incompleteBlockerCount}</span>
+            </span>
+          )}
+
+          {task.technicianName && (
+            <span
+              className="ms-auto inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500 text-white text-[10px] font-semibold"
+              title={task.technicianName}
+              aria-label={`Technician: ${task.technicianName}`}
+            >
+              {initialsOf(task.technicianName)}
+            </span>
+          )}
+        </div>
       </div>
-      {task.labels.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {task.labels.map((l) => (
-            <LabelChip key={l.id} label={l} />
-          ))}
-        </div>
-      )}
-      <div className="flex items-center justify-between mt-2 gap-2 text-xs">
-        <span className={PRIORITY_CLASS[task.priority]}>{PRIORITY_LABEL[task.priority]}</span>
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">{task.status}</span>
-      </div>
-      {task.dueDate && (
-        <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400" dir="rtl">
-          مهلت {formatShamsiDate(task.dueDate)}
-        </div>
-      )}
-      {task.incompleteBlockerCount > 0 && (
-        <div
-          className="mt-1 inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400"
-          title={`Blocked by ${task.incompleteBlockerCount} incomplete task${task.incompleteBlockerCount === 1 ? '' : 's'}`}
-        >
-          <span aria-hidden>🔒</span>
-          <span>{task.incompleteBlockerCount}</span>
-        </div>
-      )}
     </li>
   );
 }

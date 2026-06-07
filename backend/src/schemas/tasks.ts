@@ -18,6 +18,11 @@ export const createTaskBody = z.object({
   dueDate: z.string().datetime().nullable().optional(),
   plannedDate: z.string().datetime().nullable().optional(),
   completedAt: z.string().datetime().nullable().optional(),
+  // v1.34.3: pre-bucket the new task. Omitted / null = unbucketed
+  // (existing default). String must reference a Bucket in the same
+  // project (cross-project → 400, cross-team → 404). Validation
+  // mirrors the same check on PATCH from v1.34.0.
+  bucketId: z.string().nullable().optional(),
 });
 
 export const updateTaskBody = z

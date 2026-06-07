@@ -7,6 +7,7 @@ import { useTeams } from '@/features/teams/TeamsContext';
 import * as projectsApi from '@/features/projects/api';
 import { getTeam } from '@/features/teams/api';
 import { formatShamsiTimestampDate } from '@/lib/shamsi';
+import ProjectBucketStrip from '@/features/buckets/ProjectBucketStrip';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -218,70 +219,78 @@ export default function ProjectsPage(): JSX.Element {
           {projects.map((p) => {
             const canEdit = p.ownerId === user?.id || isManager;
             return (
-              <li key={p.id} className="py-3 flex items-start justify-between gap-4">
-                <button
-                  type="button"
-                  onClick={() => nav(`/projects/${p.id}/tasks`)}
-                  className="text-left min-w-0 flex-1 hover:underline"
-                >
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium truncate">{p.name}</p>
-                    <span className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0">
-                      {STATUS_LABEL[p.status]}
-                    </span>
+              <li key={p.id} className="py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => nav(`/projects/${p.id}/tasks`)}
+                    className="text-left min-w-0 flex-1 hover:underline"
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium truncate">{p.name}</p>
+                      <span className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0">
+                        {STATUS_LABEL[p.status]}
+                      </span>
+                    </div>
+                    {p.description && (
+                      <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5 truncate">{p.description}</p>
+                    )}
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Owned by{' '}
+                      {p.ownerId === user?.id
+                        ? 'you'
+                        : p.ownerId
+                          ? p.ownerId.slice(0, 8) + '…'
+                          : '(deleted user)'}
+                      {' · Accountable: '}
+                      {p.accountableName ?? <span className="italic">unassigned</span>}
+                      {' · '}
+                      <span dir="rtl">ایجاد {formatShamsiTimestampDate(p.createdAt)}</span>
+                    </p>
+                  </button>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {/* Accountable change inline only for editors — same gate
+                        as Delete. Members see the read-only label above. */}
+                    {canEdit && (
+                      <select
+                        value={p.accountableId ?? ''}
+                        onChange={(e) =>
+                          updateAccountableMut.mutate({
+                            projectId: p.id,
+                            accountableId: e.target.value || null,
+                          })
+                        }
+                        disabled={updateAccountableMut.isPending}
+                        className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5 max-w-[12rem]"
+                        title="Change accountable"
+                      >
+                        <option value="">— Accountable —</option>
+                        {members.map((m) => (
+                          <option key={m.userId} value={m.userId}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete project "${p.name}"?`)) deleteMut.mutate(p.id);
+                        }}
+                        disabled={deleteMut.isPending}
+                        className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
-                  {p.description && (
-                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5 truncate">{p.description}</p>
-                  )}
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                    Owned by{' '}
-                    {p.ownerId === user?.id
-                      ? 'you'
-                      : p.ownerId
-                        ? p.ownerId.slice(0, 8) + '…'
-                        : '(deleted user)'}
-                    {' · Accountable: '}
-                    {p.accountableName ?? <span className="italic">unassigned</span>}
-                    {' · '}
-                    <span dir="rtl">ایجاد {formatShamsiTimestampDate(p.createdAt)}</span>
-                  </p>
-                </button>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  {/* Accountable change inline only for editors — same gate
-                      as Delete. Members see the read-only label above. */}
-                  {canEdit && (
-                    <select
-                      value={p.accountableId ?? ''}
-                      onChange={(e) =>
-                        updateAccountableMut.mutate({
-                          projectId: p.id,
-                          accountableId: e.target.value || null,
-                        })
-                      }
-                      disabled={updateAccountableMut.isPending}
-                      className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5 max-w-[12rem]"
-                      title="Change accountable"
-                    >
-                      <option value="">— Accountable —</option>
-                      {members.map((m) => (
-                        <option key={m.userId} value={m.userId}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {canEdit && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Delete project "${p.name}"?`)) deleteMut.mutate(p.id);
-                      }}
-                      disabled={deleteMut.isPending}
-                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  )}
                 </div>
+                {/* v1.34.2: per-project bucket strip. teamId comes from the
+                    page-level currentTeam since the list is currentTeam-
+                    scoped (project rows here all share teamId). */}
+                {teamId && (
+                  <ProjectBucketStrip teamId={teamId} projectId={p.id} />
+                )}
               </li>
             );
           })}

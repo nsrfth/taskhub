@@ -78,6 +78,9 @@ export async function createTask(
     dueDate?: string | null;
     plannedDate?: string | null;
     completedAt?: string | null;
+    // v1.34.3: pre-bucket the new task. Server validates the bucket
+    // lives in the same project; omit / null = unbucketed.
+    bucketId?: string | null;
   },
 ): Promise<Task> {
   return (await api.post<Task>(`/teams/${teamId}/projects/${projectId}/tasks`, input)).data;
