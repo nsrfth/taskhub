@@ -14,6 +14,11 @@ export interface Project {
   name: string;
   description: string | null;
   status: ProjectStatus;
+  // v1.41: budget fields. Strings (Decimal serialises to string; preserves
+  // precision past Number.MAX_SAFE_INTEGER). Always two decimal places when
+  // set; null when unset.
+  plannedBudget: string | null;
+  actualSpent: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,9 +27,28 @@ export async function listProjects(teamId: string): Promise<Project[]> {
   return (await api.get<Project[]>(`/teams/${teamId}/projects`)).data;
 }
 
+// v1.40: cross-team list — every project the caller can see across every
+// team they belong to. Each row carries the parent team name/slug so the
+// SPA renders a chip per row.
+export interface ProjectCrossTeam extends Project {
+  teamName: string;
+  teamSlug: string;
+}
+
+export async function listAllProjects(): Promise<ProjectCrossTeam[]> {
+  return (await api.get<ProjectCrossTeam[]>('/projects')).data;
+}
+
 export async function createProject(
   teamId: string,
-  input: { name: string; description?: string; accountableId?: string | null },
+  input: {
+    name: string;
+    description?: string;
+    accountableId?: string | null;
+    // v1.41: optional budgets at create time. number | string | null.
+    plannedBudget?: number | string | null;
+    actualSpent?: number | string | null;
+  },
 ): Promise<Project> {
   return (await api.post<Project>(`/teams/${teamId}/projects`, input)).data;
 }
@@ -37,6 +61,9 @@ export async function updateProject(
     description?: string | null;
     status?: ProjectStatus;
     accountableId?: string | null;
+    // v1.41: budget PATCH. undefined leaves the field; null clears it.
+    plannedBudget?: number | string | null;
+    actualSpent?: number | string | null;
   },
 ): Promise<Project> {
   return (await api.patch<Project>(`/teams/${teamId}/projects/${projectId}`, input)).data;

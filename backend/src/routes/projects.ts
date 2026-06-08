@@ -7,6 +7,7 @@ import { requireAuth, requireTeamRole } from '../middleware/auth.js';
 import { requireScope } from '../middleware/requireScope.js';
 import {
   createProjectBody,
+  projectCrossTeamResponse,
   projectResponse,
   updateProjectBody,
 } from '../schemas/projects.js';
@@ -83,5 +84,31 @@ export async function projectsRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.remove,
+  });
+}
+
+// v1.40: cross-team list mounted at /api/projects (no :teamId). The SPA's
+// Projects page is now team-agnostic — it shows every project the user
+// can see across the teams they belong to. Auth-only (no requireTeamRole)
+// because the visibility filter inside the service already scopes by
+// caller; team membership is enforced implicitly via that scope.
+export async function projectsCrossTeamRoutes(app: FastifyInstance): Promise<void> {
+  const svc = new ProjectsService();
+  const ctrl = new ProjectsController(svc);
+  const r = app.withTypeProvider<ZodTypeProvider>();
+
+  r.addHook('preHandler', requireAuth);
+
+  r.get('/', {
+    preHandler: requireScope('projects:read'),
+    schema: {
+      tags: ['projects'],
+      summary:
+        'List every project the caller can see across all teams (cross-team). ' +
+        'Non-ADMIN sees only projects they own; global ADMIN sees every project.',
+      response: { 200: z.array(projectCrossTeamResponse) },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.listAll,
   });
 }

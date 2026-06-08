@@ -88,9 +88,12 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
         name: 'TaskHub',
         // Read TASKHUB_VERSION from env; the deploy pipeline can set it
         // from the git tag. Falls back to 'dev' so a local docker compose
-        // run reads cleanly.
-        version: process.env.TASKHUB_VERSION ?? 'dev',
-        buildTime: process.env.TASKHUB_BUILD_TIME ?? null,
+        // run reads cleanly. Use || (not ??) so the empty string that
+        // docker-compose's `${TASKHUB_VERSION:-}` produces when the key is
+        // absent from .env also falls back to 'dev' rather than rendering
+        // blank in the About page.
+        version: process.env.TASKHUB_VERSION || 'dev',
+        buildTime: process.env.TASKHUB_BUILD_TIME || null,
         nodeEnv: process.env.NODE_ENV ?? 'unknown',
         calendarWeekend: weekend,
         dateEditRestriction,

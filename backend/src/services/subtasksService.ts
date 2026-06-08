@@ -20,6 +20,10 @@ export interface SubtaskView {
   done: boolean;
   technicianId: string | null;
   technicianName: string | null;
+  // v1.41: optional scheduling window. Serialized as ISO strings on the
+  // wire so the SPA can hand them straight to Date(...) / the picker.
+  startDate: string | null;
+  endDate: string | null;
   position: number;
 }
 
@@ -35,8 +39,21 @@ function toView(row: Prisma.SubtaskGetPayload<{ include: typeof SUBTASK_INCLUDE 
     done: row.done,
     technicianId: row.technicianId,
     technicianName: row.technician?.name ?? null,
+    startDate: row.startDate ? row.startDate.toISOString() : null,
+    endDate: row.endDate ? row.endDate.toISOString() : null,
     position: row.position,
   };
+}
+
+// v1.41: end-on-or-after-start helper. Returns true when the pair is
+// valid OR either side is null. Throws a 400 with a friendly reason
+// code so the SPA can highlight the right field.
+function assertDateRange(startDate: Date | null, endDate: Date | null): void {
+  if (startDate && endDate && endDate.getTime() < startDate.getTime()) {
+    throw Errors.badRequest('endDate must be on or after startDate', {
+      reason: 'SUBTASK_DATE_RANGE_INVERTED',
+    });
+  }
 }
 
 export class SubtasksService {
@@ -56,9 +73,20 @@ export class SubtasksService {
     projectId: string,
     taskId: string,
     creatorId: string,
-    input: { title: string; done?: boolean },
+    input: {
+      title: string;
+      done?: boolean;
+      startDate?: string | null;
+      endDate?: string | null;
+    },
   ): Promise<SubtaskView> {
     await this.ensureTaskInChain(teamId, projectId, taskId);
+    // v1.41: date range validation. Zod has already enforced this on the
+    // body, but the service is also called from tests/seed/etc. — keep
+    // the rule here as the canonical guard.
+    const startDate = input.startDate ? new Date(input.startDate) : null;
+    const endDate = input.endDate ? new Date(input.endDate) : null;
+    assertDateRange(startDate, endDate);
     // Append to the end with the same sparse-position scheme as Task.
     const last = await prisma.subtask.findFirst({
       where: { taskId },
@@ -73,6 +101,8 @@ export class SubtasksService {
         done: input.done ?? false,
         // v1.19: creator becomes the default technician (same rule as Task).
         technicianId: creatorId,
+        startDate,
+        endDate,
         position,
       },
       include: SUBTASK_INCLUDE,
@@ -87,11 +117,35 @@ export class SubtasksService {
     subtaskId: string,
     actorId: string,
     actorGlobalRole: GlobalRole,
-    input: { title?: string; done?: boolean; technicianId?: string | null },
+    input: {
+      title?: string;
+      done?: boolean;
+      technicianId?: string | null;
+      // v1.41: undefined = leave as-is; null = clear; string = set.
+      startDate?: string | null;
+      endDate?: string | null;
+    },
   ): Promise<SubtaskView> {
     await this.ensureTaskInChain(teamId, projectId, taskId);
     const existing = await prisma.subtask.findUnique({ where: { id: subtaskId } });
     if (!existing || existing.taskId !== taskId) throw Errors.notFound('Subtask not found');
+
+    // v1.41: validate the merged date range, not just the body. A PATCH
+    // that only sets `endDate` against an existing `startDate` must still
+    // 400 if it inverts the window.
+    const mergedStart =
+      input.startDate === undefined
+        ? existing.startDate
+        : input.startDate === null
+          ? null
+          : new Date(input.startDate);
+    const mergedEnd =
+      input.endDate === undefined
+        ? existing.endDate
+        : input.endDate === null
+          ? null
+          : new Date(input.endDate);
+    assertDateRange(mergedStart, mergedEnd);
 
     // v1.19 → v1.23: technician change gate. Now permission-driven.
     if (input.technicianId !== undefined && input.technicianId !== existing.technicianId) {
@@ -115,6 +169,8 @@ export class SubtasksService {
           ...(input.title !== undefined && { title: input.title }),
           ...(input.done !== undefined && { done: input.done }),
           ...(input.technicianId !== undefined && { technicianId: input.technicianId }),
+          ...(input.startDate !== undefined && { startDate: mergedStart }),
+          ...(input.endDate !== undefined && { endDate: mergedEnd }),
         },
         include: SUBTASK_INCLUDE,
       });

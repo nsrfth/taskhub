@@ -25,6 +25,9 @@ function serialize(p: {
   name: string;
   description: string | null;
   status: string;
+  // v1.41: budget fields are already string-shaped by the service's toView.
+  plannedBudget: string | null;
+  actualSpent: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -45,6 +48,22 @@ export class ProjectsController {
     if (!req.user) throw Errors.unauthorized();
     const p = await this.svc.create(req.params.teamId, req.user.sub, req.body);
     return reply.status(201).send(serialize(p));
+  };
+
+  // v1.40: cross-team list for the SPA's Projects page. No team param —
+  // returns every project the caller can see across all teams (or every
+  // project on the instance for global ADMINs). Each row carries the
+  // parent team name/slug so the SPA can chip-tag without a second hit.
+  listAll = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    const items = await this.svc.listAllVisible(req.user.sub, req.user.globalRole);
+    return reply.send(
+      items.map((p) => ({
+        ...serialize(p),
+        teamName: p.teamName,
+        teamSlug: p.teamSlug,
+      })),
+    );
   };
 
   list = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {

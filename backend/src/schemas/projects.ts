@@ -2,12 +2,43 @@ import { z } from 'zod';
 
 export const projectStatusEnum = z.enum(['ACTIVE', 'ARCHIVED', 'ON_HOLD']);
 
+// v1.41: budget fields are optional positive decimals serialized as
+// strings on the wire (Decimal has more range than JS number safely
+// represents). Accept JSON numbers too, but coerce to a normalised
+// string for storage. Two decimal places, non-negative.
+const budgetSchema = z
+  .union([z.number(), z.string()])
+  .nullable()
+  .optional()
+  .superRefine((v, ctx) => {
+    if (v === null || v === undefined) return;
+    const s = typeof v === 'number' ? String(v) : v.trim();
+    if (s.length === 0) return; // empty string accepted as "no value" by callers
+    if (!/^\d+(\.\d{1,2})?$/.test(s)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'must be a non-negative decimal with up to 2 fractional digits',
+      });
+      return;
+    }
+    const n = Number(s);
+    if (!Number.isFinite(n) || n < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'must be non-negative',
+      });
+    }
+  });
+
 export const createProjectBody = z.object({
   name: z.string().min(1).max(120).trim(),
   description: z.string().max(2000).trim().optional(),
   // v1.17: RACI "Accountable" person — optional team member id. Service
   // validates that the user is a team member before saving.
   accountableId: z.string().nullable().optional(),
+  // v1.41: optional budget fields.
+  plannedBudget: budgetSchema,
+  actualSpent: budgetSchema,
 });
 
 export const updateProjectBody = z
@@ -17,13 +48,17 @@ export const updateProjectBody = z
     status: projectStatusEnum.optional(),
     // Explicit null = clear; undefined = leave as-is.
     accountableId: z.string().nullable().optional(),
+    plannedBudget: budgetSchema,
+    actualSpent: budgetSchema,
   })
   .refine(
     (v) =>
       v.name !== undefined ||
       v.description !== undefined ||
       v.status !== undefined ||
-      v.accountableId !== undefined,
+      v.accountableId !== undefined ||
+      v.plannedBudget !== undefined ||
+      v.actualSpent !== undefined,
     'Provide at least one field to update',
   );
 
@@ -39,8 +74,20 @@ export const projectResponse = z.object({
   name: z.string(),
   description: z.string().nullable(),
   status: projectStatusEnum,
+  // v1.41: budget fields. Serialized as strings (Decimal serializes to a
+  // string in Prisma's JSON output; we keep that wire shape to preserve
+  // precision past JS number limits).
+  plannedBudget: z.string().nullable(),
+  actualSpent: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+});
+
+// v1.40: cross-team list response — projectResponse plus the parent team
+// fields so the SPA can render a team chip per row without a second fetch.
+export const projectCrossTeamResponse = projectResponse.extend({
+  teamName: z.string(),
+  teamSlug: z.string(),
 });
 
 export type CreateProjectBody = z.infer<typeof createProjectBody>;

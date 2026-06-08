@@ -390,6 +390,12 @@ model Project {
   name          String
   description   String?
   status        ProjectStatus @default(ACTIVE)
+  // v1.41: optional budget fields. DECIMAL(18,2): 16 digits before the
+  // decimal point + 2 after (currency-grade precision in any unit).
+  // Non-negative is enforced by DB CHECK + Zod; nullable so existing
+  // projects stay valid without backfill.
+  plannedBudget Decimal?      @db.Decimal(18, 2)
+  actualSpent   Decimal?      @db.Decimal(18, 2)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -586,15 +592,21 @@ model Bucket {
 }
 
 model Subtask {
-  id           String  @id @default(cuid())
+  id           String    @id @default(cuid())
   taskId       String
   title        String
-  done         Boolean @default(false)
+  done         Boolean   @default(false)
   // v1.19: Subtask technician — same semantics as Task.technicianId. Defaults
   // to creator on subtask creation; only team MANAGERS / global ADMINs can
   // change it. Nullable + SetNull.
   technicianId String?
-  position     Int     @default(0)
+  // v1.41: optional scheduling window. Anchored to UTC midnight (same
+  // convention as Task.startDate / dueDate / plannedDate). Cross-field
+  // rule "endDate >= startDate when both set" is enforced in the service
+  // layer + DB CHECK constraint. Nullable so existing subtasks stay valid.
+  startDate    DateTime?
+  endDate      DateTime?
+  position     Int       @default(0)
   task         Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   technician   User?   @relation("SubtaskTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
 

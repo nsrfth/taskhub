@@ -318,6 +318,127 @@ describe('PATCH /api/.../subtasks/reorder (v1.35)', () => {
   });
 });
 
+describe('v1.41 Subtask optional scheduling window (startDate / endDate)', () => {
+  const D = (iso: string) => new Date(iso).toISOString();
+
+  it('creates a subtask with both dates set and echoes them back', async () => {
+    const s = await setup();
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: {
+        title: 'with dates',
+        startDate: D('2026-06-01T00:00:00.000Z'),
+        endDate: D('2026-06-05T00:00:00.000Z'),
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.startDate).toBe(D('2026-06-01T00:00:00.000Z'));
+    expect(body.endDate).toBe(D('2026-06-05T00:00:00.000Z'));
+  });
+
+  it('creates a subtask with no dates (legacy shape)', async () => {
+    const s = await setup();
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: { title: 'no dates' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().startDate).toBeNull();
+    expect(res.json().endDate).toBeNull();
+  });
+
+  it('rejects create when endDate is before startDate', async () => {
+    const s = await setup();
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: {
+        title: 'inverted',
+        startDate: D('2026-06-05T00:00:00.000Z'),
+        endDate: D('2026-06-01T00:00:00.000Z'),
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('PATCH sets both dates on an existing subtask', async () => {
+    const s = await setup();
+    const sub = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+        headers: { authorization: `Bearer ${s.token}` },
+        payload: { title: 'patch me' },
+      })
+    ).json();
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks/${sub.id}`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: {
+        startDate: D('2026-06-10T00:00:00.000Z'),
+        endDate: D('2026-06-12T00:00:00.000Z'),
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().startDate).toBe(D('2026-06-10T00:00:00.000Z'));
+    expect(res.json().endDate).toBe(D('2026-06-12T00:00:00.000Z'));
+  });
+
+  it('PATCH clears both dates with explicit null', async () => {
+    const s = await setup();
+    const sub = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+        headers: { authorization: `Bearer ${s.token}` },
+        payload: {
+          title: 'clear me',
+          startDate: D('2026-06-01T00:00:00.000Z'),
+          endDate: D('2026-06-05T00:00:00.000Z'),
+        },
+      })
+    ).json();
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks/${sub.id}`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: { startDate: null, endDate: null },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().startDate).toBeNull();
+    expect(res.json().endDate).toBeNull();
+  });
+
+  it('PATCH rejects when the merged window (existing start + new end) is inverted', async () => {
+    const s = await setup();
+    // Pre-existing subtask with startDate only.
+    const sub = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks`,
+        headers: { authorization: `Bearer ${s.token}` },
+        payload: { title: 'merged check', startDate: D('2026-06-10T00:00:00.000Z') },
+      })
+    ).json();
+    // Now PATCH only the endDate to something earlier — service must
+    // catch the inverted MERGED window even though the body alone looks fine.
+    const res = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${s.teamId}/projects/${s.projectId}/tasks/${s.taskId}/subtasks/${sub.id}`,
+      headers: { authorization: `Bearer ${s.token}` },
+      payload: { endDate: D('2026-06-01T00:00:00.000Z') },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('DELETE /api/.../subtasks/:subtaskId', () => {
   it('removes the subtask', async () => {
     const s = await setup();

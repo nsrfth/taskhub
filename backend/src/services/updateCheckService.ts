@@ -119,7 +119,11 @@ export const updateCheckService = {
   // flag with a `docker compose exec backend sh` + env edit + restart, and so
   // tests can flip it between fixtures without rebuilding the app.
   async getStatus(): Promise<UpdateCheckResult> {
-    const currentVersion = process.env.TASKHUB_VERSION ?? 'dev';
+    // || (not ??) so the empty string docker-compose produces when the
+    // .env key is absent falls back to 'dev' too. Otherwise the update
+    // check would compare GitHub's "v1.40" tag against "" and report an
+    // available update on a fresh local instance.
+    const currentVersion = process.env.TASKHUB_VERSION || 'dev';
     const enabled = process.env.UPDATE_CHECK_ENABLED === 'true';
 
     if (!enabled) {

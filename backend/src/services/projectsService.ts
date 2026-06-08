@@ -27,8 +27,26 @@ export interface ProjectView {
   name: string;
   description: string | null;
   status: ProjectStatus;
+  // v1.41: budget fields. Stringified Decimal — preserves precision past
+  // Number.MAX_SAFE_INTEGER and matches what Prisma emits when its
+  // Decimal type is JSON-stringified. Two decimal places.
+  plannedBudget: string | null;
+  actualSpent: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// v1.41: normalise an incoming budget value into the shape Prisma's
+// Decimal column expects (null | Prisma.Decimal). Accepts numbers,
+// numeric strings, and the literal null. The Zod layer has already
+// rejected anything malformed by the time we get here — this is just
+// the type coercion + sanitisation step.
+function normaliseBudget(v: number | string | null | undefined): Prisma.Decimal | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  const s = typeof v === 'number' ? String(v) : v.trim();
+  if (s.length === 0) return null;
+  return new Prisma.Decimal(s);
 }
 
 // Shape the Prisma row into a ProjectView. Centralised so list / get / update
@@ -47,6 +65,11 @@ function toView(
     name: p.name,
     description: p.description,
     status: p.status,
+    // v1.41: Prisma.Decimal → fixed-2-string. toFixed(2) normalises the
+    // wire shape (e.g. "1000" → "1000.00") so the SPA can format without
+    // probing for a fractional separator.
+    plannedBudget: p.plannedBudget === null ? null : p.plannedBudget.toFixed(2),
+    actualSpent: p.actualSpent === null ? null : p.actualSpent.toFixed(2),
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };
@@ -72,11 +95,20 @@ export class ProjectsService {
   async create(
     teamId: string,
     ownerId: string,
-    input: { name: string; description?: string; accountableId?: string | null },
+    input: {
+      name: string;
+      description?: string;
+      accountableId?: string | null;
+      // v1.41: optional budget fields. Accept number | string | null.
+      plannedBudget?: number | string | null;
+      actualSpent?: number | string | null;
+    },
   ): Promise<ProjectView> {
     if (input.accountableId !== undefined) {
       await assertAccountableInTeam(teamId, input.accountableId);
     }
+    const planned = normaliseBudget(input.plannedBudget);
+    const spent = normaliseBudget(input.actualSpent);
     const p = await prisma.project.create({
       data: {
         teamId,
@@ -84,6 +116,8 @@ export class ProjectsService {
         accountableId: input.accountableId ?? null,
         name: input.name,
         description: input.description ?? null,
+        ...(planned !== undefined && { plannedBudget: planned }),
+        ...(spent !== undefined && { actualSpent: spent }),
       },
       include: { accountable: { select: { name: true } } },
     });
@@ -152,6 +186,9 @@ export class ProjectsService {
       description?: string | null;
       status?: ProjectStatus;
       accountableId?: string | null;
+      // v1.41: optional budget fields. undefined = leave; null = clear.
+      plannedBudget?: number | string | null;
+      actualSpent?: number | string | null;
     },
   ): Promise<ProjectView> {
     // v1.39: get() applies the visibility gate. Non-ADMIN non-owner 404s
@@ -162,6 +199,8 @@ export class ProjectsService {
     if (input.accountableId !== undefined) {
       await assertAccountableInTeam(teamId, input.accountableId);
     }
+    const plannedPatch = normaliseBudget(input.plannedBudget);
+    const spentPatch = normaliseBudget(input.actualSpent);
     try {
       const updated = await prisma.project.update({
         where: { id: projectId },
@@ -170,6 +209,8 @@ export class ProjectsService {
           ...(input.description !== undefined && { description: input.description }),
           ...(input.status !== undefined && { status: input.status }),
           ...(input.accountableId !== undefined && { accountableId: input.accountableId }),
+          ...(plannedPatch !== undefined && { plannedBudget: plannedPatch }),
+          ...(spentPatch !== undefined && { actualSpent: spentPatch }),
         },
         include: { accountable: { select: { name: true } } },
       });
@@ -192,6 +233,45 @@ export class ProjectsService {
     // `project.delete` permission check below dead code, removed.
     await this.get(teamId, projectId, callerId, callerGlobalRole);
     await prisma.project.delete({ where: { id: projectId } });
+  }
+
+  // v1.40: cross-team visibility list for the SPA's Projects page. Returns
+  // every project the caller can see across ALL teams they belong to (or
+  // every project on the instance for global ADMINs). Each row includes
+  // the team name/slug so the SPA can render a per-row chip without a
+  // second roundtrip. Owner-scoped same as list().
+  async listAllVisible(
+    callerUserId: string,
+    callerGlobalRole: GlobalRole,
+  ): Promise<Array<ProjectView & { teamName: string; teamSlug: string }>> {
+    const isAdmin = callerGlobalRole === 'ADMIN';
+    let teamFilter: { in: string[] } | undefined;
+    if (!isAdmin) {
+      // Cap the scope to teams the caller actually belongs to, so an
+      // owner-orphaned project from a team they left doesn't surface.
+      // Admins skip the membership filter (they see the instance).
+      const memberships = await prisma.teamMembership.findMany({
+        where: { userId: callerUserId },
+        select: { teamId: true },
+      });
+      teamFilter = { in: memberships.map((m) => m.teamId) };
+    }
+    const rows = await prisma.project.findMany({
+      where: {
+        ...(teamFilter ? { teamId: teamFilter } : {}),
+        ...(isAdmin ? {} : { ownerId: callerUserId }),
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        accountable: { select: { name: true } },
+        team: { select: { name: true, slug: true } },
+      },
+    });
+    return rows.map((p) => ({
+      ...toView(p),
+      teamName: p.team.name,
+      teamSlug: p.team.slug,
+    }));
   }
 
   // v1.39: helper for nested routes (tasks / buckets / labels / comments

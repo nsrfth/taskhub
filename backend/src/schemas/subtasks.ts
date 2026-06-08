@@ -1,9 +1,28 @@
 import { z } from 'zod';
 
-export const createSubtaskBody = z.object({
-  title: z.string().min(1).max(200).trim(),
-  done: z.boolean().optional(),
-});
+// v1.41: cross-field "end >= start when both set" rule. Pulled into a
+// shared refine so create and update share the message + reason code.
+function endNotBeforeStart<
+  T extends { startDate?: string | null; endDate?: string | null },
+>(v: T): boolean {
+  if (!v.startDate || !v.endDate) return true;
+  return new Date(v.endDate).getTime() >= new Date(v.startDate).getTime();
+}
+
+export const createSubtaskBody = z
+  .object({
+    title: z.string().min(1).max(200).trim(),
+    done: z.boolean().optional(),
+    // v1.41: optional scheduling window. ISO datetime; null clears (no
+    // effect on create but kept symmetric with update). Empty string
+    // would have been ambiguous; we require nullable | omitted instead.
+    startDate: z.string().datetime().nullable().optional(),
+    endDate: z.string().datetime().nullable().optional(),
+  })
+  .refine(endNotBeforeStart, {
+    message: 'endDate must be on or after startDate',
+    path: ['endDate'],
+  });
 
 export const updateSubtaskBody = z
   .object({
@@ -12,11 +31,27 @@ export const updateSubtaskBody = z
     // v1.19: technician change is gated server-side (manager/admin only).
     // Undefined = leave as-is; null = clear.
     technicianId: z.string().nullable().optional(),
+    // v1.41: dates — undefined leaves them, null clears.
+    startDate: z.string().datetime().nullable().optional(),
+    endDate: z.string().datetime().nullable().optional(),
   })
   .refine(
-    (v) => v.title !== undefined || v.done !== undefined || v.technicianId !== undefined,
+    (v) =>
+      v.title !== undefined ||
+      v.done !== undefined ||
+      v.technicianId !== undefined ||
+      v.startDate !== undefined ||
+      v.endDate !== undefined,
     'Provide at least one field',
-  );
+  )
+  // v1.41: end >= start cross-field check. Only fires when BOTH fields
+  // are present in the body (or were present on the row and one is being
+  // changed) — the service layer re-applies the rule against the merged
+  // row so a partial PATCH that introduces an inverted range still 400s.
+  .refine(endNotBeforeStart, {
+    message: 'endDate must be on or after startDate',
+    path: ['endDate'],
+  });
 
 export const subtaskResponse = z.object({
   id: z.string(),
@@ -25,6 +60,8 @@ export const subtaskResponse = z.object({
   done: z.boolean(),
   technicianId: z.string().nullable(),
   technicianName: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
   position: z.number().int(),
 });
 

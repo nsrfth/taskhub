@@ -18,6 +18,9 @@ export interface TaskSubtask {
   // gated to change post-create).
   technicianId: string | null;
   technicianName: string | null;
+  // v1.41: optional scheduling window (ISO datetime, UTC midnight).
+  startDate: string | null;
+  endDate: string | null;
   position: number;
 }
 

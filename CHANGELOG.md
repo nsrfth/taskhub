@@ -4,6 +4,196 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.0] — 2026-06-08
+
+**Subtask scheduling window + Project budget tracking.** Two parallel
+"optional metadata" additions:
+
+- Every subtask can now carry an optional `startDate` / `endDate` pair
+  (with the same UTC-midnight convention as Task dates).
+- Every project can now carry an optional `plannedBudget` /
+  `actualSpent` pair, decimal precision 2.
+
+Both pairs are nullable and additive — existing rows get NULL and stay
+fully functional. Validation:
+
+- Subtasks: when both dates are set, `endDate >= startDate`. Enforced by
+  Zod, by the service layer (also against the merged row on PATCH), and
+  by a DB `CHECK` constraint as defence-in-depth.
+- Projects: budgets are non-negative decimals with at most 2 fractional
+  digits. Enforced by Zod, by the service layer, and by DB `CHECK`.
+
+### Schema
+
+- New migration `20260608120000_subtask_dates_project_budget`:
+  - `Subtask.startDate TIMESTAMP(3) NULL`,
+    `Subtask.endDate TIMESTAMP(3) NULL`,
+    `CHECK (startDate IS NULL OR endDate IS NULL OR endDate >= startDate)`.
+  - `Project.plannedBudget DECIMAL(18,2) NULL`,
+    `Project.actualSpent DECIMAL(18,2) NULL`,
+    `CHECK (... IS NULL OR ... >= 0)` for each.
+- `prisma/schema.prisma`: matching `DateTime?` / `Decimal? @db.Decimal(18, 2)`.
+
+### Backend
+
+- `schemas/subtasks.ts` — `createSubtaskBody` / `updateSubtaskBody`
+  accept ISO `startDate` / `endDate` (nullable | optional). Cross-field
+  `endNotBeforeStart` refine on both shapes; update body still requires
+  at least one field.
+- `schemas/projects.ts` — new shared `budgetSchema` (regex-validated
+  `^\d+(\.\d{1,2})?$`, non-negative) reused by `createProjectBody` and
+  `updateProjectBody`; `projectResponse` extended with
+  `plannedBudget` / `actualSpent` (nullable strings — Decimal precision
+  preserved on the wire).
+- `services/subtasksService.ts` — `create()` and `update()` accept the
+  new date pair; `update()` re-validates the *merged* row so a PATCH
+  that only sets one side still 400s if it inverts the window.
+  `SubtaskView` now exposes `startDate` / `endDate` as ISO strings.
+- `services/projectsService.ts` — `create()` and `update()` accept
+  budgets as `number | string | null`; `normaliseBudget()` coerces to
+  `Prisma.Decimal | null`. `toView` emits fixed-2 strings so the SPA
+  doesn't need to detect a fractional separator.
+- `controllers/projectsController.ts` — `serialize` typed to flow the
+  new string fields through.
+
+### Frontend
+
+- `features/subtasks/api.ts` — `Subtask` carries `startDate` / `endDate`;
+  `createSubtask` and `updateSubtask` accept them.
+- `features/tasks/api.ts` — `TaskSubtask` mirrors the new fields so the
+  task detail view's nested subtask payload doesn't lose precision.
+- `features/subtasks/SubtaskList.tsx` — each row gets a 📅 affordance
+  that toggles an inline editor with two `ShamsiDatePicker`s plus
+  Save / Clear / Cancel. When dates are set and the editor is closed,
+  the row shows a compact `start → end` summary. Client-side mirror of
+  the server's range rule disables Save when inverted.
+- `features/projects/api.ts` — `Project` carries the budget pair;
+  `createProject` and `updateProject` accept it.
+- `pages/ProjectsPage.tsx` — New-project form gains two
+  `<input type="number" min="0" step="0.01">` for the budgets. Each
+  list row gets a `BudgetRow` component: read-only display when set
+  ("Planned 1,000.00 · Spent 750.00 (75.0%)"; coloured green / amber /
+  red depending on utilisation) with an inline Edit affordance for
+  owners + admins. Hidden entirely when no budget is set and the
+  caller can't edit (no per-row noise for non-editing viewers).
+
+### Tests
+
+- 6 new integration cases in `subtasks.test.ts`:
+  - create with both dates (echoed back ISO)
+  - create with no dates (legacy shape)
+  - reject create when endDate < startDate
+  - PATCH sets both dates
+  - PATCH clears both dates with `null`
+  - PATCH rejects when the *merged* (existing start + new end) window
+    inverts — the v1.41 service-layer merged-row guard
+- 6 new integration cases in `projects.test.ts`:
+  - create with budgets returns fixed-2 strings (`"1000"` → `"1000.00"`,
+    `250.5` → `"250.50"`)
+  - create without budgets returns `null`
+  - PATCH sets then PATCH `null` clears
+  - reject negative
+  - reject non-numeric string
+  - reject more than 2 fractional digits
+
+### Verified
+
+- Backend: 46/46 in `subtasks.test.ts` + `projects.test.ts`; full suite
+  383/389 (5 LDAP skipped, 1 flaky `backups.test.ts` that passes in
+  isolation — pre-existing cross-file BACKUP_DIR contention, not
+  v1.41-caused). Three pre-existing unrelated file errors (LDAP /
+  updater) untouched.
+- Frontend: `tsc --noEmit` clean; `vite build` clean (34.0s).
+- Live smoke: deferred.
+
+### Phase boundary notes
+
+- The Subtask date range uses UTC midnight (same as Task dates) so a
+  viewer in any timezone reads back the same calendar day.
+- Currency unit / locale is not stored — `plannedBudget` and
+  `actualSpent` are pure numbers. The SPA formats with the user's
+  locale (`Number.toLocaleString`). If we later need a project-level
+  currency, it lands as a small `Project.currency` enum or as an
+  instance-wide setting.
+- The DB `CHECK` constraints duplicate the service-layer rules. That's
+  intentional: anyone writing to Postgres directly (admin scripts,
+  failed migrations, future SDK clients) can't slip an invalid row past
+  the schema.
+
+## [1.40.0] — 2026-06-08
+
+**Cross-team Projects page + About-version fix.**
+
+The Projects page is no longer scoped to the current team. The list now
+shows every project the caller can see across every team they belong to,
+with a small team chip on each row. The New-project form keeps its own
+team picker (which team to create into).
+
+Also fixes the blank `VERSION` field on the About page: the running
+container reads `TASKHUB_VERSION` from env, and docker-compose's
+`${TASKHUB_VERSION:-}` defaulted to the empty string when the key was
+missing from `.env` — which slipped past `process.env.X ?? 'dev'`.
+Switched to `||` so empty also falls back to `'dev'`.
+
+### Backend
+
+- `services/projectsService.ts` — new `listAllVisible(callerUserId,
+  callerGlobalRole)` returns rows joined to `team.{name,slug}`. Same
+  ownership rule as v1.39's per-team list: non-ADMIN sees only their
+  own projects; admin sees everything. Non-admins are additionally
+  scoped to teams they actually belong to so an owner-orphaned project
+  from a team they left doesn't surface.
+- `controllers/projectsController.ts` — new `listAll` handler.
+- `routes/projects.ts` — new `projectsCrossTeamRoutes` exporter mounted
+  at `/api/projects` (no `:teamId` in the URL). `requireAuth` only —
+  the service-layer scope already restricts what's returned.
+- `schemas/projects.ts` — new `projectCrossTeamResponse` extending
+  `projectResponse` with `teamName` + `teamSlug`.
+- `app.ts` — register the new exporter at `prefix: '/projects'`.
+- `routes/system.ts` + `services/updateCheckService.ts` — read
+  `TASKHUB_VERSION` with `||` instead of `??` so an empty-string env
+  value (the docker-compose default when `.env` is missing the key)
+  also falls back to `'dev'` rather than rendering blank.
+
+### Frontend
+
+- `pages/ProjectsPage.tsx` — page-level team scope dropped. Reads
+  `projectsApi.listAllProjects()` (new). Per-row team chip; delete
+  mutation now takes `{teamId, projectId}` from the row. Per-row
+  Accountable inline edit removed — that lives on the project detail
+  page now (it needed currentTeam.members which no longer fit a
+  cross-team list cleanly). New-project form keeps its team picker.
+- `features/projects/api.ts` — new `listAllProjects()` +
+  `ProjectCrossTeam` type.
+
+### Tests
+
+- 3 new integration tests in `projects.test.ts`:
+  - MEMBER cross-team list returns their own projects across multiple
+    teams, with the team name joined.
+  - Global ADMIN sees every project on the instance.
+  - User in zero teams gets `[]`, not 500.
+
+### Verified
+
+- Backend: 21/21 in `projects.test.ts` (8 v1.39 + 3 v1.40 + 10 pre-v1.39).
+- Frontend: `tsc --noEmit` clean; `vite build` clean (14.7s).
+- Live smoke: deferred.
+
+### Phase boundary notes
+
+- The Accountable inline-edit was removed from this list view to keep
+  the cross-team rendering simple. If it's still wanted, the project
+  detail page already supports it, and a follow-up could re-add an
+  inline editor that fetches per-row team members lazily.
+- The new endpoint does one Prisma `findMany` per request (joined to
+  `team` + `accountable`). For non-admins it does an extra
+  `teamMembership.findMany` to scope by team membership. At TaskHub's
+  corpus sizes, both are noise.
+- Admins skip the team-membership scope. They see every project on
+  the instance even from teams they aren't members of — consistent
+  with the per-team list's admin bypass.
+
 ## [1.39.0] — 2026-06-07 — BREAKING
 
 **Project visibility tightening.** Pre-v1.39 every team member saw every

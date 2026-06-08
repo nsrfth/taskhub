@@ -542,3 +542,196 @@ describe('v1.39 project visibility tiering', () => {
     expect(del.statusCode).toBe(204);
   });
 });
+
+// v1.40: cross-team list endpoint at GET /api/projects (no :teamId in the
+// URL). Returns every project the caller can see across every team they
+// belong to, with each row carrying the parent team's name and slug.
+// Same visibility rule as the per-team list (owner-only for non-ADMINs;
+// global ADMIN sees everything on the instance).
+describe('v1.40 cross-team /api/projects list', () => {
+  it('MEMBER sees their projects across multiple teams, with team name on each row', async () => {
+    const adminToken = await registerUser('admin@example.com');
+    const memberToken = await registerMember('member@example.com');
+    const teamA = await createTeam(adminToken, 'team-a', 'Team A');
+    const teamB = await createTeam(adminToken, 'team-b', 'Team B');
+    await addMember(adminToken, teamA.id, 'member@example.com', 'MEMBER');
+    await addMember(adminToken, teamB.id, 'member@example.com', 'MEMBER');
+
+    // Member creates one project in each team; admin owns a third invisible to member.
+    const mineA = (await inject({
+      method: 'POST',
+      url: `/api/teams/${teamA.id}/projects`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: 'MineA' },
+    })).json();
+    const mineB = (await inject({
+      method: 'POST',
+      url: `/api/teams/${teamB.id}/projects`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: 'MineB' },
+    })).json();
+    await inject({
+      method: 'POST',
+      url: `/api/teams/${teamA.id}/projects`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: 'AdminOnly' },
+    });
+
+    const res = await inject({
+      method: 'GET',
+      url: `/api/projects`,
+      headers: { authorization: `Bearer ${memberToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const items = res.json() as Array<{
+      id: string;
+      name: string;
+      teamId: string;
+      teamName: string;
+      teamSlug: string;
+    }>;
+    expect(items.map((p) => p.id).sort()).toEqual([mineA.id, mineB.id].sort());
+    const byId = new Map(items.map((p) => [p.id, p]));
+    expect(byId.get(mineA.id)?.teamName).toBe('Team A');
+    expect(byId.get(mineB.id)?.teamName).toBe('Team B');
+  });
+
+  it('global ADMIN sees every project on the instance across all teams', async () => {
+    const adminToken = await registerAdmin('admin@example.com');
+    const memberToken = await registerMember('member@example.com');
+    const teamA = await createTeam(adminToken, 'team-a', 'Team A');
+    const teamB = await createTeam(adminToken, 'team-b', 'Team B');
+    await addMember(adminToken, teamA.id, 'member@example.com', 'MEMBER');
+
+    await inject({
+      method: 'POST',
+      url: `/api/teams/${teamA.id}/projects`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: 'Theirs' },
+    });
+    await inject({
+      method: 'POST',
+      url: `/api/teams/${teamB.id}/projects`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: 'Mine' },
+    });
+
+    const res = await inject({
+      method: 'GET',
+      url: `/api/projects`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const names = (res.json() as Array<{ name: string }>).map((p) => p.name).sort();
+    expect(names).toEqual(['Mine', 'Theirs']);
+  });
+
+  it('budget fields — create with values, fixed-2 string echo', async () => {
+    const token = await registerUser('a@example.com');
+    const team = await createTeam(token, 'acme');
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${team.id}/projects`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Budgeted', plannedBudget: '1000', actualSpent: 250.5 },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().plannedBudget).toBe('1000.00');
+    expect(res.json().actualSpent).toBe('250.50');
+  });
+
+  it('budget fields — create without values defaults to null', async () => {
+    const token = await registerUser('a@example.com');
+    const team = await createTeam(token, 'acme');
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${team.id}/projects`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'NoBudget' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().plannedBudget).toBeNull();
+    expect(res.json().actualSpent).toBeNull();
+  });
+
+  it('budget fields — PATCH sets and PATCH null clears', async () => {
+    const token = await registerUser('a@example.com');
+    const team = await createTeam(token, 'acme');
+    const proj = (
+      await inject({
+        method: 'POST',
+        url: `/api/teams/${team.id}/projects`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { name: 'X' },
+      })
+    ).json();
+    const set = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${team.id}/projects/${proj.id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { plannedBudget: '500.75', actualSpent: '0' },
+    });
+    expect(set.statusCode).toBe(200);
+    expect(set.json().plannedBudget).toBe('500.75');
+    expect(set.json().actualSpent).toBe('0.00');
+
+    const clear = await inject({
+      method: 'PATCH',
+      url: `/api/teams/${team.id}/projects/${proj.id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { plannedBudget: null, actualSpent: null },
+    });
+    expect(clear.statusCode).toBe(200);
+    expect(clear.json().plannedBudget).toBeNull();
+    expect(clear.json().actualSpent).toBeNull();
+  });
+
+  it('budget fields — rejects negative values (400)', async () => {
+    const token = await registerUser('a@example.com');
+    const team = await createTeam(token, 'acme');
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${team.id}/projects`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'Neg', plannedBudget: '-1' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('budget fields — rejects non-numeric strings (400)', async () => {
+    const token = await registerUser('a@example.com');
+    const team = await createTeam(token, 'acme');
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${team.id}/projects`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'NaN', plannedBudget: 'abc' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('budget fields — rejects more than 2 fractional digits (400)', async () => {
+    const token = await registerUser('a@example.com');
+    const team = await createTeam(token, 'acme');
+    const res = await inject({
+      method: 'POST',
+      url: `/api/teams/${team.id}/projects`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'TooPrecise', plannedBudget: '1.234' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('user with no team memberships gets an empty list, not 500', async () => {
+    // Bootstrap an admin so the auto-promote path doesn't fire on the orphan.
+    await registerUser('admin@example.com');
+    const orphan = await registerMember('orphan@example.com');
+    const res = await inject({
+      method: 'GET',
+      url: `/api/projects`,
+      headers: { authorization: `Bearer ${orphan}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
+  });
+});

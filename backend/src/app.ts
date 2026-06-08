@@ -5,7 +5,7 @@ import { registerSwagger } from './plugins/swagger.js';
 import { registerErrorHandler } from './middleware/errorHandler.js';
 import { authRoutes } from './routes/auth.js';
 import { teamsRoutes } from './routes/teams.js';
-import { projectsRoutes } from './routes/projects.js';
+import { projectsCrossTeamRoutes, projectsRoutes } from './routes/projects.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { commentsRoutes } from './routes/comments.js';
 import { activityRoutes } from './routes/activity.js';
@@ -96,6 +96,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     await api.register(teamsRoutes, { prefix: '/teams' });
     // Projects nest under teams so requireTeamRole picks up :teamId from the URL.
     await api.register(projectsRoutes, { prefix: '/teams/:teamId/projects' });
+    // v1.40: cross-team list — same service, no :teamId in the URL.
+    await api.register(projectsCrossTeamRoutes, { prefix: '/projects' });
     // Tasks nest under projects for the same reason — and to keep the URL
     // self-describing about the parent chain.
     await api.register(tasksRoutes, { prefix: '/teams/:teamId/projects/:projectId/tasks' });
