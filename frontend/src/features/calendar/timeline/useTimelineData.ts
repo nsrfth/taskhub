@@ -148,7 +148,7 @@ export function useTimelineData({
         if (!hay.includes(q)) return false;
       }
 
-      if (row.kind !== 'project' && row.barStart && row.barEnd) {
+      if (row.barStart && row.barEnd) {
         if (!overlapsRange(row.barStart, row.barEnd, axisStartMs, axisEndMs)) return false;
       }
 
