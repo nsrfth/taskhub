@@ -7,6 +7,43 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.45.0] — 2026-06-09
+
+**Personal project buckets on the Projects page.** Per-user organizational
+views that do not change project data, permissions, or team structure.
+
+### Personal buckets (backend)
+
+- New models `UserProjectBucket` and `UserProjectBucketItem` (migration
+  `20260610000000_user_project_buckets`).
+- **`GET/POST/PATCH/DELETE /api/me/project-buckets`** — CRUD for the caller's
+  buckets (name unique per user, optional description + color).
+- **`PATCH /api/me/project-buckets/reorder`** — bucket column order.
+- **`POST/DELETE .../projects/:projectId`** — add/remove project from a bucket.
+- **`PATCH .../projects/reorder`** — order within a bucket.
+- **`PUT /api/me/project-buckets/assignments`** — set all bucket memberships
+  for one project (multi-bucket support).
+- Assignments validate project visibility (same rules as `listAllVisible`).
+- Deleting a bucket cascades assignments only — projects are never deleted.
+
+### Projects page (frontend)
+
+- View toggle: **All projects** | **Personal buckets**.
+- Kanban-style bucket columns with drag-and-drop (projects into buckets,
+  reorder within bucket, reorder bucket columns).
+- **New bucket** / **Edit** / **Delete** bucket actions.
+- **☰** menu on each project row/card — checkbox assignment to multiple buckets.
+- Search + filters: status, team, owner (admin), created date range; search
+  matches project names and personal bucket names.
+- Collapsed bucket state + view mode persisted in `localStorage`.
+- Budget rollup hook on bucket headers (foundation for future health metrics).
+
+### Verified
+
+- Integration tests: `backend/tests/integration/userProjectBuckets.test.ts`.
+
+---
+
 ## [1.44.1] — 2026-06-09
 
 **Planner polish:** closes remaining gaps in Charts, Grid, and My Tasks views.

@@ -280,8 +280,42 @@ model User {
   recoveryCodes      RecoveryCode[]
   apiTokens          ApiToken[]
   passwordHistory    PasswordHistory[]
+  projectBuckets     UserProjectBucket[]
 
   @@index([email])
+}
+
+// v1.45: per-user project organization buckets on the Projects page.
+// Personal views only — no effect on project data or permissions.
+model UserProjectBucket {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  color       String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items UserProjectBucketItem[]
+
+  @@unique([userId, name])
+  @@index([userId, position])
+}
+
+model UserProjectBucketItem {
+  id        String   @id @default(cuid())
+  bucketId  String
+  bucket    UserProjectBucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+  userId    String
+  projectId String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([bucketId, projectId])
+  @@index([bucketId, position])
+  @@index([userId, projectId])
 }
 
 // Previous password hashes for local users — enforces password history policy.

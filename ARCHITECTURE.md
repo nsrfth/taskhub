@@ -1,6 +1,6 @@
 # Architecture
 
-**Version:** v1.44.1 (2026-06-09)
+**Version:** v1.45.0 (2026-06-09)
 
 This document captures the *why* behind TaskHub's design. The *what* is in the
 code; the *how to run* is in [README.md](README.md). User-facing behaviour is
@@ -189,6 +189,24 @@ shells.
 `assigneeId = user.sub` and `teamId IN memberships`. Project-owner rules
 from v1.39 do *not* apply here — assignment visibility is intentional (a user
 must see work assigned to them even on projects they don't own).
+
+## Personal project buckets (v1.45)
+
+Per-user project organization on `/projects` — **not** the removed v1.34–v1.44
+*task* buckets. Data lives in `UserProjectBucket` + `UserProjectBucketItem`;
+API under `/api/me/project-buckets`. A project may appear in multiple buckets
+for the same user. Bucket membership never grants access: `UserProjectBucketsService.assertProjectVisible`
+reuses owner/team/admin rules before any assignment write.
+
+```
+GET  /api/me/project-buckets              → caller's buckets + projectIds[]
+POST /api/me/project-buckets              → create
+PUT  /api/me/project-buckets/assignments  → replace memberships for one project
+```
+
+UI: `features/projectBuckets/` — `ProjectBucketBoard` (dnd-kit), filters,
+`localStorage` for view mode + collapsed columns. Future: shared buckets,
+smart/rule-based buckets can extend the same tables with a `scope` column.
 
 ## LDAP authentication (v1.43)
 

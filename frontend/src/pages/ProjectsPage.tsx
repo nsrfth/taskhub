@@ -1,10 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useTeams } from '@/features/teams/TeamsContext';
 import * as projectsApi from '@/features/projects/api';
+import * as bucketsApi from '@/features/projectBuckets/api';
+import ProjectBucketBoard from '@/features/projectBuckets/ProjectBucketBoard';
+import BucketFormModal from '@/features/projectBuckets/BucketFormModal';
+import ProjectBucketAssignMenu from '@/features/projectBuckets/ProjectBucketAssignMenu';
+import {
+  applyProjectFilters,
+  collectTeamOptions,
+  type ProjectFilterState,
+} from '@/features/projectBuckets/filters';
+import {
+  loadCollapsedBuckets,
+  loadProjectsViewMode,
+  saveCollapsedBuckets,
+  saveProjectsViewMode,
+  type ProjectsViewMode,
+} from '@/features/projectBuckets/storage';
 import { formatShamsiTimestampDate } from '@/lib/shamsi';
 import CreateProjectForm from '@/features/projects/CreateProjectForm';
 import Modal from '@/features/ui/Modal';
@@ -28,22 +44,133 @@ export default function ProjectsPage(): JSX.Element {
   const { teams, currentTeam } = useTeams();
   const qc = useQueryClient();
   const nav = useNavigate();
-
-  // v1.40: page-level team scope dropped. The list endpoint is now
-  // cross-team — the SPA shows every project the caller can see across
-  // every team they belong to, with a team chip per row.
-  // v1.39 (BREAKING): only the project owner OR a global ADMIN can edit.
   const isAdmin = user?.globalRole === 'ADMIN';
+
+  const [viewMode, setViewMode] = useState<ProjectsViewMode>(() => loadProjectsViewMode());
+  const [filters, setFilters] = useState<ProjectFilterState>({ owner: 'all' });
+  const [createOpen, setCreateOpen] = useState(false);
+  const [bucketModal, setBucketModal] = useState<
+    { mode: 'create' } | { mode: 'edit'; bucket: bucketsApi.ProjectBucket } | null
+  >(null);
+  const [assignProjectId, setAssignProjectId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedBuckets());
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent): void {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setAssignProjectId(null);
+      }
+    }
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, []);
 
   const { data: projects = [], isLoading, isError } = useQuery({
     queryKey: ['projects', 'all'],
     queryFn: () => projectsApi.listAllProjects(),
   });
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const { data: buckets = [], isLoading: bucketsLoading } = useQuery({
+    queryKey: ['me', 'project-buckets'],
+    queryFn: bucketsApi.fetchProjectBuckets,
+  });
 
-  // v1.41: PATCH budget on an existing row. Takes the row's teamId so it
-  // works across the cross-team list.
+  const bucketNamesByProject = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const b of buckets) {
+      for (const pid of b.projectIds) {
+        const arr = m.get(pid) ?? [];
+        arr.push(b.name);
+        m.set(pid, arr);
+      }
+    }
+    return m;
+  }, [buckets]);
+
+  const filteredProjects = useMemo(
+    () => applyProjectFilters(projects, filters, user?.id, bucketNamesByProject),
+    [projects, filters, user?.id, bucketNamesByProject],
+  );
+
+  const projectsById = useMemo(
+    () => new Map(filteredProjects.map((p) => [p.id, p])),
+    [filteredProjects],
+  );
+
+  const teamOptions = useMemo(() => collectTeamOptions(projects), [projects]);
+
+  const assignedBucketIds = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const b of buckets) {
+      for (const pid of b.projectIds) {
+        const s = m.get(pid) ?? new Set<string>();
+        s.add(b.id);
+        m.set(pid, s);
+      }
+    }
+    return m;
+  }, [buckets]);
+
+  const invalidateBuckets = (): Promise<void> =>
+    qc.invalidateQueries({ queryKey: ['me', 'project-buckets'] });
+
+  const createBucketMut = useMutation({
+    mutationFn: bucketsApi.createProjectBucket,
+    onSuccess: invalidateBuckets,
+    onError: (err) => window.alert(errorMessage(err, 'Could not create bucket')),
+  });
+
+  const updateBucketMut = useMutation({
+    mutationFn: (args: { id: string; body: Parameters<typeof bucketsApi.updateProjectBucket>[1] }) =>
+      bucketsApi.updateProjectBucket(args.id, args.body),
+    onSuccess: invalidateBuckets,
+    onError: (err) => window.alert(errorMessage(err, 'Could not update bucket')),
+  });
+
+  const deleteBucketMut = useMutation({
+    mutationFn: bucketsApi.deleteProjectBucket,
+    onSuccess: invalidateBuckets,
+  });
+
+  const reorderBucketsMut = useMutation({
+    mutationFn: bucketsApi.reorderProjectBuckets,
+    onMutate: async (bucketIds) => {
+      await qc.cancelQueries({ queryKey: ['me', 'project-buckets'] });
+      const prev = qc.getQueryData<bucketsApi.ProjectBucket[]>(['me', 'project-buckets']);
+      if (prev) {
+        const byId = new Map(prev.map((b) => [b.id, b]));
+        qc.setQueryData(
+          ['me', 'project-buckets'],
+          bucketIds.map((id, i) => ({ ...byId.get(id)!, position: i })),
+        );
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['me', 'project-buckets'], ctx.prev);
+    },
+    onSettled: invalidateBuckets,
+  });
+
+  const addToBucketMut = useMutation({
+    mutationFn: (args: { bucketId: string; projectId: string }) =>
+      bucketsApi.addProjectToBucket(args.bucketId, args.projectId),
+    onSuccess: invalidateBuckets,
+  });
+
+  const reorderInBucketMut = useMutation({
+    mutationFn: (args: { bucketId: string; projectIds: string[] }) =>
+      bucketsApi.reorderBucketProjects(args.bucketId, args.projectIds),
+    onSuccess: invalidateBuckets,
+  });
+
+  const setBucketsMut = useMutation({
+    mutationFn: (args: { projectId: string; bucketIds: string[] }) =>
+      bucketsApi.setProjectBuckets(args.projectId, args.bucketIds),
+    onSuccess: invalidateBuckets,
+  });
+
   const updateBudgetMut = useMutation({
     mutationFn: (args: {
       teamId: string;
@@ -59,48 +186,125 @@ export default function ProjectsPage(): JSX.Element {
       await qc.invalidateQueries({ queryKey: ['projects', 'all'] });
       await qc.invalidateQueries({ queryKey: ['projects', vars.teamId] });
     },
-    onError: (err) => {
-      window.alert(errorMessage(err, 'Could not save budget'));
-    },
+    onError: (err) => window.alert(errorMessage(err, 'Could not save budget')),
   });
 
-  // v1.40: per-row delete takes the project's own teamId (each row may
-  // belong to a different team in the cross-team list).
   const deleteMut = useMutation({
     mutationFn: (args: { teamId: string; projectId: string }) =>
       projectsApi.deleteProject(args.teamId, args.projectId),
     onSuccess: async (_d, vars) => {
       await qc.invalidateQueries({ queryKey: ['projects', 'all'] });
       await qc.invalidateQueries({ queryKey: ['projects', vars.teamId] });
+      await invalidateBuckets();
     },
   });
 
-  return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-semibold">Projects</h1>
-        {teams.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-3 py-1.5"
-          >
-            <span aria-hidden className="text-base leading-none">
-              +
-            </span>
-            New project
-          </button>
+  function changeViewMode(mode: ProjectsViewMode): void {
+    setViewMode(mode);
+    saveProjectsViewMode(mode);
+  }
+
+  function toggleCollapse(bucketId: string): void {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(bucketId)) next.delete(bucketId);
+      else next.add(bucketId);
+      saveCollapsedBuckets(next);
+      return next;
+    });
+  }
+
+  function toggleProjectBucket(projectId: string, bucketId: string, add: boolean): void {
+    const current = assignedBucketIds.get(projectId) ?? new Set<string>();
+    const next = new Set(current);
+    if (add) next.add(bucketId);
+    else next.delete(bucketId);
+    setBucketsMut.mutate({ projectId, bucketIds: [...next] });
+  }
+
+  function renderProjectMenu(project: projectsApi.ProjectCrossTeam): React.ReactNode {
+    return (
+      <div className="relative shrink-0" ref={assignProjectId === project.id ? menuRef : undefined}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAssignProjectId(assignProjectId === project.id ? null : project.id);
+          }}
+          className="text-[10px] px-1 rounded border text-slate-500"
+          title="Assign to buckets"
+        >
+          ☰
+        </button>
+        {assignProjectId === project.id && (
+          <ProjectBucketAssignMenu
+            buckets={buckets}
+            assignedIds={assignedBucketIds.get(project.id) ?? new Set()}
+            onToggle={(bucketId, add) => toggleProjectBucket(project.id, bucketId, add)}
+            onClose={() => setAssignProjectId(null)}
+          />
         )}
       </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h1 className="text-2xl font-semibold">Projects</h1>
+        <div className="flex flex-wrap gap-2">
+          {viewMode === 'buckets' && (
+            <button
+              type="button"
+              onClick={() => setBucketModal({ mode: 'create' })}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-500 text-indigo-600 dark:text-indigo-400 text-sm font-medium px-3 py-1.5"
+            >
+              + New bucket
+            </button>
+          )}
+          {teams.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="inline-flex items-center gap-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-3 py-1.5"
+            >
+              + New project
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(['all', 'buckets'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => changeViewMode(mode)}
+            className={`px-3 py-1 text-sm rounded ${
+              viewMode === mode
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                : 'border border-slate-300 dark:border-slate-600'
+            }`}
+          >
+            {mode === 'all' ? 'All projects' : 'Personal buckets'}
+          </button>
+        ))}
+      </div>
+
+      <ProjectFilterBar
+        filters={filters}
+        onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+        teams={teamOptions}
+        showOwnerFilter={isAdmin}
+      />
 
       {teams.length === 0 && (
         <section className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-4 mb-6 text-sm text-amber-900 dark:text-amber-100">
           You are not a member of any team yet, so you cannot create projects here.{' '}
           <Link to="/teams" className="underline font-medium">
             Join or create a team
-          </Link>{' '}
-          to add one.{' '}
-          {isAdmin && 'As an admin, projects you already own (or any project on the instance) still appear below.'}
+          </Link>
+          {isAdmin && ' As an admin, projects you already own still appear below.'}
         </section>
       )}
 
@@ -115,117 +319,298 @@ export default function ProjectsPage(): JSX.Element {
         </Modal>
       )}
 
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
-        <h2 className="text-sm font-medium mb-2">All projects</h2>
-        {isLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
-        {isError && (
-          <p className="text-sm text-red-600 dark:text-red-400">
-            Could not load projects. Refresh the page — if this persists, the server may need an update.
-          </p>
-        )}
-        {!isLoading && !isError && projects.length === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {isAdmin
-              ? 'No projects on this instance yet.'
-              : teams.length === 0
-                ? 'Join a team first, then create a project you own.'
-                : 'No projects you own yet. Since v1.39, each member only sees projects they created (project owner). Team managers no longer see teammates\' projects — ask an admin to transfer ownership or create your own.'}
-          </p>
-        )}
-        <ul className="divide-y dark:divide-slate-700">
-          {projects.map((p) => {
-            const canEdit = p.ownerId === user?.id || isAdmin;
-            return (
-              <li key={p.id} className="py-3">
-                <div className="flex items-start justify-between gap-4">
-                  <button
-                    type="button"
-                    onClick={() => nav(`/projects/${p.id}/tasks`)}
-                    className="text-left min-w-0 flex-1 hover:underline"
-                  >
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium truncate">{p.name}</p>
-                      <span className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0">
-                        {STATUS_LABEL[p.status]}
-                      </span>
-                    </div>
-                    {p.description && (
-                      <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5 truncate">{p.description}</p>
-                    )}
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      Owned by{' '}
-                      {p.ownerId === user?.id
-                        ? 'you'
-                        : p.ownerId
-                          ? p.ownerId.slice(0, 8) + '…'
-                          : '(deleted user)'}
-                      {' · Accountable: '}
-                      {p.accountableName ?? <span className="italic">unassigned</span>}
-                      {' · '}
-                      <span dir="rtl">ایجاد {formatShamsiTimestampDate(p.createdAt)}</span>
-                    </p>
-                  </button>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    {/* v1.40: per-row team chip — rows can belong to
-                        different teams in the cross-team list. */}
-                    <span
-                      className="text-[11px] uppercase tracking-wide rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5"
-                      title={`Team: ${p.teamName}`}
-                    >
-                      {p.teamName}
-                    </span>
-                    {/* v1.42: Gantt report link — visible to all viewers
-                        of the row (read-only report). */}
-                    <Link
-                      to={`/projects/${p.id}/reports/gantt`}
-                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                    >
-                      Gantt
-                    </Link>
-                    {canEdit && (
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Delete project "${p.name}"?`))
-                            deleteMut.mutate({ teamId: p.teamId, projectId: p.id });
-                        }}
-                        disabled={deleteMut.isPending}
-                        className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {/* v1.41: budget row — read-only display + inline editor
-                    for owners / admins. Hidden entirely when no budget
-                    is set and the caller can't edit (keeps the row clean). */}
-                <BudgetRow
-                  project={p}
-                  canEdit={canEdit}
-                  pending={updateBudgetMut.isPending}
-                  onSave={(planned, actual) =>
-                    updateBudgetMut.mutate({
-                      teamId: p.teamId,
-                      projectId: p.id,
-                      plannedBudget: planned,
-                      actualSpent: actual,
-                    })
-                  }
-                />
-              </li>
+      {bucketModal?.mode === 'create' && (
+        <BucketFormModal
+          title="New personal bucket"
+          onClose={() => setBucketModal(null)}
+          pending={createBucketMut.isPending}
+          onSubmit={(v) => {
+            createBucketMut.mutate(
+              { name: v.name, description: v.description || null, color: v.color },
+              { onSuccess: () => setBucketModal(null) },
             );
-          })}
-        </ul>
-      </section>
+          }}
+        />
+      )}
+
+      {bucketModal?.mode === 'edit' && (
+        <BucketFormModal
+          title="Edit bucket"
+          initial={{
+            name: bucketModal.bucket.name,
+            description: bucketModal.bucket.description ?? '',
+            color: bucketModal.bucket.color ?? '#6366f1',
+          }}
+          onClose={() => setBucketModal(null)}
+          pending={updateBucketMut.isPending}
+          onSubmit={(v) => {
+            updateBucketMut.mutate(
+              {
+                id: bucketModal.bucket.id,
+                body: { name: v.name, description: v.description || null, color: v.color },
+              },
+              { onSuccess: () => setBucketModal(null) },
+            );
+          }}
+        />
+      )}
+
+      {(isLoading || (viewMode === 'buckets' && bucketsLoading)) && (
+        <p className="text-sm text-slate-500">Loading…</p>
+      )}
+      {isError && (
+        <p className="text-sm text-red-600">Could not load projects. Refresh the page.</p>
+      )}
+
+      {!isLoading && viewMode === 'buckets' && !bucketsLoading && (
+        <ProjectBucketBoard
+          buckets={buckets}
+          projectsById={projectsById}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapse}
+          onOpenProject={(id) => nav(`/projects/${id}/tasks`)}
+          onEditBucket={(b) => setBucketModal({ mode: 'edit', bucket: b })}
+          onDeleteBucket={(b) => {
+            if (window.confirm(`Delete bucket "${b.name}"? Projects will not be deleted.`)) {
+              deleteBucketMut.mutate(b.id);
+            }
+          }}
+          onReorderBuckets={(ids) => reorderBucketsMut.mutate(ids)}
+          onAddToBucket={(bucketId, projectId) => addToBucketMut.mutate({ bucketId, projectId })}
+          onReorderInBucket={(bucketId, projectIds) =>
+            reorderInBucketMut.mutate({ bucketId, projectIds })
+          }
+          renderProjectMenu={renderProjectMenu}
+        />
+      )}
+
+      {!isLoading && viewMode === 'all' && (
+        <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
+          <h2 className="text-sm font-medium mb-2">
+            All projects ({filteredProjects.length})
+          </h2>
+          {filteredProjects.length === 0 && (
+            <p className="text-sm text-slate-500">No projects match your filters.</p>
+          )}
+          <ul className="divide-y dark:divide-slate-700">
+            {filteredProjects.map((p) => (
+              <ProjectListRow
+                key={p.id}
+                project={p}
+                userId={user?.id}
+                isAdmin={!!isAdmin}
+                bucketNames={bucketNamesByProject.get(p.id) ?? []}
+                onOpen={() => nav(`/projects/${p.id}/tasks`)}
+                onDelete={() => {
+                  if (window.confirm(`Delete project "${p.name}"?`)) {
+                    deleteMut.mutate({ teamId: p.teamId, projectId: p.id });
+                  }
+                }}
+                deletePending={deleteMut.isPending}
+                onSaveBudget={(planned, actual) =>
+                  updateBudgetMut.mutate({
+                    teamId: p.teamId,
+                    projectId: p.id,
+                    plannedBudget: planned,
+                    actualSpent: actual,
+                  })
+                }
+                budgetPending={updateBudgetMut.isPending}
+                bucketMenu={renderProjectMenu(p)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
 
-// v1.41: per-row budget display + inline editor. Read-only mode shows
-// "Budget: planned / spent (xx%)" or "Budget: spent" when only spent is
-// set. Edit mode opens two number inputs + save/clear/cancel. Hidden
-// entirely when no budget is set AND the caller can't edit, so non-owners
-// without an admin role don't see noise on every row.
+function ProjectFilterBar({
+  filters,
+  onChange,
+  teams,
+  showOwnerFilter,
+}: {
+  filters: ProjectFilterState;
+  onChange: (patch: Partial<ProjectFilterState>) => void;
+  teams: { id: string; name: string }[];
+  showOwnerFilter: boolean;
+}): JSX.Element {
+  return (
+    <div className="flex flex-wrap gap-2 mb-4 text-sm items-end">
+      <label className="flex flex-col gap-0.5 flex-1 min-w-[160px]">
+        <span className="text-slate-500 text-xs">Search</span>
+        <input
+          type="search"
+          value={filters.search ?? ''}
+          onChange={(e) => onChange({ search: e.target.value })}
+          placeholder="Project or bucket name…"
+          className="rounded border px-2 py-1 dark:bg-slate-800"
+        />
+      </label>
+      <label className="flex flex-col gap-0.5">
+        <span className="text-slate-500 text-xs">Status</span>
+        <select
+          value={filters.status ?? ''}
+          onChange={(e) =>
+            onChange({
+              status: (e.target.value || undefined) as projectsApi.ProjectStatus | undefined,
+            })
+          }
+          className="rounded border px-2 py-1 dark:bg-slate-800"
+        >
+          <option value="">All</option>
+          {(['ACTIVE', 'ON_HOLD', 'ARCHIVED'] as const).map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {teams.length > 1 && (
+        <label className="flex flex-col gap-0.5">
+          <span className="text-slate-500 text-xs">Team</span>
+          <select
+            value={filters.teamId ?? ''}
+            onChange={(e) => onChange({ teamId: e.target.value || undefined })}
+            className="rounded border px-2 py-1 dark:bg-slate-800"
+          >
+            <option value="">All teams</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {showOwnerFilter && (
+        <label className="flex flex-col gap-0.5">
+          <span className="text-slate-500 text-xs">Owner</span>
+          <select
+            value={filters.owner ?? 'all'}
+            onChange={(e) => onChange({ owner: e.target.value as 'all' | 'mine' })}
+            className="rounded border px-2 py-1 dark:bg-slate-800"
+          >
+            <option value="all">All owners</option>
+            <option value="mine">Owned by me</option>
+          </select>
+        </label>
+      )}
+      <label className="flex flex-col gap-0.5">
+        <span className="text-slate-500 text-xs">Created from</span>
+        <input
+          type="date"
+          value={filters.dateFrom?.slice(0, 10) ?? ''}
+          onChange={(e) =>
+            onChange({
+              dateFrom: e.target.value ? `${e.target.value}T00:00:00.000Z` : undefined,
+            })
+          }
+          className="rounded border px-2 py-1 dark:bg-slate-800"
+        />
+      </label>
+      <label className="flex flex-col gap-0.5">
+        <span className="text-slate-500 text-xs">Created to</span>
+        <input
+          type="date"
+          value={filters.dateTo?.slice(0, 10) ?? ''}
+          onChange={(e) =>
+            onChange({
+              dateTo: e.target.value ? `${e.target.value}T23:59:59.000Z` : undefined,
+            })
+          }
+          className="rounded border px-2 py-1 dark:bg-slate-800"
+        />
+      </label>
+    </div>
+  );
+}
+
+function ProjectListRow({
+  project,
+  userId,
+  isAdmin,
+  bucketNames,
+  onOpen,
+  onDelete,
+  deletePending,
+  onSaveBudget,
+  budgetPending,
+  bucketMenu,
+}: {
+  project: projectsApi.ProjectCrossTeam;
+  userId?: string;
+  isAdmin: boolean;
+  bucketNames: string[];
+  onOpen: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
+  onSaveBudget: (planned: string | null, actual: string | null) => void;
+  budgetPending: boolean;
+  bucketMenu: React.ReactNode;
+}): JSX.Element {
+  const canEdit = project.ownerId === userId || isAdmin;
+  return (
+    <li className="py-3">
+      <div className="flex items-start justify-between gap-4">
+        <button type="button" onClick={onOpen} className="text-left min-w-0 flex-1 hover:underline">
+          <div className="flex items-center gap-2">
+            <p className="font-medium truncate">{project.name}</p>
+            <span className="text-xs uppercase tracking-wide text-slate-500 shrink-0">
+              {STATUS_LABEL[project.status]}
+            </span>
+          </div>
+          {project.description && (
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5 truncate">
+              {project.description}
+            </p>
+          )}
+          {bucketNames.length > 0 && (
+            <p className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">
+              {bucketNames.join(' · ')}
+            </p>
+          )}
+          <p className="text-xs text-slate-400 mt-1">
+            Owned by {project.ownerId === userId ? 'you' : project.ownerId?.slice(0, 8) ?? '—'}
+            {' · '}
+            <span dir="rtl">ایجاد {formatShamsiTimestampDate(project.createdAt)}</span>
+          </p>
+        </button>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {bucketMenu}
+          <span className="text-[11px] uppercase rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
+            {project.teamName}
+          </span>
+          <Link
+            to={`/projects/${project.id}/reports/gantt`}
+            className="text-xs text-indigo-600 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Gantt
+          </Link>
+          {canEdit && (
+            <button
+              onClick={onDelete}
+              disabled={deletePending}
+              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+      <BudgetRow
+        project={project}
+        canEdit={canEdit}
+        pending={budgetPending}
+        onSave={onSaveBudget}
+      />
+    </li>
+  );
+}
+
 function BudgetRow({
   project,
   canEdit,
@@ -240,11 +625,7 @@ function BudgetRow({
   const [editing, setEditing] = useState(false);
   const [planned, setPlanned] = useState(project.plannedBudget ?? '');
   const [actual, setActual] = useState(project.actualSpent ?? '');
-  // Re-sync local edit state when the row's server state changes (e.g.
-  // after the parent invalidates the list and a new row instance arrives).
-  // We deliberately do NOT compare to current state to avoid races where
-  // the user opens edit, types, and a background refetch stomps inputs.
-  // The simplest correct rule: sync ONLY when entering edit mode.
+
   useEffect(() => {
     if (editing) {
       setPlanned(project.plannedBudget ?? '');
@@ -255,27 +636,16 @@ function BudgetRow({
   const hasBudget = !!(project.plannedBudget || project.actualSpent);
   if (!hasBudget && !canEdit) return null;
 
-  // Utilization % only when both fields are present AND planned > 0.
-  // Locale-formatted to one decimal for readability.
   const utilization =
     project.plannedBudget && project.actualSpent && Number(project.plannedBudget) > 0
       ? (Number(project.actualSpent) / Number(project.plannedBudget)) * 100
       : null;
 
   const fmt = (s: string | null): string =>
-    s === null
-      ? '—'
-      : Number(s).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+    s === null ? '—' : Number(s).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Client-side mirror of the server rule for the Save button.
   const validNumber = (v: string): boolean =>
-    v.trim().length === 0 ||
-    (/^\d+(\.\d{1,2})?$/.test(v.trim()) && Number(v) >= 0);
-  const plannedInvalid = !validNumber(planned);
-  const actualInvalid = !validNumber(actual);
+    v.trim().length === 0 || (/^\d+(\.\d{1,2})?$/.test(v.trim()) && Number(v) >= 0);
 
   return (
     <div className="mt-2 ml-7 text-xs">
@@ -285,94 +655,32 @@ function BudgetRow({
           <span>
             Planned <code>{fmt(project.plannedBudget)}</code> · Spent{' '}
             <code>{fmt(project.actualSpent)}</code>
-            {utilization !== null && (
-              <span
-                className={
-                  ' ml-2 ' +
-                  (utilization > 100
-                    ? 'text-red-600 dark:text-red-400'
-                    : utilization > 80
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-emerald-600 dark:text-emerald-400')
-                }
-                title="Actual ÷ Planned"
-              >
-                ({utilization.toFixed(1)}%)
-              </span>
-            )}
+            {utilization !== null && <span className="ml-2">({utilization.toFixed(1)}%)</span>}
           </span>
           {canEdit && (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="ml-auto text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-            >
+            <button type="button" onClick={() => setEditing(true)} className="ml-auto hover:underline">
               Edit
             </button>
           )}
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1">
-            <span className="text-slate-500 dark:text-slate-400">Planned</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={planned}
-              onChange={(e) => setPlanned(e.target.value)}
-              className="w-28 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5 border"
-            />
-          </label>
-          <label className="flex items-center gap-1">
-            <span className="text-slate-500 dark:text-slate-400">Actual Spent</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={actual}
-              onChange={(e) => setActual(e.target.value)}
-              className="w-28 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5 border"
-            />
-          </label>
-          {(plannedInvalid || actualInvalid) && (
-            <span className="text-red-600 dark:text-red-400">
-              Use a non-negative number with up to 2 decimals.
-            </span>
-          )}
-          <div className="flex gap-1 ml-auto">
-            <button
-              type="button"
-              disabled={pending || plannedInvalid || actualInvalid}
-              onClick={() => {
-                onSave(planned.trim() ? planned.trim() : null, actual.trim() ? actual.trim() : null);
-                setEditing(false);
-              }}
-              className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded px-2 py-0.5 disabled:opacity-50"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => {
-                setPlanned('');
-                setActual('');
-                onSave(null, null);
-                setEditing(false);
-              }}
-              className="text-slate-500 dark:text-slate-400 hover:underline"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="text-slate-500 dark:text-slate-400 hover:underline"
-            >
-              Cancel
-            </button>
-          </div>
+          <input type="number" min="0" step="0.01" value={planned} onChange={(e) => setPlanned(e.target.value)} className="w-28 rounded border px-1 py-0.5 dark:bg-slate-700" />
+          <input type="number" min="0" step="0.01" value={actual} onChange={(e) => setActual(e.target.value)} className="w-28 rounded border px-1 py-0.5 dark:bg-slate-700" />
+          <button
+            type="button"
+            disabled={pending || !validNumber(planned) || !validNumber(actual)}
+            onClick={() => {
+              onSave(planned.trim() || null, actual.trim() || null);
+              setEditing(false);
+            }}
+            className="bg-slate-900 text-white rounded px-2 py-0.5 disabled:opacity-50"
+          >
+            Save
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="hover:underline">
+            Cancel
+          </button>
         </div>
       )}
     </div>

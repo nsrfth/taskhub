@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.44.1** (2026-06-09)
+Version **v1.45.0** (2026-06-09)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -95,7 +95,13 @@ The buttons appear on every signed-in route so you can always reach help / conte
 - **Teams** page — click the team-name dropdown on the dashboard or go to `/teams`. Lists every team you belong to and lets you switch the "current team" (drives what the kanban / reports / settings show).
 - **Create a team** — click **New team**, give it a name + slug (URL-safe, dash-delimited, e.g. `growth-eng`).
 - **Invite a member** — open the team detail, type their email, pick role `MEMBER` or `MANAGER`. (Only `MANAGER`s can invite.)
-- **Projects** page — once you're inside a team, click **Projects** to see the team's projects. New project: name + optional description + **Accountable** (v1.17 — the team member on the hook for this project's outcomes, in RACI terms; optional). Owners + managers can change Accountable inline on the project list.
+- **Projects** page (`/projects`) — cross-team list of every project you can see (since v1.39, usually projects you **own**). **New project** when you belong to at least one team.
+- **Personal buckets** (v1.45) — on the Projects page, switch to **Personal buckets** to organize projects into your own columns (e.g. *My Priorities*, *This Quarter*). Buckets are private to you and never change project permissions or data.
+  - **+ New bucket** — name, optional description, color.
+  - Drag projects into buckets; drag to reorder within a bucket or reorder bucket columns.
+  - A project can sit in **multiple** buckets. Use the **☰** menu on a row/card to toggle bucket membership.
+  - **All projects** view adds search (project + bucket names) and filters: status, team, owner (admin), created date range.
+  - Deleting a bucket removes the grouping only — projects stay intact.
 
 > Directory-managed teams (set up via LDAP/SCIM by an admin) have their membership synced from the IdP — manual invites are disabled there.
 
