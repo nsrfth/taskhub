@@ -1,13 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useTeams } from '@/features/teams/TeamsContext';
 import * as projectsApi from '@/features/projects/api';
-import { getTeam } from '@/features/teams/api';
 import { formatShamsiTimestampDate } from '@/lib/shamsi';
 import ProjectBucketStrip from '@/features/buckets/ProjectBucketStrip';
+import CreateProjectForm from '@/features/projects/CreateProjectForm';
+import Modal from '@/features/ui/Modal';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -40,53 +41,7 @@ export default function ProjectsPage(): JSX.Element {
     queryFn: () => projectsApi.listAllProjects(),
   });
 
-  // v1.33: the New-project form gets its OWN team picker independent of
-  // the page-level currentTeam. The accountable dropdown there reads
-  // members from the selected team — switching the picker re-fetches
-  // automatically via React Query's cache key. Defaults to currentTeam
-  // on first render.
-  const [formTeamId, setFormTeamId] = useState<string>(() => currentTeam?.id ?? '');
-  const effectiveFormTeamId = formTeamId || currentTeam?.id || '';
-  const { data: formTeamDetail } = useQuery({
-    queryKey: ['teams', 'detail', effectiveFormTeamId],
-    queryFn: () => getTeam(effectiveFormTeamId),
-    enabled: !!effectiveFormTeamId,
-    staleTime: 30_000,
-  });
-  const formMembers = formTeamDetail?.members ?? [];
-
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [accountableId, setAccountableId] = useState<string>('');
-  // v1.41: optional budget inputs on the create form. Empty string means
-  // "not provided" — we drop them from the payload rather than sending "".
-  const [plannedBudget, setPlannedBudget] = useState('');
-  const [actualSpent, setActualSpent] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const createMut = useMutation({
-    mutationFn: (input: {
-      name: string;
-      description?: string;
-      accountableId?: string | null;
-      // v1.41: budget fields piped through.
-      plannedBudget?: string;
-      actualSpent?: string;
-    }) => projectsApi.createProject(effectiveFormTeamId, input),
-    onSuccess: async () => {
-      setName('');
-      setDescription('');
-      setAccountableId('');
-      setPlannedBudget('');
-      setActualSpent('');
-      setCreateError(null);
-      // v1.40: cross-team list invalidation. Also bump the legacy
-      // per-team key for views that still read it (sidebars, pickers).
-      await qc.invalidateQueries({ queryKey: ['projects', 'all'] });
-      await qc.invalidateQueries({ queryKey: ['projects', effectiveFormTeamId] });
-    },
-    onError: (err) => setCreateError(errorMessage(err, 'Could not create project')),
-  });
+  const [createOpen, setCreateOpen] = useState(false);
 
   // v1.41: PATCH budget on an existing row. Takes the row's teamId so it
   // works across the cross-team list.
@@ -121,26 +76,25 @@ export default function ProjectsPage(): JSX.Element {
     },
   });
 
-  async function onCreate(e: FormEvent): Promise<void> {
-    e.preventDefault();
-    createMut.mutate({
-      name,
-      description: description || undefined,
-      accountableId: accountableId || null,
-      // v1.41: empty string → omit (server treats absence as null). Trimmed.
-      plannedBudget: plannedBudget.trim() ? plannedBudget.trim() : undefined,
-      actualSpent: actualSpent.trim() ? actualSpent.trim() : undefined,
-    });
-  }
-
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-semibold">Projects</h1>
-        {/* v1.40: cross-team list — no "in <currentTeam>" anymore. */}
+        {teams.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-3 py-1.5"
+          >
+            <span aria-hidden className="text-base leading-none">
+              +
+            </span>
+            New project
+          </button>
+        )}
       </div>
 
-      {teams.length === 0 ? (
+      {teams.length === 0 && (
         <section className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-4 mb-6 text-sm text-amber-900 dark:text-amber-100">
           You are not a member of any team yet, so you cannot create projects here.{' '}
           <Link to="/teams" className="underline font-medium">
@@ -149,94 +103,17 @@ export default function ProjectsPage(): JSX.Element {
           to add one.{' '}
           {isAdmin && 'As an admin, projects you already own (or any project on the instance) still appear below.'}
         </section>
-      ) : (
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6">
-        <h2 className="text-sm font-medium mb-2">New project</h2>
-        <form onSubmit={onCreate} className="space-y-2">
-          {/* v1.33: team picker. Only rendered when the user belongs to
-              more than one team — single-team users would just see a
-              read-only field that adds no information. Changing the team
-              clears the accountable selection because the previously-picked
-              user almost certainly isn't a member of the new team. */}
-          {teams.length > 1 && (
-            <label className="block">
-              <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Team</span>
-              <select
-                value={effectiveFormTeamId}
-                onChange={(e) => {
-                  setFormTeamId(e.target.value);
-                  setAccountableId('');
-                }}
-                className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
-              >
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.myRole.toLowerCase()})
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <input
-            type="text"
-            required
-            placeholder="Project name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
+      )}
+
+      {createOpen && (
+        <Modal title="Create new project" onClose={() => setCreateOpen(false)}>
+          <CreateProjectForm
+            teams={teams}
+            currentTeamId={currentTeam?.id ?? null}
+            onSuccess={() => setCreateOpen(false)}
+            onCancel={() => setCreateOpen(false)}
           />
-          <textarea
-            placeholder="Description (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
-            rows={2}
-          />
-          <select
-            value={accountableId}
-            onChange={(e) => setAccountableId(e.target.value)}
-            className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
-            title="Accountable (RACI) — the person on the hook for this project's outcomes"
-          >
-            <option value="">Accountable (optional) — none</option>
-            {formMembers.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.name} ({m.role})
-              </option>
-            ))}
-          </select>
-          {/* v1.41: optional budget inputs. min/step trip native HTML
-              validation; the server is the authority (re-validates on POST). */}
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Planned Budget (optional)"
-              value={plannedBudget}
-              onChange={(e) => setPlannedBudget(e.target.value)}
-              className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Actual Spent (optional)"
-              value={actualSpent}
-              onChange={(e) => setActualSpent(e.target.value)}
-              className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
-            />
-          </div>
-          {createError && <p className="text-xs text-red-600 dark:text-red-400">{createError}</p>}
-          <button
-            type="submit"
-            disabled={createMut.isPending || !effectiveFormTeamId}
-            className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
-          >
-            {createMut.isPending ? 'Creating…' : 'Create project'}
-          </button>
-        </form>
-      </section>
+        </Modal>
       )}
 
       <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
