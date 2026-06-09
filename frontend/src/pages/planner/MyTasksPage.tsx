@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchMyTasks, type MeTask, type MeTasksQuery } from '@/features/meTasks/api';
+import * as projectsApi from '@/features/projects/api';
 import * as tasksApi from '@/features/tasks/api';
 import GroupedBoard from '@/features/planner/GroupedBoard';
 import TaskGrid from '@/features/planner/TaskGrid';
+import MyTasksCalendar from '@/features/planner/MyTasksCalendar';
 import {
   BOARD_GROUP_BY_LABEL,
   BOARD_GROUP_BY_ORDER,
@@ -15,6 +17,7 @@ import { loadBoardGroupBy, saveBoardGroupBy } from '@/features/planner/storage';
 import { useT } from '@/lib/i18n';
 
 type SubView = 'board' | 'grid' | 'calendar';
+type SortField = MeTasksQuery['sort'] | 'progress';
 
 export default function MyTasksPage(): JSX.Element {
   const t = useT();
@@ -24,17 +27,25 @@ export default function MyTasksPage(): JSX.Element {
   const [groupBy, setGroupBy] = useState<BoardGroupBy>(() => loadBoardGroupBy());
   const [filter, setFilter] = useState<MeTasksQuery['filter'] | ''>('');
   const [projectId, setProjectId] = useState('');
+  const [sortField, setSortField] = useState<SortField>('dueDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
   const pageSize = 50;
+  const useClientProgressSort = sortField === 'progress';
 
   const query: MeTasksQuery = {
     filter: filter || undefined,
     projectId: projectId || undefined,
-    sort: 'dueDate',
-    order: 'asc',
-    limit: pageSize,
-    offset: page * pageSize,
+    sort: useClientProgressSort ? 'dueDate' : sortField,
+    order: sortOrder,
+    limit: useClientProgressSort ? 200 : pageSize,
+    offset: useClientProgressSort ? 0 : page * pageSize,
   };
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects', 'all'],
+    queryFn: projectsApi.listAllProjects,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['me', 'tasks', query],
@@ -45,8 +56,9 @@ export default function MyTasksPage(): JSX.Element {
   const projectNames = useMemo(() => {
     const m = new Map<string, string>();
     for (const tk of tasks) m.set(tk.projectId, tk.projectName);
+    for (const p of projects) m.set(p.id, p.name);
     return m;
-  }, [tasks]);
+  }, [tasks, projects]);
 
   const assigneeNames = useMemo(() => {
     const m = new Map<string, string>();
@@ -72,11 +84,14 @@ export default function MyTasksPage(): JSX.Element {
     },
   });
 
-  const uniqueProjects = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const tk of tasks) seen.set(tk.projectId, tk.projectName);
-    return [...seen.entries()];
-  }, [tasks]);
+  const markDoneMut = useMutation({
+    mutationFn: (task: MeTask) =>
+      tasksApi.updateTask(task.teamId, task.projectId, task.id, { status: 'DONE' }),
+    onSuccess: async (_d, task) => {
+      await qc.invalidateQueries({ queryKey: ['me', 'tasks'] });
+      await qc.invalidateQueries({ queryKey: ['tasks', task.teamId, task.projectId] });
+    },
+  });
 
   return (
     <div>
@@ -88,7 +103,7 @@ export default function MyTasksPage(): JSX.Element {
           <button
             key={v}
             type="button"
-            onClick={() => (v === 'calendar' ? nav('/planner/calendar') : setSubView(v))}
+            onClick={() => setSubView(v)}
             className={`px-3 py-1 text-sm rounded ${
               subView === v
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
@@ -125,12 +140,39 @@ export default function MyTasksPage(): JSX.Element {
           className="rounded border px-2 py-1 dark:bg-slate-800"
         >
           <option value="">{t('planner.filter.allProjects')}</option>
-          {uniqueProjects.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </select>
+        {(subView === 'board' || subView === 'grid') && (
+          <>
+            <select
+              value={sortField}
+              onChange={(e) => {
+                setSortField(e.target.value as SortField);
+                setPage(0);
+              }}
+              className="rounded border px-2 py-1 dark:bg-slate-800"
+              aria-label="Sort by"
+            >
+              <option value="dueDate">{t('planner.myTasks.sort.dueDate')}</option>
+              <option value="priority">{t('planner.myTasks.sort.priority')}</option>
+              <option value="status">{t('planner.myTasks.sort.status')}</option>
+              <option value="progress">{t('planner.myTasks.sort.progress')}</option>
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="rounded border px-2 py-1 dark:bg-slate-800"
+              aria-label="Sort order"
+            >
+              <option value="asc">{t('planner.myTasks.sort.asc')}</option>
+              <option value="desc">{t('planner.myTasks.sort.desc')}</option>
+            </select>
+          </>
+        )}
         {subView === 'board' && (
           <select
             value={groupBy}
@@ -151,7 +193,7 @@ export default function MyTasksPage(): JSX.Element {
         )}
       </div>
 
-      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {isLoading && subView !== 'calendar' && <p className="text-sm text-slate-500">Loading…</p>}
 
       {subView === 'board' && !isLoading && (
         <GroupedBoard
@@ -160,7 +202,9 @@ export default function MyTasksPage(): JSX.Element {
             const task = tasks.find((tk) => tk.id === id);
             if (task) nav(`/projects/${task.projectId}/tasks/${id}`);
           }}
+          onViewProject={(task) => nav(`/projects/${task.projectId}/tasks`)}
           onStatusChange={(task, status) => updateMut.mutate({ task: task as MeTask, status })}
+          onMarkDone={(task) => markDoneMut.mutate(task as MeTask)}
           projectNames={projectNames}
         />
       )}
@@ -169,13 +213,30 @@ export default function MyTasksPage(): JSX.Element {
         <TaskGrid
           tasks={tasks}
           showProjectColumn
-          total={data?.total}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
+          total={useClientProgressSort ? undefined : data?.total}
+          page={useClientProgressSort ? undefined : page}
+          pageSize={useClientProgressSort ? undefined : pageSize}
+          onPageChange={useClientProgressSort ? undefined : setPage}
+          defaultSort={
+            sortField === 'progress'
+              ? { key: 'progress', dir: sortOrder }
+              : { key: sortField as 'dueDate' | 'priority' | 'status' | 'createdAt', dir: sortOrder }
+          }
           onOpen={(task) => nav(`/projects/${task.projectId}/tasks/${task.id}`)}
+          onViewProject={(task) => nav(`/projects/${task.projectId}/tasks`)}
           onStatusChange={(task, status) => updateMut.mutate({ task: task as MeTask, status })}
         />
+      )}
+
+      {subView === 'calendar' && <MyTasksCalendar />}
+
+      {subView === 'board' && !isLoading && tasks.length > 0 && (
+        <p className="text-xs text-slate-500 mt-4">
+          {t('planner.myTasks.openFullCalendar')}{' '}
+          <Link to="/planner/calendar" className="text-indigo-600 hover:underline">
+            {t('planner.nav.calendar')}
+          </Link>
+        </p>
       )}
     </div>
   );

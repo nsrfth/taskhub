@@ -3,6 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { useTeams } from '@/features/teams/TeamsContext';
 import * as projectsApi from '@/features/projects/api';
 import * as tasksApi from '@/features/tasks/api';
+import type { TaskStatus } from '@/features/tasks/api';
 import { fetchSummary, fetchWorkload } from '@/features/reports/api';
 import { getTeam } from '@/features/teams/api';
 import PlannerChartsPanel from '@/features/planner/charts/PlannerChartsPanel';
@@ -12,6 +13,11 @@ import {
   statusBarFromTasks,
   statusDistributionFromTasks,
 } from '@/features/planner/aggregations';
+import {
+  applyPlannerScopeFilters,
+  collectAssigneeOptions,
+} from '@/features/planner/PlannerFilterBar';
+import type { TaskFilterState } from '@/features/planner/filters';
 import { useT } from '@/lib/i18n';
 
 const ALL_TEAMS = 'all' as const;
@@ -21,6 +27,7 @@ export default function PlannerChartsPage(): JSX.Element {
   const { teams } = useTeams();
   const [teamId, setTeamId] = useState<string | typeof ALL_TEAMS>(ALL_TEAMS);
   const [projectId, setProjectId] = useState<string>('');
+  const [scopeFilters, setScopeFilters] = useState<TaskFilterState>({});
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects', 'all'],
@@ -80,13 +87,25 @@ export default function PlannerChartsPage(): JSX.Element {
   }, [memberTeamQuery.data]);
 
   const allTasks = useMemo(() => taskQueries.flatMap((q) => q.data ?? []), [taskQueries]);
+  const scopedTasks = useMemo(
+    () => applyPlannerScopeFilters(allTasks, scopeFilters),
+    [allTasks, scopeFilters],
+  );
   const loading = taskQueries.some((q) => q.isLoading);
+
+  const assigneeFilterOptions = useMemo(
+    () => collectAssigneeOptions(allTasks, assigneeNames),
+    [allTasks, assigneeNames],
+  );
 
   const useTaskAggregation = teamScopedProjects.length > 0 && teamScopedProjects.length <= 20;
 
   const statusSlices = useMemo(() => {
-    if (useTaskAggregation && allTasks.length > 0) {
-      return statusDistributionFromTasks(allTasks);
+    if (useTaskAggregation && scopedTasks.length > 0) {
+      return statusDistributionFromTasks(scopedTasks);
+    }
+    if (useTaskAggregation && scopedTasks.length === 0 && allTasks.length > 0) {
+      return statusDistributionFromTasks([]);
     }
     const summaries = summaryQueries.map((q) => q.data).filter(Boolean);
     if (summaries.length === 0) return [];
@@ -110,20 +129,30 @@ export default function PlannerChartsPage(): JSX.Element {
       count: merged[s],
       percent: Math.round((merged[s] / total) * 100),
     }));
-  }, [useTaskAggregation, allTasks, summaryQueries]);
+  }, [useTaskAggregation, scopedTasks, allTasks, summaryQueries]);
 
   const statusBars = useMemo(
-    () => (useTaskAggregation ? statusBarFromTasks(allTasks) : statusSlices.map((s) => ({ name: s.label, count: s.count }))),
-    [useTaskAggregation, allTasks, statusSlices],
+    () =>
+      useTaskAggregation
+        ? statusBarFromTasks(scopedTasks)
+        : statusSlices.map((s) => ({ name: s.label, count: s.count })),
+    [useTaskAggregation, scopedTasks, statusSlices],
   );
 
   const memberBars = useMemo(() => {
-    if (useTaskAggregation && allTasks.length > 0) {
-      return memberBarFromTasks(allTasks, assigneeNames);
+    if (useTaskAggregation) {
+      return memberBarFromTasks(scopedTasks, assigneeNames);
     }
     const rows = workloadQueries.flatMap((q) => q.data?.items ?? []);
-    return memberBarFromWorkload(rows);
-  }, [useTaskAggregation, allTasks, assigneeNames, workloadQueries]);
+    const filtered = scopeFilters.assigneeId
+      ? rows.filter((r) =>
+          scopeFilters.assigneeId === '__unassigned__'
+            ? !r.assigneeId
+            : r.assigneeId === scopeFilters.assigneeId,
+        )
+      : rows;
+    return memberBarFromWorkload(filtered);
+  }, [useTaskAggregation, scopedTasks, assigneeNames, workloadQueries, scopeFilters.assigneeId]);
 
   return (
     <div>
@@ -158,6 +187,74 @@ export default function PlannerChartsPage(): JSX.Element {
               </option>
             ))}
           </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="text-slate-500">Status</span>
+          <select
+            value={scopeFilters.status ?? ''}
+            onChange={(e) =>
+              setScopeFilters((f) => ({
+                ...f,
+                status: (e.target.value || undefined) as TaskStatus | undefined,
+              }))
+            }
+            className="rounded border px-2 py-1 dark:bg-slate-800"
+          >
+            <option value="">All</option>
+            {(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'] as const).map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        {assigneeFilterOptions.length > 0 && (
+          <label className="flex items-center gap-2">
+            <span className="text-slate-500">Member</span>
+            <select
+              value={scopeFilters.assigneeId ?? ''}
+              onChange={(e) =>
+                setScopeFilters((f) => ({ ...f, assigneeId: e.target.value || undefined }))
+              }
+              className="rounded border px-2 py-1 dark:bg-slate-800"
+            >
+              <option value="">All</option>
+              <option value="__unassigned__">Unassigned</option>
+              {assigneeFilterOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="flex items-center gap-2">
+          <span className="text-slate-500">Due from</span>
+          <input
+            type="date"
+            value={scopeFilters.dateFrom?.slice(0, 10) ?? ''}
+            onChange={(e) =>
+              setScopeFilters((f) => ({
+                ...f,
+                dateFrom: e.target.value ? `${e.target.value}T00:00:00.000Z` : undefined,
+              }))
+            }
+            className="rounded border px-2 py-1 dark:bg-slate-800"
+          />
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="text-slate-500">Due to</span>
+          <input
+            type="date"
+            value={scopeFilters.dateTo?.slice(0, 10) ?? ''}
+            onChange={(e) =>
+              setScopeFilters((f) => ({
+                ...f,
+                dateTo: e.target.value ? `${e.target.value}T23:59:59.000Z` : undefined,
+              }))
+            }
+            className="rounded border px-2 py-1 dark:bg-slate-800"
+          />
         </label>
       </div>
       <PlannerChartsPanel

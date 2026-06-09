@@ -5,6 +5,10 @@ import * as projectsApi from '@/features/projects/api';
 import * as tasksApi from '@/features/tasks/api';
 import TaskGrid from '@/features/planner/TaskGrid';
 import type { TaskFilterState } from '@/features/planner/filters';
+import PlannerFilterBar, {
+  collectAssigneeOptions,
+  collectLabelOptions,
+} from '@/features/planner/PlannerFilterBar';
 import { getTeam } from '@/features/teams/api';
 import { useT } from '@/lib/i18n';
 
@@ -60,6 +64,12 @@ export default function PlannerGridPage(): JSX.Element {
     });
   }, [taskQueries, targetProjects, assigneeNames]);
 
+  const assigneeOptions = useMemo(
+    () => collectAssigneeOptions(rows, assigneeNames),
+    [rows, assigneeNames],
+  );
+  const labelOptions = useMemo(() => collectLabelOptions(rows), [rows]);
+
   const updateMut = useMutation({
     mutationFn: (args: { teamId: string; projectId: string; taskId: string; status: tasksApi.TaskStatus }) =>
       tasksApi.updateTask(args.teamId, args.projectId, args.taskId, { status: args.status }),
@@ -71,54 +81,16 @@ export default function PlannerGridPage(): JSX.Element {
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-4">{t('planner.grid.title')}</h1>
-      <div className="flex flex-wrap gap-3 mb-4 text-sm">
-        <label className="flex items-center gap-2">
-          <span className="text-slate-500">{t('planner.filter.project')}</span>
-          <select
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            className="rounded border px-2 py-1 dark:bg-slate-800"
-          >
-            <option value="">{t('planner.filter.allProjects')}</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <select
-          value={filters.status ?? ''}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, status: (e.target.value || undefined) as tasksApi.TaskStatus | undefined }))
-          }
-          className="rounded border px-2 py-1 dark:bg-slate-800"
-        >
-          <option value="">All statuses</option>
-          {(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'] as const).map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filters.priority ?? ''}
-          onChange={(e) =>
-            setFilters((f) => ({
-              ...f,
-              priority: (e.target.value || undefined) as tasksApi.TaskPriority | undefined,
-            }))
-          }
-          className="rounded border px-2 py-1 dark:bg-slate-800"
-        >
-          <option value="">All priorities</option>
-          {(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const).map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </div>
+      <PlannerFilterBar
+        filters={filters}
+        onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+        showProject
+        projectId={projectId}
+        onProjectChange={setProjectId}
+        projectOptions={projects.map((p) => ({ id: p.id, name: p.name }))}
+        assigneeOptions={assigneeOptions}
+        labelOptions={labelOptions}
+      />
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
       <TaskGrid
         tasks={rows}
@@ -133,6 +105,7 @@ export default function PlannerGridPage(): JSX.Element {
             status,
           })
         }
+        onViewProject={(task) => nav(`/projects/${task.projectId}/tasks`)}
       />
     </div>
   );

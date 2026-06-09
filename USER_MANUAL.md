@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.44.0** (2026-06-09)
+Version **v1.44.1** (2026-06-09)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -199,11 +199,11 @@ The **Planner** hub (`/planner`) groups every way to *see* tasks without changin
 
 | Tab | What it shows |
 |-----|----------------|
-| **My Tasks** | Every task **assigned to you** across all teams and projects. Board, Grid, or Calendar sub-views. Quick filters: Due today, Overdue, Upcoming, Completed, High priority, by project. |
+| **My Tasks** | Every task **assigned to you** across all teams and projects. Board, Grid, or **week calendar** sub-views. Sort by due date, priority, status, or progress. Quick filters: Due today, Overdue, Upcoming, Completed, High priority, by project. Mark complete or open the project from board cards. |
 | **Board** | Shortcut list of your projects — click one to open its kanban board with **Group by**. |
 | **Calendar** | Cross-project date grid (see [Calendar views](#calendar-views) below). |
-| **Charts** | Doughnut + bar charts: status mix, tasks per status, tasks per team member. Filter by team and project. |
-| **Grid** | Spreadsheet-style table: sort, filter, search, paginate. Click a row to open the task. Show/hide columns via **Columns**. |
+| **Charts** | Doughnut + bar charts: status mix, tasks per status, tasks per team member. Filter by team, project, **status**, **member**, and **due date range**. |
+| **Grid** | Spreadsheet-style table: sort, filter (status, priority, assignee, label, dates), search, paginate. Resize columns; show/hide columns via **Columns**. Click a row to open the task; click project name to open the project board. |
 
 > **Note:** Per-project "buckets" (custom column groups) were removed in v1.44. Use **Group by** on the board or **Labels** for similar organisation.
 

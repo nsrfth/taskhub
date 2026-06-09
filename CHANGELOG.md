@@ -7,6 +7,38 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.44.1] — 2026-06-09
+
+**Planner polish:** closes remaining gaps in Charts, Grid, and My Tasks views.
+
+### Charts
+
+- Client-side filters: **status**, **team member** (incl. unassigned), **due date range**.
+- Scoped aggregation via `applyPlannerScopeFilters` before chart rendering.
+
+### Grid
+
+- Shared **`PlannerFilterBar`**: status, priority, assignee, label, due-date range, project.
+- **Column resize** (CSS `resize-x` on headers), **assignee** sort, optional **Parent Task** column (N/A for top-level tasks).
+- **View project** link on project column.
+
+### My Tasks
+
+- Inline **week calendar** (`MyTasksCalendar`) instead of redirect-only.
+- **Sort** by due date, priority, status, or progress (progress uses client sort up to 200 rows).
+- **Project filter** lists all owned projects, not only the current page.
+- Quick actions: **mark complete**, **view project**, status update.
+
+### Tests
+
+- Integration tests for **`GET /api/me/tasks`** (`backend/tests/integration/meTasks.test.ts`).
+
+### Shared components
+
+- `features/planner/PlannerFilterBar.tsx`, `MyTasksCalendar.tsx`.
+
+---
+
 ## [1.44.0] — 2026-06-09
 
 **Advanced Planner views + buckets removal.** Replaces the per-project

@@ -29,7 +29,11 @@ export const DEFAULT_GRID_COLUMNS = [
   'createdAt',
 ] as const;
 
-export type GridColumnId = (typeof DEFAULT_GRID_COLUMNS)[number] | 'startDate' | 'budget';
+export type GridColumnId =
+  | (typeof DEFAULT_GRID_COLUMNS)[number]
+  | 'startDate'
+  | 'budget'
+  | 'parentTask';
 
 export function loadGridColumns(): GridColumnId[] {
   if (typeof window === 'undefined') return [...DEFAULT_GRID_COLUMNS];

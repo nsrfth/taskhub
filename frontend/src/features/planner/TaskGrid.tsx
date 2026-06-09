@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Task, TaskPriority, TaskStatus } from '@/features/tasks/api';
 import { LabelChip } from '@/features/labels/LabelChip';
 import { formatShamsiDate, formatShamsiTimestampDate } from '@/lib/shamsi';
@@ -30,6 +30,7 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
 const COLUMN_LABEL: Record<GridColumnId, string> = {
   title: 'Task Name',
   project: 'Project',
+  parentTask: 'Parent Task',
   assignee: 'Assignee',
   status: 'Status',
   priority: 'Priority',
@@ -51,12 +52,14 @@ export interface TaskGridProps {
   filters?: TaskFilterState;
   onOpen: (task: TaskGridRow) => void;
   onStatusChange?: (task: TaskGridRow, status: TaskStatus) => void;
+  onViewProject?: (task: TaskGridRow) => void;
   showProjectColumn?: boolean;
   /** Server-side pagination — when set, client slice is skipped. */
   total?: number;
   page?: number;
   pageSize?: number;
   onPageChange?: (page: number) => void;
+  defaultSort?: { key: TaskSortKey; dir: SortDir };
 }
 
 type SortDir = 'asc' | 'desc';
@@ -66,22 +69,27 @@ export default function TaskGrid({
   filters = {},
   onOpen,
   onStatusChange,
+  onViewProject,
   showProjectColumn = true,
   total,
   page: controlledPage,
   pageSize: controlledPageSize,
   onPageChange,
+  defaultSort,
 }: TaskGridProps): JSX.Element {
   const t = useT();
   const [search, setSearch] = useState(filters.search ?? '');
-  const [sort, setSort] = useState<{ key: TaskSortKey; dir: SortDir } | null>({
-    key: 'dueDate',
-    dir: 'asc',
-  });
+  const [sort, setSort] = useState<{ key: TaskSortKey; dir: SortDir } | null>(
+    defaultSort ?? { key: 'dueDate', dir: 'asc' },
+  );
   const [visibleCols, setVisibleCols] = useState<GridColumnId[]>(() => loadGridColumns());
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(() => loadGridPageSize());
   const [showColPicker, setShowColPicker] = useState(false);
+
+  useEffect(() => {
+    if (defaultSort) setSort(defaultSort);
+  }, [defaultSort?.key, defaultSort?.dir]);
 
   const activePage = controlledPage ?? page;
   const activePageSize = controlledPageSize ?? pageSize;
@@ -101,8 +109,14 @@ export default function TaskGrid({
 
   const sorted = useMemo(() => {
     if (!sort) return filtered;
-    return sortTasks(filtered, sort.key, sort.dir, projectNames);
-  }, [filtered, sort, projectNames]);
+    const assigneeNameMap = new Map<string, string>();
+    for (const row of tasks) {
+      if (row.assigneeId && row.assigneeName) {
+        assigneeNameMap.set(row.assigneeId, row.assigneeName);
+      }
+    }
+    return sortTasks(filtered, sort.key, sort.dir, projectNames, assigneeNameMap);
+  }, [filtered, sort, projectNames, tasks]);
 
   const isServerPaged = total !== undefined && onPageChange !== undefined;
   const pageCount = isServerPaged
@@ -180,7 +194,7 @@ export default function TaskGrid({
 
       {showColPicker && (
         <div className="flex flex-wrap gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded">
-          {[...DEFAULT_GRID_COLUMNS, 'startDate' as const, 'budget' as const].map((id) => (
+          {[...DEFAULT_GRID_COLUMNS, 'startDate' as const, 'budget' as const, 'parentTask' as const].map((id) => (
             <label key={id} className="inline-flex items-center gap-1">
               <input
                 type="checkbox"
@@ -198,10 +212,21 @@ export default function TaskGrid({
           <thead className="bg-slate-50 dark:bg-slate-700/50 text-left text-xs text-slate-500 uppercase">
             <tr>
               {cols.map((col) => (
-                <th key={col} className="px-3 py-2 font-medium">
-                  {['title', 'status', 'priority', 'dueDate', 'progress', 'createdAt', 'project'].includes(
-                    col,
-                  ) ? (
+                <th
+                  key={col}
+                  className="px-3 py-2 font-medium resize-x overflow-hidden min-w-[80px]"
+                  style={{ maxWidth: 320 }}
+                >
+                  {[
+                    'title',
+                    'status',
+                    'priority',
+                    'dueDate',
+                    'progress',
+                    'createdAt',
+                    'project',
+                    'assignee',
+                  ].includes(col) ? (
                     <button
                       type="button"
                       onClick={() =>
@@ -234,7 +259,7 @@ export default function TaskGrid({
               >
                 {cols.map((col) => (
                   <td key={col} className="px-3 py-2" onClick={(e) => col === 'status' && e.stopPropagation()}>
-                    {renderCell(row, col, onStatusChange)}
+                    {renderCell(row, col, onStatusChange, onViewProject)}
                   </td>
                 ))}
               </tr>
@@ -287,12 +312,28 @@ function renderCell(
   row: TaskGridRow,
   col: GridColumnId,
   onStatusChange?: (task: TaskGridRow, status: TaskStatus) => void,
+  onViewProject?: (task: TaskGridRow) => void,
 ): React.ReactNode {
   switch (col) {
     case 'title':
       return <span className="font-medium">{row.title}</span>;
     case 'project':
-      return row.projectName ?? '—';
+      return onViewProject ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewProject(row);
+          }}
+          className="text-indigo-600 dark:text-indigo-400 hover:underline text-left"
+        >
+          {row.projectName ?? '—'}
+        </button>
+      ) : (
+        row.projectName ?? '—'
+      );
+    case 'parentTask':
+      return '—';
     case 'assignee':
       return row.assigneeName ?? (row.assigneeId ? '—' : 'Unassigned');
     case 'status':

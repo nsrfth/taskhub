@@ -46,6 +46,8 @@ interface CardProps {
   onOpen: (id: string) => void;
   onDelete?: (task: Task) => void;
   onStatusChange?: (task: Task, status: TaskStatus) => void;
+  onViewProject?: (task: Task) => void;
+  onMarkDone?: (task: Task) => void;
   showProject?: string;
 }
 
@@ -57,6 +59,8 @@ function BoardCard({
   onOpen,
   onDelete,
   onStatusChange,
+  onViewProject,
+  onMarkDone,
   showProject,
 }: CardProps): JSX.Element {
   const sortable = useSortable({
@@ -108,7 +112,19 @@ function BoardCard({
         )}
       </div>
       {showProject && (
-        <p className="text-[10px] text-slate-500 mt-0.5 truncate">{showProject}</p>
+        <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+          {onViewProject ? (
+            <button
+              type="button"
+              onClick={() => onViewProject(task)}
+              className="hover:underline text-indigo-600 dark:text-indigo-400"
+            >
+              {showProject}
+            </button>
+          ) : (
+            showProject
+          )}
+        </p>
       )}
       {task.labels.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
@@ -124,21 +140,33 @@ function BoardCard({
       {task.incompleteBlockerCount > 0 && (
         <div className="mt-1 text-[11px] text-amber-700">🔒 {task.incompleteBlockerCount}</div>
       )}
-      <div className="flex items-center justify-between mt-2 gap-2 text-xs">
+      <div className="flex items-center justify-between mt-2 gap-2 text-xs flex-wrap">
         <span className={PRIORITY_CLASS[task.priority]}>{PRIORITY_LABEL[task.priority]}</span>
-        {onStatusChange && (
-          <select
-            value={task.status}
-            onChange={(e) => onStatusChange(task, e.target.value as TaskStatus)}
-            className="rounded border-slate-300 px-1 py-0.5 border text-xs dark:bg-slate-700"
-          >
-            {STATUS_ORDER.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-1">
+          {onMarkDone && task.status !== 'DONE' && (
+            <button
+              type="button"
+              onClick={() => onMarkDone(task)}
+              className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600 text-emerald-700 dark:text-emerald-400"
+              title="Mark complete"
+            >
+              ✓
+            </button>
+          )}
+          {onStatusChange && (
+            <select
+              value={task.status}
+              onChange={(e) => onStatusChange(task, e.target.value as TaskStatus)}
+              className="rounded border-slate-300 px-1 py-0.5 border text-xs dark:bg-slate-700"
+            >
+              {STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
       {task.dueDate && (
         <p className="mt-1 text-[11px] text-slate-500" dir="rtl">
@@ -190,6 +218,8 @@ export interface GroupedBoardProps {
   onOpen: (taskId: string) => void;
   onDelete?: (task: Task) => void;
   onStatusChange?: (task: Task, status: TaskStatus) => void;
+  onViewProject?: (task: Task) => void;
+  onMarkDone?: (task: Task) => void;
   onReorder?: (taskId: string, status: TaskStatus, beforeTaskId: string | null) => void;
   projectNames?: Map<string, string>;
 }
@@ -201,6 +231,8 @@ export default function GroupedBoard({
   onOpen,
   onDelete,
   onStatusChange,
+  onViewProject,
+  onMarkDone,
   onReorder,
   projectNames,
 }: GroupedBoardProps): JSX.Element {
@@ -252,6 +284,8 @@ export default function GroupedBoard({
                 onOpen={onOpen}
                 onDelete={onDelete}
                 onStatusChange={onStatusChange}
+                onViewProject={onViewProject}
+                onMarkDone={onMarkDone}
                 showProject={projectNames?.get(t.projectId)}
               />
             ))}

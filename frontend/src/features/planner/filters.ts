@@ -77,11 +77,12 @@ export function sortTasks(
   key: TaskSortKey,
   dir: 'asc' | 'desc',
   projectNames?: Map<string, string>,
+  assigneeNames?: Map<string, string>,
 ): Task[] {
   const mul = dir === 'asc' ? 1 : -1;
   return [...tasks].sort((a, b) => {
-    const va = sortValue(a, key, projectNames);
-    const vb = sortValue(b, key, projectNames);
+    const va = sortValue(a, key, projectNames, assigneeNames);
+    const vb = sortValue(b, key, projectNames, assigneeNames);
     if (va === null && vb === null) return 0;
     if (va === null) return 1;
     if (vb === null) return -1;
@@ -95,6 +96,7 @@ function sortValue(
   t: Task,
   key: TaskSortKey,
   projectNames?: Map<string, string>,
+  assigneeNames?: Map<string, string>,
 ): string | number | null {
   switch (key) {
     case 'title':
@@ -104,7 +106,9 @@ function sortValue(
     case 'priority':
       return PRIORITY_RANK[t.priority];
     case 'assignee':
-      return t.assigneeId ?? null;
+      return t.assigneeId
+        ? (assigneeNames?.get(t.assigneeId) ?? t.assigneeId).toLowerCase()
+        : 'zzz_unassigned';
     case 'dueDate':
       return t.dueDate ?? null;
     case 'progress':

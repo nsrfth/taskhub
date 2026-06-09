@@ -1,6 +1,6 @@
 # Architecture
 
-**Version:** v1.44.0 (2026-06-09)
+**Version:** v1.44.1 (2026-06-09)
 
 This document captures the *why* behind TaskHub's design. The *what* is in the
 code; the *how to run* is in [README.md](README.md). User-facing behaviour is
@@ -167,8 +167,15 @@ over the same rows without duplicating business logic:
   ├── board      → project picker → /projects/:id/tasks (kanban + grouping)
   ├── calendar   → GET /api/teams/:teamId/calendar (unchanged)
   ├── charts     → client aggregation + /reports/summary|workload fallback
+  │                (status, member, due-date filters via PlannerFilterBar)
   └── grid       → fan-out listTasks per visible project, client filter/sort
+                   (PlannerFilterBar; column prefs in localStorage)
 ```
+
+**Filter bar** (`PlannerFilterBar.tsx`) centralises client-side task scoping
+for Grid and Charts. **My Tasks calendar** (`MyTasksCalendar.tsx`) is a
+lightweight week strip over `GET /api/me/tasks`, separate from the full team
+calendar at `/planner/calendar`.
 
 **Grouping** (`features/planner/grouping.ts`) runs entirely in the browser
 on the task list already fetched for a project. Only status-grouped boards
