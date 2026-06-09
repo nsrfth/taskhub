@@ -54,6 +54,7 @@ function shortLabel(d: Date, monthMode: boolean): string {
 const TEAM_STORAGE_KEY = 'calendar.selectedTeam';
 
 export default function CalendarPage(): JSX.Element {
+  // Rendered inside PlannerLayout — no duplicate page padding.
   const { teams, currentTeam } = useTeams();
   const nav = useNavigate();
   const off = getWeekendDays();
@@ -215,7 +216,7 @@ export default function CalendarPage(): JSX.Element {
   }).format(cursor);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div>
       <div className="mb-4">
         <h1 className="text-2xl font-semibold">Calendar</h1>
         <p className="text-sm text-slate-500">

@@ -23,6 +23,11 @@ import HelpPage from '@/pages/HelpPage';
 import AboutPage from '@/pages/AboutPage';
 import CalendarPage from '@/pages/CalendarPage';
 import TrashPage from '@/pages/TrashPage';
+import PlannerLayout from '@/features/planner/PlannerLayout';
+import PlannerBoardPage from '@/pages/planner/PlannerBoardPage';
+import PlannerChartsPage from '@/pages/planner/PlannerChartsPage';
+import PlannerGridPage from '@/pages/planner/PlannerGridPage';
+import MyTasksPage from '@/pages/planner/MyTasksPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -45,7 +50,19 @@ export const router = createBrowserRouter([
       { path: '/projects/:projectId/reports/gantt', element: <ProjectGanttPage /> },
       { path: '/admin', element: <AdminPage /> },
       { path: '/reports', element: <ReportsPage /> },
-      { path: '/calendar', element: <CalendarPage /> },
+      { path: '/calendar', element: <Navigate to="/planner/calendar" replace /> },
+      {
+        path: '/planner',
+        element: <PlannerLayout />,
+        children: [
+          { index: true, element: <Navigate to="/planner/my-tasks" replace /> },
+          { path: 'board', element: <PlannerBoardPage /> },
+          { path: 'calendar', element: <CalendarPage /> },
+          { path: 'charts', element: <PlannerChartsPage /> },
+          { path: 'grid', element: <PlannerGridPage /> },
+          { path: 'my-tasks', element: <MyTasksPage /> },
+        ],
+      },
       { path: '/trash', element: <TrashPage /> },
       { path: '/search', element: <SearchPage /> },
       { path: '/help', element: <HelpPage /> },
