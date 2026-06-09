@@ -133,21 +133,26 @@ export default function ProjectsPage(): JSX.Element {
     });
   }
 
-  // v1.40: the New-project form still needs at least one team to post
-  // into. List can render across zero teams (just shows "No projects yet").
-  if (teams.length === 0) {
-    return (
-      <div className="min-h-screen p-8 max-w-3xl mx-auto">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Join or{' '}
-          <Link to="/teams" className="underline">
-            create a team
-          </Link>{' '}
-          first.
-        </p>
-      </div>
-    );
-  }
+  // #region agent log
+  fetch('http://127.0.0.1:7913/ingest/ce89f6c8-255d-4008-a5cc-0cc6b19a3c80', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adf9a1' },
+    body: JSON.stringify({
+      sessionId: 'adf9a1',
+      hypothesisId: 'B',
+      location: 'ProjectsPage.tsx',
+      message: 'projects page render state',
+      data: {
+        globalRole: user?.globalRole ?? null,
+        teamCount: teams.length,
+        projectCount: projects.length,
+        isLoading,
+        isAdmin,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -156,6 +161,16 @@ export default function ProjectsPage(): JSX.Element {
         {/* v1.40: cross-team list — no "in <currentTeam>" anymore. */}
       </div>
 
+      {teams.length === 0 ? (
+        <section className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-4 mb-6 text-sm text-amber-900 dark:text-amber-100">
+          You are not a member of any team yet, so you cannot create projects here.{' '}
+          <Link to="/teams" className="underline font-medium">
+            Join or create a team
+          </Link>{' '}
+          to add one.{' '}
+          {isAdmin && 'As an admin, projects you already own (or any project on the instance) still appear below.'}
+        </section>
+      ) : (
       <section className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6">
         <h2 className="text-sm font-medium mb-2">New project</h2>
         <form onSubmit={onCreate} className="space-y-2">
@@ -243,12 +258,19 @@ export default function ProjectsPage(): JSX.Element {
           </button>
         </form>
       </section>
+      )}
 
       <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
         <h2 className="text-sm font-medium mb-2">All projects</h2>
         {isLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
         {!isLoading && projects.length === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">No projects yet.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {isAdmin
+              ? 'No projects on this instance yet.'
+              : teams.length === 0
+                ? 'Join a team first, then create a project you own.'
+                : 'No projects you own yet. Since v1.39, each member only sees projects they created (project owner). Team managers no longer see teammates\' projects — ask an admin to transfer ownership or create your own.'}
+          </p>
         )}
         <ul className="divide-y dark:divide-slate-700">
           {projects.map((p) => {
