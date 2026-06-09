@@ -1,7 +1,11 @@
 # Architecture
 
+**Version:** v1.44.0 (2026-06-09)
+
 This document captures the *why* behind TaskHub's design. The *what* is in the
-code; the *how to run* is in [README.md](README.md).
+code; the *how to run* is in [README.md](README.md). User-facing behaviour is
+in [USER_MANUAL.md](USER_MANUAL.md) / [USER_MANUAL.fa.md](USER_MANUAL.fa.md);
+release notes in [CHANGELOG.md](CHANGELOG.md).
 
 ## Goals
 
@@ -151,6 +155,67 @@ listener binds. This is the single trustworthy source of config — no scattered
   grab `localStorage`.
 - **Axios refresh-on-401** is single-flight: concurrent failed requests
   share one in-flight refresh call.
+
+## Planner (v1.44)
+
+Task data is still stored per project, but the SPA exposes multiple *views*
+over the same rows without duplicating business logic:
+
+```
+/planner
+  ├── my-tasks   → GET /api/me/tasks (assignee-scoped, paginated)
+  ├── board      → project picker → /projects/:id/tasks (kanban + grouping)
+  ├── calendar   → GET /api/teams/:teamId/calendar (unchanged)
+  ├── charts     → client aggregation + /reports/summary|workload fallback
+  └── grid       → fan-out listTasks per visible project, client filter/sort
+```
+
+**Grouping** (`features/planner/grouping.ts`) runs entirely in the browser
+on the task list already fetched for a project. Only status-grouped boards
+enable drag-and-drop reorder (existing `POST .../reorder`).
+
+**Charts** use Recharts. `aggregations.ts` shapes metrics so future report
+endpoints (velocity, burn-down, budget burn) can plug in without new UI
+shells.
+
+**My Tasks** is the one new read API: `MeTasksService` filters
+`assigneeId = user.sub` and `teamId IN memberships`. Project-owner rules
+from v1.39 do *not* apply here — assignment visibility is intentional (a user
+must see work assigned to them even on projects they don't own).
+
+## LDAP authentication (v1.43)
+
+```
+Login POST /api/auth/login
+  → AuthService branches on email lookup
+  → LOCAL: argon2 verify + password policy + lockout
+  → LDAP:  LdapService.search(bind DN) → user bind
+           STARTTLS on :389 or LDAPS on :636
+           optional tlsInsecure for private-CA AD
+  → JIT create User row when directory.allowJIT && no local row
+  → sync name / externalId / authSource on every success
+```
+
+Bind passwords and SCIM tokens are encrypted with `MASTER_KEY`. LDAP group
+→ role mappings run post-bind when `syncRolesFromGroups` is enabled.
+
+## Instance security policy (v1.43)
+
+Local-password rules live in `InstanceSetting` (`security.passwordPolicy`).
+`PasswordPolicyService` is the single validator — auth register/change,
+admin reset, and the Settings UI all call the same shape. LDAP/SCIM users
+skip policy checks on login (IdP is authoritative).
+
+Lockout + `SecurityAuditEvent` rows give admins forensic signal without
+exposing whether an email exists on failed login (enumeration-safe responses
+unchanged).
+
+## TaskHub server / TLS (v1.43)
+
+Admin-uploaded certs land in a Docker volume (`caddy_custom_certs`). Caddy
+reads them on restart — there is no hot reload. Port and HTTPS flags are
+instance settings surfaced in Settings → TaskHub; operators still configure
+the public hostname in Caddy/env separately.
 
 ## What's intentionally not here yet
 

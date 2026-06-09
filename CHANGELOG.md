@@ -4,6 +4,131 @@ All notable changes to TaskHub are documented in this file. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
+`USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
+
+## [1.44.0] — 2026-06-09
+
+**Advanced Planner views + buckets removal.** Replaces the per-project
+"buckets" column layout with a unified **Planner** hub offering multiple
+visualization modes on the same task data. Buckets are removed entirely
+(schema, API, permission, UI).
+
+### Planner (frontend)
+
+- New **`/planner`** route group with tab navigation:
+  - **Board** — project picker linking to per-project kanban boards.
+  - **Calendar** — existing cross-project calendar (moved from `/calendar`).
+  - **Charts** — Recharts doughnut (status distribution), vertical bar
+    (tasks per status), horizontal bar (tasks per member). Team + project
+    filters; falls back to `/reports/summary` + `/reports/workload` when
+    fan-out exceeds 20 projects.
+  - **Grid** — spreadsheet-style `TaskGrid` with sort, filter, search,
+    pagination, show/hide columns (localStorage).
+  - **My Tasks** — cross-project inbox for the signed-in user.
+- Sidebar **Calendar** entry renamed **Planner** (lands on My Tasks).
+- `/calendar` redirects to `/planner/calendar`.
+
+### Dynamic board grouping (project kanban)
+
+- **Group by** selector on the project task board: Status (default),
+  Assignee, Progress (0% / 1–25% / … / 100%), Due Date (Overdue / Today /
+  This Week / …), Label.
+- Drag-and-drop reorder preserved **only** when grouped by Status.
+- Preference persisted in `localStorage` (`planner.boardGroupBy`).
+- Shared `GroupedBoard` component extracted from `TasksPage`.
+
+### My Tasks API (backend)
+
+- **`GET /api/me/tasks`** — tasks where `assigneeId = caller`, scoped to
+  teams the user belongs to. Query filters: `status`, `priority`,
+  `projectId`, `teamId`, `q`, quick filters (`due_today`, `overdue`,
+  `upcoming`, `completed`, `high_priority`), `sort`, `order`, `limit`,
+  `offset`. Returns `{ items, nextCursor, total }`.
+- Auth: `requireAuth` + `tasks:read` scope. Non-member `teamId` → 403.
+
+### Buckets removal (breaking)
+
+- Dropped `Bucket` model, `Task.bucketId`, `buckets.manage` permission.
+- Removed routes `/teams/:teamId/projects/:projectId/buckets` and
+  `/teams/:teamId/buckets/:bucketId`.
+- Migration `20260609200000_remove_buckets`.
+- Default kanban view returns to **Status** columns (was Buckets in v1.34).
+
+### Shared planner libraries (frontend)
+
+- `features/planner/grouping.ts`, `progress.ts`, `filters.ts`,
+  `aggregations.ts`, `storage.ts`, `GroupedBoard.tsx`, `TaskGrid.tsx`,
+  `PlannerNav.tsx`, `PlannerLayout.tsx`, `charts/PlannerChartsPanel.tsx`.
+- `features/meTasks/api.ts` — client for `/me/tasks`.
+
+### Dependencies
+
+- `recharts` added to frontend `package.json`.
+
+### Verified
+
+- `docker compose build backend frontend-build` — TypeScript + Vite clean.
+
+---
+
+## [1.43.0] — 2026-06-09
+
+**LDAP login hardening, instance security policy, and TaskHub server
+settings.** Operators can configure HTTPS/port and local-password rules from
+the admin UI; Active Directory users can authenticate via STARTTLS on port
+389.
+
+### LDAP authentication (backend + admin UI)
+
+- **STARTTLS** on port 389 for AD/LDAP binds (in addition to LDAPS on 636).
+- **`tlsInsecure`** option — skip TLS certificate verification when the AD
+  CA is not in the container trust store (operator choice).
+- Login accepts **email or LDAP username** (`sAMAccountName` / `uid`).
+- **JIT provisioning** on first successful LDAP bind when `allowJIT=true`.
+- **Profile sync** on login: name + LDAP attributes written back to `User`.
+- Admin **Directories** panel: LDAP sync status, auth-source visibility,
+  imported-user profile fields.
+
+### Security — local password policy (admin)
+
+- **`InstanceSetting` key `security.passwordPolicy`** — configurable rules
+  for **local** accounts only (LDAP users unaffected):
+  min length, require upper/lower/digit/symbol, history count, lockout
+  threshold + duration.
+- `PasswordPolicyService` validates on register, password change, admin
+  reset.
+- **Password history** table prevents reuse of recent passwords.
+- **Security audit events** logged for failed logins and lockouts.
+- Settings → **Security** (admin): policy editor + strength indicator on
+  password fields.
+
+### TaskHub server settings (admin)
+
+- Settings → **TaskHub**: public **port**, **HTTPS** toggle, upload SSL
+  cert/key/chain (stored in `caddy_custom_certs` Docker volume).
+- Certificate details panel (subject, issuer, expiry).
+- Changing port/HTTPS requires Caddy container restart (documented in UI).
+
+### Schema
+
+- Migration `20260609160000_security_server_config`:
+  `PasswordHistory`, `SecurityAuditEvent`, instance settings keys.
+- Migration `20260609140000_user_ldap_auth_profile`: `AuthSource` enum,
+  LDAP profile fields on `User`.
+
+### Other (minor)
+
+- Calendar week grid aligns with instance work-week start day.
+- Project creation opens in a modal on the Projects page.
+
+### Verified
+
+- LDAP integration tests (when `LDAP_TEST_*` env vars set).
+- Backend + frontend Docker builds clean.
+
+---
+
 ## [1.42.0] — 2026-06-08
 
 **Task budget + Subtask assignee + Project Gantt report.** Three related

@@ -40,3 +40,4 @@ After deploy, verify critical endpoints (e.g. `GET /api/health`, `GET /api/proje
 
 - Frontend and backend must both be rebuilt when their code changes; rebuilding one alone can leave the app broken.
 - Do not commit secrets (`.env`, passwords) from the server into git.
+- **Version bump:** when shipping a release, update `CHANGELOG.md`, `ARCHITECTURE.md`, `USER_MANUAL.md`, `USER_MANUAL.fa.md`, `frontend/package.json`, `backend/package.json`, and set `TASKHUB_VERSION` in `.env` on the server to match.

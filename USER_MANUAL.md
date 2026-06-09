@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.26.0** (2026-05-25)
+Version **v1.44.0** (2026-06-09)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -17,19 +17,22 @@ This manual covers everything a member, manager, or admin needs to do day-to-day
 6. [The three dates: Due by, Planned on, Completed on](#the-three-dates-due-by-planned-on-completed-on)
 7. [Labels, subtasks, attachments, comments](#labels-subtasks-attachments-comments)
 8. [Recurring tasks](#recurring-tasks)
-9. [Calendar views](#calendar-views)
-10. [Reports](#reports)
-11. [Notifications](#notifications)
-12. [Two-factor authentication (2FA)](#two-factor-authentication-2fa)
-13. [Display preferences (calendar / theme / language)](#display-preferences-calendar--theme--language)
-14. [Personal API tokens](#personal-api-tokens)
-15. [Admin / manager — Settings](#admin--manager--settings)
+9. [Planner](#planner-v144)
+10. [Calendar views](#calendar-views)
+11. [Reports](#reports)
+12. [Notifications](#notifications)
+13. [Two-factor authentication (2FA)](#two-factor-authentication-2fa)
+14. [Display preferences (calendar / theme / language)](#display-preferences-calendar--theme--language)
+15. [Personal API tokens](#personal-api-tokens)
+16. [Admin / manager — Settings](#admin--manager--settings)
     - [Workweek (off-days)](#workweek-off-days)
+    - [Security — password policy](#security--password-policy-v143-admin)
+    - [TaskHub server](#taskhub-server-v143-admin)
     - [Directories (LDAP)](#directories-ldap)
     - [SCIM provisioning](#scim-provisioning)
     - [Webhooks](#webhooks)
     - [Audit log](#audit-log)
-16. [Troubleshooting](#troubleshooting)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -66,7 +69,7 @@ If your account is owned by an LDAP directory, you log in with your LDAP passwor
 Once you're signed in, a sticky **navigation bar** sits at the top of every page:
 
 - **TaskHub** (brand link, far left) — jumps to the Dashboard.
-- **Dashboard / Projects / Calendar / Reports / Teams** — your primary destinations. The active page is highlighted in dark.
+- **Dashboard / Projects / Planner / Reports / Teams** — your primary destinations. The active page is highlighted in dark.
 - **Admin** — visible only for global `ADMIN` accounts.
 - **Settings** (right side) — opens whichever Settings sub-page you last visited (defaults to **Preferences**).
 - **Sign out** (far right) — ends the session.
@@ -108,14 +111,16 @@ Colours are purely visual — they don't change permissions or filtering.
 
 ## Tasks — the basics
 
-The **Kanban board** (`/projects/<id>/tasks`) is the main work view:
+The **Kanban board** (`/projects/<id>/tasks`) is the main work view for a single project:
 
-- Four columns: **To do**, **In progress**, **Review**, **Done**.
-- Drag a card between columns to change its status.
-- Drag within a column to reorder.
+- Default columns: **To do**, **In progress**, **Review**, **Done** (status grouping).
+- **Group by** (v1.44): switch columns to **Assignee**, **Progress** (0%–100% ranges), **Due date** (Overdue / Today / This week / …), or **Label**. Your choice is remembered across visits.
+- Drag a card between columns to change status — **only when grouped by Status**.
+- Drag within a column to reorder (status grouping only).
+- Toggle **List** or **by Technician** for alternate layouts on the same data.
 - Click a card to open the **Task detail** page.
 
-To create a task: click **New task** on the board, fill in at least a title, optionally pick a priority / assignee / description, hit save. New tasks land at the top of **To do**.
+To create a task: use the inline form at the top of the board, fill in at least a title, optionally pick a priority, hit **Add task**. New tasks land at the top of **To do**.
 
 Each card on the board shows:
 
@@ -188,9 +193,25 @@ When the scheduler ticks past the next-run date, a brand-new task appears in **T
 
 ---
 
+## Planner (v1.44)
+
+The **Planner** hub (`/planner`) groups every way to *see* tasks without changing the underlying data. Open it from the sidebar **Planner** link (default landing: **My Tasks**). Tabs along the top:
+
+| Tab | What it shows |
+|-----|----------------|
+| **My Tasks** | Every task **assigned to you** across all teams and projects. Board, Grid, or Calendar sub-views. Quick filters: Due today, Overdue, Upcoming, Completed, High priority, by project. |
+| **Board** | Shortcut list of your projects — click one to open its kanban board with **Group by**. |
+| **Calendar** | Cross-project date grid (see [Calendar views](#calendar-views) below). |
+| **Charts** | Doughnut + bar charts: status mix, tasks per status, tasks per team member. Filter by team and project. |
+| **Grid** | Spreadsheet-style table: sort, filter, search, paginate. Click a row to open the task. Show/hide columns via **Columns**. |
+
+> **Note:** Per-project "buckets" (custom column groups) were removed in v1.44. Use **Group by** on the board or **Labels** for similar organisation.
+
+---
+
 ## Calendar views
 
-The `/calendar` route (linked from the Dashboard) shows tasks from every project in the current team laid out on a date grid. Three view modes:
+The **Planner → Calendar** tab (`/planner/calendar`; `/calendar` redirects here) shows tasks from every project in the selected team(s) laid out on a date grid. Three view modes:
 
 - **Work-week** — 5 cells starting on the first non-off-day. With Sat+Sun off, the first column is Monday; with Thu+Fri off, it's Saturday. The off-day setting drives both *which* 5 days appear and *where* the cursor lands.
 - **Week** — 7 cells, Sunday-leading. Off-days are still tinted red.
@@ -330,7 +351,8 @@ The token authenticates as you — it sees what you see. Scopes are advisory in 
 The **Settings** link in the dashboard header opens the Settings shell. The sidebar items you see depend on your role:
 
 - **Preferences** — everyone (personal calendar + theme + language). Admins additionally see the Workweek section.
-- **Security** — everyone (your 2FA).
+- **Security** — everyone (change password, 2FA). Global ADMIN additionally configures the **local password policy** (min length, complexity, lockout).
+- **TaskHub** — global ADMIN only (public HTTPS/port, upload TLS certificate for Caddy).
 - **Directories** — global ADMIN only (LDAP / SCIM config).
 - **Audit** — global ADMIN or team MANAGER.
 - **API & Webhooks** — everyone (tokens) + MANAGER (webhooks for that team).
@@ -346,6 +368,26 @@ An **Or pick custom days** disclosure lets you select any subset of the 7 weekda
 
 The setting lives in the `InstanceSetting` key/JSON store (`calendar.weekend`), read publicly via `/api/system/info` so the date picker has the right colours before login.
 
+### Security — password policy (v1.43, admin)
+
+Global **ADMIN** sees an extra section on **Settings → Security** for **local** accounts only (LDAP users follow your IdP's rules):
+
+- Minimum length, require uppercase / lowercase / digit / symbol.
+- Password history (prevent reuse of recent passwords).
+- Lockout after N failed attempts for M minutes.
+
+Members still use the same page to change their own password and manage 2FA. A strength indicator appears when typing a new password.
+
+### TaskHub server (v1.43, admin)
+
+**Settings → TaskHub** (global ADMIN):
+
+- Set the **public port** and whether **HTTPS** is enabled.
+- Upload **certificate**, **private key**, and optional **chain** for Caddy.
+- View parsed cert details (subject, issuer, expiry).
+
+After saving cert or port changes, restart the Caddy container so it picks up the new files. The UI reminds you of this step.
+
 ### Directories (LDAP)
 
 Bind TaskHub to one or more LDAP servers so users log in with their LDAP credentials.
@@ -355,8 +397,8 @@ Bind TaskHub to one or more LDAP servers so users log in with their LDAP credent
 1. **Settings → Directories → New directory**.
 2. Fill the form:
    - **Name** + **slug** (URL-safe id).
-   - **Host** + **port** (default `389` plain or `636` TLS).
-   - **Use TLS** checkbox.
+   - **Host** + **port** — `389` with STARTTLS (typical for Active Directory) or `636` for LDAPS.
+   - **Use TLS** / **TLS insecure** — for AD on port 389, enable TLS; if the server uses a private CA, enable *insecure* only when you accept skipping cert verification.
    - **Bind DN** + **bind password** — a read-capable service account.
    - **Base DN** — where users live (e.g. `ou=People,dc=example,dc=org`).
    - **Email attr** / **Name attr** / **User-ID attr** / **Group-member attr** — usually `mail`, `cn`, `uid`, `member` for OpenLDAP; `mail`, `cn`, `sAMAccountName`, `member` for AD.
@@ -364,6 +406,8 @@ Bind TaskHub to one or more LDAP servers so users log in with their LDAP credent
    - **Sync roles from groups** — apply group → role mappings on every login.
 3. **Create**.
 4. Click **Test** on the row to verify the bind works.
+
+**Logging in (v1.43+):** users can enter either their **email** or their **LDAP username** (e.g. `sAMAccountName`) in the email field. Profile fields sync from LDAP on each successful login. The admin Directories panel shows auth source and sync status per imported user.
 
 **Group → role mappings**: after creating the directory, you can map LDAP groups to TaskHub roles (global ADMIN/MEMBER, or team MEMBER/MANAGER). On every successful LDAP login, group membership determines roles. Dropping out of a mapped group revokes the corresponding access on the next login.
 
@@ -432,7 +476,7 @@ Today's vocabulary covers task + comment events. As LDAP / SCIM / 2FA / webhook 
 
 **"My webhook fires but the receiver rejects the signature"** — confirm the receiver computes `sha256` HMAC over the **raw body bytes** (not the parsed JSON), keyed with the secret shown at creation, and compares the hex digest against the part of `X-TaskHub-Signature` after `sha256=`.
 
-**"LDAP login says 'Invalid credentials' but the password works elsewhere"** — most common cause is the local user row pre-existing with `directoryId=null`. Ask an admin to delete the conflicting local user; the next LDAP login will JIT-provision a fresh row. The reverse — "we set up LDAP but the existing admin can't log in" — means the admin's row has a `directoryId` they didn't expect. Check the `User` table.
+**"LDAP login says 'Invalid credentials' but the password works elsewhere"** — check: (1) local user row pre-existing with `directoryId=null` — delete the conflicting row so JIT can recreate; (2) AD on port 389 needs **Use TLS** (STARTTLS); (3) try logging in with **username** instead of email if UPN differs from `mail`; (4) private-CA servers may need **TLS insecure** temporarily. Admin can verify bind with **Test** on the directory row.
 
 **"I lost my 2FA device and my recovery codes"** — ask a global ADMIN to log into the database and clear `totpEnabled` + `totpSecretEnc` for your row. There's no self-service "I lost everything" flow by design — that would defeat 2FA.
 

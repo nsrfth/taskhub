@@ -4,7 +4,7 @@ Self-hostable team task management. React + Fastify + Postgres + Prisma + Redis,
 fronted by Caddy with automatic HTTPS.
 
 > Status: **feature-complete for self-hosted team task management** — teams,
-> projects, kanban/bucket boards, subtasks, comments, attachments, labels,
+> projects, kanban/planner views, subtasks, comments, attachments, labels,
 > dependencies, recurrence, notifications, reports, calendar, search, LDAP/
 > SCIM, 2FA, API tokens, webhooks, backups, and admin tooling are all
 > implemented. See [CHANGELOG.md](CHANGELOG.md) for version history.
