@@ -195,27 +195,6 @@ export default function TasksPage(): JSX.Element {
   const qc = useQueryClient();
   const nav = useNavigate();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7913/ingest/ce89f6c8-255d-4008-a5cc-0cc6b19a3c80', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adf9a1' },
-    body: JSON.stringify({
-      sessionId: 'adf9a1',
-      hypothesisId: 'A',
-      location: 'TasksPage.tsx',
-      message: 'team id comparison',
-      data: {
-        projectId: projectId ?? null,
-        currentTeamId: currentTeam?.id ?? null,
-        resolvedTeamId: teamId,
-        mismatch: !!teamId && !!currentTeam?.id && teamId !== currentTeam.id,
-        projectLoaded: !!project,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   // v1.36: hoisted above the label-filter useMemo so the filter logic
   // can read ?labels=. v1.34.2's `?view=` reader (further down) still
   // works against this same getter.

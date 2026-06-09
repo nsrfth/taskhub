@@ -35,7 +35,7 @@ export default function ProjectsPage(): JSX.Element {
   // v1.39 (BREAKING): only the project owner OR a global ADMIN can edit.
   const isAdmin = user?.globalRole === 'ADMIN';
 
-  const { data: projects = [], isLoading } = useQuery({
+  const { data: projects = [], isLoading, isError } = useQuery({
     queryKey: ['projects', 'all'],
     queryFn: () => projectsApi.listAllProjects(),
   });
@@ -132,27 +132,6 @@ export default function ProjectsPage(): JSX.Element {
       actualSpent: actualSpent.trim() ? actualSpent.trim() : undefined,
     });
   }
-
-  // #region agent log
-  fetch('http://127.0.0.1:7913/ingest/ce89f6c8-255d-4008-a5cc-0cc6b19a3c80', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adf9a1' },
-    body: JSON.stringify({
-      sessionId: 'adf9a1',
-      hypothesisId: 'B',
-      location: 'ProjectsPage.tsx',
-      message: 'projects page render state',
-      data: {
-        globalRole: user?.globalRole ?? null,
-        teamCount: teams.length,
-        projectCount: projects.length,
-        isLoading,
-        isAdmin,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -263,7 +242,12 @@ export default function ProjectsPage(): JSX.Element {
       <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
         <h2 className="text-sm font-medium mb-2">All projects</h2>
         {isLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
-        {!isLoading && projects.length === 0 && (
+        {isError && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            Could not load projects. Refresh the page — if this persists, the server may need an update.
+          </p>
+        )}
+        {!isLoading && !isError && projects.length === 0 && (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {isAdmin
               ? 'No projects on this instance yet.'

@@ -1,0 +1,42 @@
+---
+description: Local-first development, then deploy to production server
+alwaysApply: true
+---
+
+# Deploy workflow: laptop first, server second
+
+Always change and verify on the **local laptop project** (`c:\Users\n.fathi\projects\taskhub`) before touching production.
+
+## Order of operations
+
+1. **Local** — implement, test, and (when asked) commit/push from the laptop repo.
+2. **Server** — only after local changes are ready, update production at `taskhub.modalalco.com`.
+
+Never patch production directly without the same change existing locally first.
+
+## Production server
+
+- Host: `taskhub.modalalco.com`
+- SSH user: `taskhub`
+- App path: `/home/taskhub/taskhub`
+- Stack: Docker Compose (`backend`, `caddy`, `postgres`, `redis`, `frontend-build`)
+
+## Typical server update (after push)
+
+```bash
+cd ~/taskhub
+git pull
+docker compose up -d --build
+```
+
+Rebuild only what changed when possible:
+
+- Backend API/routes/services: `docker compose up -d --build backend`
+- Frontend UI: `docker compose up -d --build frontend-build` (then restart `caddy` if needed)
+
+After deploy, verify critical endpoints (e.g. `GET /api/health`, `GET /api/projects` returns 401 not 404).
+
+## Reminders
+
+- Frontend and backend must both be rebuilt when their code changes; rebuilding one alone can leave the app broken.
+- Do not commit secrets (`.env`, passwords) from the server into git.

@@ -33,27 +33,5 @@ export function useProjectTeam(projectId: string | undefined): {
     [teams, teamId],
   );
 
-  // #region agent log
-  if (projectId) {
-    fetch('http://127.0.0.1:7913/ingest/ce89f6c8-255d-4008-a5cc-0cc6b19a3c80', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adf9a1' },
-      body: JSON.stringify({
-        sessionId: 'adf9a1',
-        hypothesisId: 'A',
-        location: 'useProjectTeam.ts',
-        message: 'project team resolution',
-        data: {
-          projectId,
-          resolvedTeamId: teamId,
-          projectFound: !!project,
-          projectTeamName: projectTeam?.name ?? null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
-
   return { teamId, project, projectTeam, loading: isLoading };
 }
