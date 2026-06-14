@@ -7,15 +7,19 @@ import { requireAuth, requireTeamRole } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { requireScope } from '../middleware/requireScope.js';
 import {
-  addGroupMembersBody,
+  addGroupMemberBody,
   createUserGroupBody,
   setGroupProjectsBody,
+  updateGroupMemberBody,
   updateUserGroupBody,
   userGroupDetailResponse,
   userGroupsListResponse,
-  type AddGroupMembersBody,
+  userSearchQuery,
+  userSearchResponse,
+  type AddGroupMemberBody,
   type CreateUserGroupBody,
   type SetGroupProjectsBody,
+  type UpdateGroupMemberBody,
   type UpdateUserGroupBody,
 } from '../schemas/userGroups.js';
 
@@ -30,7 +34,11 @@ function serializeSummary(g: UserGroupSummary) {
 function serializeDetail(g: UserGroupDetail) {
   return {
     ...serializeSummary(g),
-    members: g.members.map((m) => ({ ...m, addedAt: m.addedAt.toISOString() })),
+    members: g.members.map((m) => ({
+      ...m,
+      invitedAt: m.invitedAt.toISOString(),
+      respondedAt: m.respondedAt ? m.respondedAt.toISOString() : null,
+    })),
     projects: g.projects.map((p) => ({ ...p, grantedAt: p.grantedAt.toISOString() })),
   };
 }
@@ -45,6 +53,25 @@ export async function userGroupsRoutes(app: FastifyInstance): Promise<void> {
 
   r.addHook('preHandler', requireAuth);
   r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+
+  r.get('/user-search', {
+    preHandler: [requirePermission('group.manage'), requireScope('admin')],
+    schema: {
+      tags: ['groups'],
+      summary: 'Search all users (for cross-team group invites)',
+      params: z.object({ teamId: z.string() }),
+      querystring: userSearchQuery,
+      response: { 200: userSearchResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: async (
+      req: FastifyRequest<{ Params: TeamParams; Querystring: { q: string } }>,
+      reply: FastifyReply,
+    ) => {
+      const items = await svc.searchUsers(req.query.q);
+      return reply.send({ items });
+    },
+  });
 
   r.get('/', {
     preHandler: requireScope('projects:read'),
@@ -138,22 +165,49 @@ export async function userGroupsRoutes(app: FastifyInstance): Promise<void> {
     preHandler: [requirePermission('group.manage'), requireScope('admin')],
     schema: {
       tags: ['groups'],
-      summary: 'Add team members to a group',
+      summary: 'Add a member (in-team direct, out-of-team invite)',
       params: z.object({ teamId: z.string(), groupId: z.string() }),
-      body: addGroupMembersBody,
+      body: addGroupMemberBody,
       response: { 200: userGroupDetailResponse },
       security: [{ bearerAuth: [] }],
     },
     handler: async (
-      req: FastifyRequest<{ Params: GroupParams; Body: AddGroupMembersBody }>,
+      req: FastifyRequest<{ Params: GroupParams; Body: AddGroupMemberBody }>,
       reply: FastifyReply,
     ) => {
       if (!req.user) throw Errors.unauthorized();
-      const detail = await svc.addMembers(
+      const detail = await svc.addMember(
         req.params.teamId,
         req.params.groupId,
         req.user.sub,
-        req.body.userIds,
+        req.body.userId,
+        req.body.accessLevel,
+      );
+      return reply.send(serializeDetail(detail));
+    },
+  });
+
+  r.patch('/:groupId/members/:userId', {
+    preHandler: [requirePermission('group.manage'), requireScope('admin')],
+    schema: {
+      tags: ['groups'],
+      summary: 'Change a member access level',
+      params: z.object({ teamId: z.string(), groupId: z.string(), userId: z.string() }),
+      body: updateGroupMemberBody,
+      response: { 200: userGroupDetailResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: async (
+      req: FastifyRequest<{ Params: GroupMemberParams; Body: UpdateGroupMemberBody }>,
+      reply: FastifyReply,
+    ) => {
+      if (!req.user) throw Errors.unauthorized();
+      const detail = await svc.updateMemberAccess(
+        req.params.teamId,
+        req.params.groupId,
+        req.params.userId,
+        req.user.sub,
+        req.body.accessLevel,
       );
       return reply.send(serializeDetail(detail));
     },

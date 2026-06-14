@@ -3,8 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { SubtasksService } from '../services/subtasksService.js';
 import { SubtasksController } from '../controllers/subtasksController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import {
   createSubtaskBody,
@@ -23,12 +23,12 @@ export async function subtasksRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39: project visibility cascade.
   r.addHook('preHandler', requireProjectAccess());
 
   r.post('/', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['subtasks'],
       summary: 'Add a subtask (appended to the end)',
@@ -41,7 +41,7 @@ export async function subtasksRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.patch('/:subtaskId', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['subtasks'],
       summary: 'Update a subtask title and/or done flag',
@@ -60,7 +60,7 @@ export async function subtasksRoutes(app: FastifyInstance): Promise<void> {
 
   // v1.35: full-permutation reorder. Mirrors the bucket reorder route.
   r.patch('/reorder', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['subtasks'],
       summary:
@@ -74,7 +74,7 @@ export async function subtasksRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.delete('/:subtaskId', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['subtasks'],
       summary: 'Delete a subtask',

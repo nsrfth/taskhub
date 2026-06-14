@@ -1,9 +1,12 @@
 import type { GlobalRole, Prisma } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
+import { Errors } from '../lib/errors.js';
 import { listMembershipPermissions } from '../middleware/requirePermission.js';
 
-/** Why the caller is asking — view includes manager rename visibility; nested is owner-equivalent task access. */
-export type ProjectAccessIntent = 'view' | 'nested';
+export type ProjectAccessLevel = 'NONE' | 'READ' | 'WRITE';
+
+/** view = list/get/rename visibility; nested = tasks/comments/… routes */
+export type ProjectAccessScope = 'view' | 'nested';
 
 async function callerHasProjectEdit(
   teamId: string,
@@ -19,7 +22,28 @@ async function callerHasProjectEdit(
   return perms.has('*') || perms.has('project.edit');
 }
 
-/** Project ids in `teamId` granted to `userId` via a group membership. */
+async function groupAccessForProject(
+  userId: string,
+  projectId: string,
+  teamId: string,
+): Promise<'NONE' | 'READ' | 'WRITE'> {
+  const rows = await prisma.userGroupMember.findMany({
+    where: {
+      userId,
+      status: 'ACCEPTED',
+      group: {
+        teamId,
+        grants: { some: { projectId } },
+      },
+    },
+    select: { accessLevel: true },
+  });
+  if (!rows.length) return 'NONE';
+  if (rows.some((r) => r.accessLevel === 'FULL')) return 'WRITE';
+  return 'READ';
+}
+
+/** Accepted group-granted project ids for a user in one team (view scope). */
 export async function groupGrantedProjectIdsInTeam(
   teamId: string,
   userId: string,
@@ -27,63 +51,74 @@ export async function groupGrantedProjectIdsInTeam(
   const rows = await prisma.projectGroupGrant.findMany({
     where: {
       project: { teamId },
-      group: { teamId, members: { some: { userId } } },
+      group: {
+        teamId,
+        members: { some: { userId, status: 'ACCEPTED' } },
+      },
     },
     select: { projectId: true },
   });
   return rows.map((r) => r.projectId);
 }
 
-/** All project ids granted to `userId` via any of their groups (team-scoped in queries). */
+/** All accepted group-granted project ids (any team). */
 export async function groupGrantedProjectIdsForUser(userId: string): Promise<string[]> {
   const rows = await prisma.projectGroupGrant.findMany({
-    where: { group: { members: { some: { userId } } } },
+    where: {
+      group: { members: { some: { userId, status: 'ACCEPTED' } } },
+    },
     select: { projectId: true },
   });
   return [...new Set(rows.map((r) => r.projectId))];
 }
 
-async function userHasGroupGrant(
-  userId: string,
-  projectId: string,
-  teamId: string,
-): Promise<boolean> {
-  const row = await prisma.projectGroupGrant.findFirst({
-    where: {
-      projectId,
-      project: { teamId },
-      group: { teamId, members: { some: { userId } } },
-    },
-    select: { projectId: true },
-  });
-  return !!row;
+function maxAccess(a: ProjectAccessLevel, b: ProjectAccessLevel): ProjectAccessLevel {
+  const rank = { NONE: 0, READ: 1, WRITE: 2 } as const;
+  return rank[a] >= rank[b] ? a : b;
 }
 
 /**
- * Unified project-access check used by list/get, nested routes, and middleware.
- *   - ADMIN → always
- *   - owner → always
- *   - project.edit manager → view only (rename visibility, not nested routes)
- *   - group grant → view + nested (owner-equivalent for tasks/comments/…)
+ * Unified project-access resolver.
+ *   ADMIN / owner → WRITE
+ *   project.edit manager → READ in view scope only (list/rename visibility; not nested)
+ *   ACCEPTED group grant → FULL=WRITE, READONLY=READ
  */
-export async function userCanAccessProject(
+export async function resolveProjectAccess(
   projectId: string,
   teamId: string,
   userId: string,
   globalRole: GlobalRole,
-  intent: ProjectAccessIntent,
-): Promise<boolean> {
+  scope: ProjectAccessScope = 'nested',
+): Promise<ProjectAccessLevel> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { teamId: true, ownerId: true },
   });
-  if (!project || project.teamId !== teamId) return false;
-  if (globalRole === 'ADMIN') return true;
-  if (project.ownerId === userId) return true;
-  if (intent === 'view' && (await callerHasProjectEdit(teamId, userId, globalRole))) {
-    return true;
+  if (!project || project.teamId !== teamId) return 'NONE';
+  if (globalRole === 'ADMIN') return 'WRITE';
+  if (project.ownerId === userId) return 'WRITE';
+
+  let access: ProjectAccessLevel = 'NONE';
+
+  if (scope === 'view' && (await callerHasProjectEdit(teamId, userId, globalRole))) {
+    access = maxAccess(access, 'READ');
   }
-  return userHasGroupGrant(userId, projectId, teamId);
+
+  const groupAccess = await groupAccessForProject(userId, projectId, teamId);
+  access = maxAccess(access, groupAccess);
+
+  return access;
+}
+
+export async function assertCanWriteProject(
+  projectId: string,
+  teamId: string,
+  userId: string,
+  globalRole: GlobalRole,
+): Promise<void> {
+  const access = await resolveProjectAccess(projectId, teamId, userId, globalRole, 'nested');
+  if (access === 'NONE') throw Errors.notFound('Project not found');
+  if (access === 'READ') throw Errors.forbidden('Read-only access to this project');
 }
 
 /** Prisma filter for GET /teams/:teamId/projects list. */
@@ -127,8 +162,6 @@ export async function projectListAllWhereForCaller(
     { ownerId: userId, teamId: { in: memberTeamIds } },
   ];
   if (editTeamIds.length) orClauses.push({ teamId: { in: editTeamIds } });
-  if (groupIds.length) {
-    orClauses.push({ id: { in: groupIds }, teamId: { in: memberTeamIds } });
-  }
+  if (groupIds.length) orClauses.push({ id: { in: groupIds } });
   return { OR: orClauses };
 }

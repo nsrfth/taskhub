@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.50.0** (2026-06-14)
+Version **v1.51.0** (2026-06-14)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -122,7 +122,7 @@ The buttons appear on every signed-in route so you can always reach help / conte
 - **Invite a member** — open the team detail, type their email, pick role `MEMBER` or `MANAGER`. (Only `MANAGER`s can invite.)
 - **Rename a team** (v1.48) — team detail → **⋮** → **Rename team**, edit the name, **Save**. Requires the `team.edit_details` permission (system Manager role by default). Members cannot rename.
 - **Delete a team** (v1.48) — **⋮** → **Delete team** → confirm. Allowed only when the team has **no projects** and **no live tasks**; otherwise the dialog lists blockers. Global admins can still force-delete teams (with all content) from **Settings → Admin**.
-- **User groups** (v1.50) — on team detail, the **User groups** section appears when you have the `group.manage` permission (system Manager role by default). Create a group, add team members, and grant one or more projects. Granted members see those projects in **Projects** and can work in them (tasks, comments, labels) like the owner — without becoming owner. Removing a member or deleting the group revokes access on the next request. Deleting a group does not delete projects or tasks.
+- **User groups** (v1.50 / v1.51) — on team detail, the **User groups** section appears when you have the `group.manage` permission (system Manager role by default). Create a group, add team members (or search **any user** for cross-team invites), set each member to **Full access** or **Read only**, and grant projects. In-team members join immediately; external users receive an invitation they must **Accept** (see the notifications bell). Read-only members can view tasks and comments but cannot create or edit them. Removing a member or deleting the group revokes access on the next request.
 - **Projects** page (`/projects`) — cross-team list of every project you can see (projects you **own**, plus any granted via a user group; managers with `project.edit` also see all team projects). **New project** when you belong to at least one team.
 - **Personal buckets** (v1.45) — on the Projects page, switch to **Personal buckets** to organize projects into your own columns (e.g. *My Priorities*, *This Quarter*). Buckets are private to you and never change project permissions or data.
   - **+ New bucket** — name, optional description, color.

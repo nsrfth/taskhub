@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { DependenciesService } from '../services/dependenciesService.js';
 import { TasksService } from '../services/tasksService.js';
 import { DependenciesController } from '../controllers/dependenciesController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/requirePermission.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import {
   createDependencyBody,
@@ -27,7 +27,7 @@ export async function dependenciesRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39: project visibility cascade.
   r.addHook('preHandler', requireProjectAccess());
 
@@ -44,7 +44,7 @@ export async function dependenciesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.post('/', {
-    preHandler: [requirePermission('task.manage_dependencies'), requireScope('tasks:write')],
+    preHandler: [requireProjectWriteAccess(), requirePermission('task.manage_dependencies'), requireScope('tasks:write')],
     schema: {
       tags: ['dependencies'],
       summary:
@@ -60,7 +60,7 @@ export async function dependenciesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.delete('/:dependencyId', {
-    preHandler: [requirePermission('task.manage_dependencies'), requireScope('tasks:write')],
+    preHandler: [requireProjectWriteAccess(), requirePermission('task.manage_dependencies'), requireScope('tasks:write')],
     schema: {
       tags: ['dependencies'],
       summary: 'Remove a dependency edge by id',

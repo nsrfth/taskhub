@@ -1,6 +1,7 @@
 import { Prisma, type GlobalRole, type TaskPriority, type TaskStatus, type TeamRole } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
+import { assertCanWriteProject } from '../lib/projectAccess.js';
 import { logActivity } from './activityLogger.js';
 import { notifications } from './notificationsService.js';
 import { WebhookService } from './webhookService.js';
@@ -218,6 +219,7 @@ export class TasksService {
     teamId: string,
     projectId: string,
     creatorId: string,
+    creatorGlobalRole: GlobalRole,
     input: {
       title: string;
       description?: string;
@@ -235,6 +237,7 @@ export class TasksService {
       actualSpent?: number | string | null;
     },
   ): Promise<TaskView> {
+    await assertCanWriteProject(projectId, teamId, creatorId, creatorGlobalRole);
     await this.ensureProjectInTeam(teamId, projectId);
 
     if (input.assigneeId) {
@@ -402,6 +405,7 @@ export class TasksService {
       actualSpent?: number | string | null;
     },
   ): Promise<TaskView> {
+    await assertCanWriteProject(projectId, teamId, actorId, actorGlobalRole);
     const existing = await this.get(teamId, projectId, taskId);
 
     if (input.assigneeId) {
@@ -692,8 +696,10 @@ export class TasksService {
     projectId: string,
     taskId: string,
     actorId: string,
+    actorGlobalRole: GlobalRole,
     input: { status: TaskStatus; beforeTaskId: string | null },
   ): Promise<TaskView> {
+    await assertCanWriteProject(projectId, teamId, actorId, actorGlobalRole);
     const existing = await this.get(teamId, projectId, taskId);
     if (input.beforeTaskId === taskId) {
       throw Errors.badRequest('Cannot reorder a task before itself');
@@ -816,7 +822,14 @@ export class TasksService {
   // v1.21: Delete is now a SOFT delete. Stamps deletedAt + deletedById; the
   // row survives, hidden from list/get. Use restore() / purge() from the
   // Trash service to bring it back or destroy it permanently.
-  async remove(teamId: string, projectId: string, taskId: string, actorId: string): Promise<void> {
+  async remove(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    actorId: string,
+    actorGlobalRole: GlobalRole,
+  ): Promise<void> {
+    await assertCanWriteProject(projectId, teamId, actorId, actorGlobalRole);
     const existing = await this.get(teamId, projectId, taskId); // 404 if not in this project/team
     await prisma.task.update({
       where: { id: taskId },

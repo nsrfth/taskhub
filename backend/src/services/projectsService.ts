@@ -2,9 +2,10 @@ import { Prisma, type GlobalRole, type ProjectStatus } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import {
+  assertCanWriteProject as assertProjectWrite,
   projectListAllWhereForCaller,
   projectListWhereForCaller,
-  userCanAccessProject,
+  resolveProjectAccess,
 } from '../lib/projectAccess.js';
 import { listMembershipPermissions } from '../middleware/requirePermission.js';
 // Project visibility (additive):
@@ -159,7 +160,7 @@ export class ProjectsService {
       include: { accountable: { select: { name: true } } },
     });
     if (!p || p.teamId !== teamId) throw Errors.notFound('Project not found');
-    if (!(await userCanAccessProject(projectId, teamId, callerUserId, callerGlobalRole, 'view'))) {
+    if ((await resolveProjectAccess(projectId, teamId, callerUserId, callerGlobalRole, 'view')) === 'NONE') {
       throw Errors.notFound('Project not found');
     }
     return toView(p);
@@ -273,16 +274,27 @@ export class ProjectsService {
     callerUserId: string,
     callerGlobalRole: GlobalRole,
   ): Promise<void> {
-    const ok = await userCanAccessProject(
+    const access = await resolveProjectAccess(
       projectId,
       teamId,
       callerUserId,
       callerGlobalRole,
       'nested',
     );
-    if (!ok) throw Errors.notFound('Project not found');
+    if (access === 'NONE') throw Errors.notFound('Project not found');
+  }
+
+  async assertCanWriteProject(
+    teamId: string,
+    projectId: string,
+    callerUserId: string,
+    callerGlobalRole: GlobalRole,
+  ): Promise<void> {
+    await assertProjectWrite(projectId, teamId, callerUserId, callerGlobalRole);
   }
 }
 
-// Re-export for middleware and tests.
-export { userCanAccessProject } from '../lib/projectAccess.js';
+export {
+  resolveProjectAccess,
+  assertCanWriteProject,
+} from '../lib/projectAccess.js';

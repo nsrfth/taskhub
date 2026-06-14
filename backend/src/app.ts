@@ -30,6 +30,7 @@ import { systemRoutes } from './routes/system.js';
 import { calendarRoutes } from './routes/calendar.js';
 import { trashRoutes } from './routes/trash.js';
 import { rolesRoutes } from './routes/roles.js';
+import { groupInvitesRoutes } from './routes/groupInvites.js';
 import { userGroupsRoutes } from './routes/userGroups.js';
 import { backupsRoutes } from './routes/backups.js';
 import { taskhubRoutes } from './routes/taskhub.js';
@@ -100,6 +101,7 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     await api.register(authRoutes, { prefix: '/auth', env });
     // Cross-project inbox — tasks assigned to the caller.
     await api.register(meTasksRoutes, { prefix: '/me' });
+    await api.register(groupInvitesRoutes, { prefix: '/me/group-invites' });
     await api.register(meProjectBucketsRoutes, { prefix: '/me' });
     await api.register(teamsRoutes, { prefix: '/teams' });
     // Projects nest under teams so requireTeamRole picks up :teamId from the URL.

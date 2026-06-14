@@ -42,7 +42,13 @@ export class TasksController {
     reply: FastifyReply,
   ) => {
     if (!req.user) throw Errors.unauthorized();
-    const t = await this.svc.create(req.params.teamId, req.params.projectId, req.user.sub, req.body);
+    const t = await this.svc.create(
+      req.params.teamId,
+      req.params.projectId,
+      req.user.sub,
+      req.user.globalRole,
+      req.body,
+    );
     return reply.status(201).send(serialize(t));
   };
 
@@ -87,6 +93,7 @@ export class TasksController {
       req.params.projectId,
       req.params.taskId,
       req.user.sub,
+      req.user.globalRole,
       req.body,
     );
     return reply.send(serialize(t));
@@ -94,7 +101,13 @@ export class TasksController {
 
   remove = async (req: FastifyRequest<{ Params: TaskParams }>, reply: FastifyReply) => {
     if (!req.user) throw Errors.unauthorized();
-    await this.svc.remove(req.params.teamId, req.params.projectId, req.params.taskId, req.user.sub);
+    await this.svc.remove(
+      req.params.teamId,
+      req.params.projectId,
+      req.params.taskId,
+      req.user.sub,
+      req.user.globalRole,
+    );
     return reply.status(204).send();
   };
 }

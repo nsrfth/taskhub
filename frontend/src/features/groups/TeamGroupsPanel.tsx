@@ -30,6 +30,8 @@ export default function TeamGroupsPanel({
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [userQuery, setUserQuery] = useState('');
+  const [addAccess, setAddAccess] = useState<groupsApi.GroupAccessLevel>('FULL');
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ['groups', teamId],
@@ -46,6 +48,12 @@ export default function TeamGroupsPanel({
     queryKey: ['groups', teamId, selectedId],
     queryFn: () => groupsApi.getGroup(teamId, selectedId!),
     enabled: !!selectedId,
+  });
+
+  const { data: searchHits = [] } = useQuery({
+    queryKey: ['groups', teamId, 'user-search', userQuery],
+    queryFn: () => groupsApi.searchUsers(teamId, userQuery),
+    enabled: userQuery.trim().length >= 2,
   });
 
   const invalidate = async (): Promise<void> => {
@@ -142,26 +150,20 @@ export default function TeamGroupsPanel({
 
         {selectedId && detail && !detailLoading && (
           <GroupEditor
+            teamId={teamId}
             detail={detail}
-            members={visibleMembers}
+            teamMembers={visibleMembers}
             projects={teamProjects}
+            userQuery={userQuery}
+            setUserQuery={setUserQuery}
+            searchHits={searchHits}
+            addAccess={addAccess}
+            setAddAccess={setAddAccess}
             onDelete={() => {
-              if (window.confirm(t('groups.confirmDelete'))) {
-                deleteMut.mutate(selectedId);
-              }
-            }}
-            onSaveMembers={async (ids) => {
-              const current = new Set(detail.members.map((m) => m.userId));
-              const desired = ids;
-              const toAdd = desired.filter((id) => !current.has(id));
-              const toRemove = [...current].filter((id) => !desired.includes(id));
-              for (const uid of toRemove) {
-                await groupsApi.removeGroupMember(teamId, selectedId, uid);
-              }
-              if (toAdd.length) await groupsApi.addGroupMembers(teamId, selectedId, toAdd);
-              await invalidate();
+              if (window.confirm(t('groups.confirmDelete'))) deleteMut.mutate(selectedId);
             }}
             onSaveProjects={(ids) => setProjectsMut.mutate(ids)}
+            onInvalidate={invalidate}
             deletePending={deleteMut.isPending}
             savePending={setProjectsMut.isPending}
           />
@@ -172,32 +174,45 @@ export default function TeamGroupsPanel({
 }
 
 function GroupEditor({
+  teamId,
   detail,
-  members,
+  teamMembers,
   projects,
+  userQuery,
+  setUserQuery,
+  searchHits,
+  addAccess,
+  setAddAccess,
   onDelete,
-  onSaveMembers,
   onSaveProjects,
+  onInvalidate,
   deletePending,
   savePending,
 }: {
+  teamId: string;
   detail: groupsApi.UserGroupDetail;
-  members: TeamMember[];
+  teamMembers: TeamMember[];
   projects: projectsApi.Project[];
+  userQuery: string;
+  setUserQuery: (v: string) => void;
+  searchHits: groupsApi.UserSearchHit[];
+  addAccess: groupsApi.GroupAccessLevel;
+  setAddAccess: (v: groupsApi.GroupAccessLevel) => void;
   onDelete: () => void;
-  onSaveMembers: (userIds: string[]) => Promise<void>;
-  onSaveProjects: (projectIds: string[]) => void;
+  onSaveProjects: (ids: string[]) => void;
+  onInvalidate: () => Promise<void>;
   deletePending: boolean;
   savePending: boolean;
 }): JSX.Element {
   const t = useT();
-  const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [projectIds, setProjectIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setMemberIds(new Set(detail.members.map((m) => m.userId)));
     setProjectIds(new Set(detail.projects.map((p) => p.projectId)));
-  }, [detail.id, detail.members, detail.projects]);
+  }, [detail.id, detail.projects]);
+
+  const memberIds = new Set(detail.members.map((m) => m.userId));
+  const teamPickList = teamMembers.filter((m) => !memberIds.has(m.userId));
 
   return (
     <div className="border rounded p-3 text-sm space-y-3 dark:border-slate-600">
@@ -220,36 +235,110 @@ function GroupEditor({
 
       <div>
         <p className="text-xs font-medium text-slate-500 mb-1">{t('groups.members')}</p>
-        <ul className="max-h-32 overflow-y-auto space-y-1">
-          {members.map((m) => (
-            <li key={m.userId}>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={memberIds.has(m.userId)}
-                  onChange={(e) => {
-                    setMemberIds((prev) => {
-                      const next = new Set(prev);
-                      if (e.target.checked) next.add(m.userId);
-                      else next.delete(m.userId);
-                      return next;
-                    });
-                  }}
-                />
-                <span>{m.name}</span>
-                <span className="text-xs text-slate-400">{m.email}</span>
-              </label>
+        <ul className="space-y-1 mb-2">
+          {detail.members.map((m) => (
+            <li key={m.id} className="flex flex-wrap items-center gap-2 text-xs">
+              <span>{m.name}</span>
+              <span className="text-slate-400">{m.email}</span>
+              {m.external && (
+                <span className="rounded bg-amber-100 text-amber-900 px-1">{t('groups.external')}</span>
+              )}
+              {m.status === 'PENDING' && (
+                <span className="rounded bg-slate-200 px-1">{t('groups.invite.pending')}</span>
+              )}
+              {m.status === 'DECLINED' && (
+                <span className="rounded bg-red-100 text-red-800 px-1">{t('groups.invite.declined')}</span>
+              )}
+              <select
+                value={m.accessLevel}
+                className="rounded border px-1 py-0.5 text-xs dark:bg-slate-700"
+                onChange={(e) => {
+                  void groupsApi
+                    .updateGroupMemberAccess(
+                      teamId,
+                      detail.id,
+                      m.userId,
+                      e.target.value as groupsApi.GroupAccessLevel,
+                    )
+                    .then(onInvalidate);
+                }}
+              >
+                <option value="FULL">{t('groups.accessLevel.full')}</option>
+                <option value="READONLY">{t('groups.accessLevel.readonly')}</option>
+              </select>
+              <button
+                type="button"
+                className="text-red-600 underline"
+                onClick={() => {
+                  void groupsApi.removeGroupMember(teamId, detail.id, m.userId).then(onInvalidate);
+                }}
+              >
+                ×
+              </button>
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          disabled={savePending}
-          onClick={() => void onSaveMembers([...memberIds])}
-          className="mt-2 text-xs underline disabled:opacity-50"
-        >
-          {t('groups.saveMembers')}
-        </button>
+
+        {teamPickList.length > 0 && (
+          <div className="mb-2">
+            <p className="text-xs text-slate-500 mb-1">{t('groups.addTeamMember')}</p>
+            <div className="flex flex-wrap gap-1">
+              {teamPickList.map((m) => (
+                <button
+                  key={m.userId}
+                  type="button"
+                  className="text-xs border rounded px-2 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    void groupsApi
+                      .addGroupMember(teamId, detail.id, m.userId, addAccess)
+                      .then(onInvalidate);
+                  }}
+                >
+                  + {m.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs text-slate-500 mb-1">{t('groups.searchUsers')}</p>
+          <input
+            type="search"
+            value={userQuery}
+            onChange={(e) => setUserQuery(e.target.value)}
+            placeholder={t('groups.searchUsersPlaceholder')}
+            className="w-full rounded border px-2 py-1 text-xs dark:bg-slate-700 mb-1"
+          />
+          <select
+            value={addAccess}
+            onChange={(e) => setAddAccess(e.target.value as groupsApi.GroupAccessLevel)}
+            className="rounded border px-1 py-0.5 text-xs dark:bg-slate-700 mb-1"
+          >
+            <option value="FULL">{t('groups.accessLevel.full')}</option>
+            <option value="READONLY">{t('groups.accessLevel.readonly')}</option>
+          </select>
+          <ul className="max-h-24 overflow-y-auto space-y-1">
+            {searchHits
+              .filter((u) => !memberIds.has(u.id))
+              .map((u) => (
+                <li key={u.id}>
+                  <button
+                    type="button"
+                    className="text-xs w-full text-left hover:underline"
+                    onClick={() => {
+                      void groupsApi
+                        .addGroupMember(teamId, detail.id, u.id, addAccess)
+                        .then(onInvalidate);
+                      setUserQuery('');
+                    }}
+                  >
+                    {u.name} ({u.email})
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </div>
       </div>
 
       <div>

@@ -1,10 +1,6 @@
 import type { preHandlerHookHandler } from 'fastify';
 import { Errors } from '../lib/errors.js';
-import { userCanAccessProject } from '../lib/projectAccess.js';
-
-// Project-visibility gate for /teams/:teamId/projects/:projectId/* nested routes.
-// Delegates to userCanAccessProject(..., 'nested') so group grants and owners
-// pass; project.edit managers do not.
+import { resolveProjectAccess } from '../lib/projectAccess.js';
 
 export function requireProjectAccess(): preHandlerHookHandler {
   return async (request) => {
@@ -16,13 +12,36 @@ export function requireProjectAccess(): preHandlerHookHandler {
       );
     }
 
-    const ok = await userCanAccessProject(
+    const access = await resolveProjectAccess(
       params.projectId,
       params.teamId,
       request.user.sub,
       request.user.globalRole,
       'nested',
     );
-    if (!ok) throw Errors.notFound('Project not found');
+    if (access === 'NONE') throw Errors.notFound('Project not found');
+    (request as { projectAccess?: string }).projectAccess = access;
+  };
+}
+
+export function requireProjectWriteAccess(): preHandlerHookHandler {
+  return async (request) => {
+    if (!request.user) throw Errors.unauthorized();
+    const params = request.params as { teamId?: string; projectId?: string };
+    if (!params.teamId || !params.projectId) {
+      throw Errors.internal(
+        'requireProjectWriteAccess installed on a route without :teamId / :projectId',
+      );
+    }
+
+    const access = await resolveProjectAccess(
+      params.projectId,
+      params.teamId,
+      request.user.sub,
+      request.user.globalRole,
+      'nested',
+    );
+    if (access === 'NONE') throw Errors.notFound('Project not found');
+    if (access === 'READ') throw Errors.forbidden('Read-only access to this project');
   };
 }

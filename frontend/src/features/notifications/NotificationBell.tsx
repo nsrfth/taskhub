@@ -5,6 +5,7 @@ import * as notifApi from './api';
 import { getAccessToken, onTokenChange } from '@/lib/api';
 import { formatRelativeTime, formatShamsiTimestamp } from '@/lib/shamsi';
 import { IconBell } from '@/features/nav/icons';
+import GroupInvitesPanel from '@/features/groups/GroupInvitesPanel';
 
 // v1.24: bell now lives INSIDE the TopNav flex container (no longer
 // fixed-position). Renders as a regular icon button next to the user menu.
@@ -187,6 +188,8 @@ export default function NotificationBell(): JSX.Element {
               Mark all read
             </button>
           </div>
+
+          <GroupInvitesPanel />
 
           {items.length === 0 && (
             <p className="text-sm text-slate-500 italic p-3">Nothing here yet.</p>

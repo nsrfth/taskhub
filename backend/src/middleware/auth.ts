@@ -116,3 +116,60 @@ export function requireTeamRole(...allowed: TeamRole[]): preHandlerHookHandler {
     (request as any).membership = membership;
   };
 }
+
+// Team member OR user with an accepted group grant on :projectId (cross-team).
+export function requireTeamRoleOrGrantedProject(...allowed: TeamRole[]): preHandlerHookHandler {
+  return async (request: FastifyRequest, _reply: FastifyReply) => {
+    if (!request.user) throw Errors.unauthorized();
+    const params = request.params as { teamId?: string; projectId?: string };
+    const teamId = params.teamId;
+    if (!teamId) throw Errors.badRequest('Missing teamId in route');
+
+    if (request.user.globalRole === 'ADMIN') {
+      const membership = await resolveTeamMembership(request.user.sub, teamId);
+      (request as any).membership = membership ?? {
+        id: 'admin-bypass',
+        userId: request.user.sub,
+        teamId,
+        role: 'MANAGER',
+        roleId: null,
+        joinedAt: new Date(0),
+      };
+      return;
+    }
+
+    const membership = await resolveTeamMembership(request.user.sub, teamId);
+    if (membership && allowed.includes(membership.role)) {
+      (request as any).membership = membership;
+      return;
+    }
+
+    if (params.projectId) {
+      const { resolveProjectAccess } = await import('../lib/projectAccess.js');
+      const access = await resolveProjectAccess(
+        params.projectId,
+        teamId,
+        request.user.sub,
+        request.user.globalRole,
+        'nested',
+      );
+      if (access !== 'NONE') {
+        (request as any).membership = membership ?? {
+          id: 'group-grant',
+          userId: request.user.sub,
+          teamId,
+          role: 'MEMBER',
+          roleId: null,
+          joinedAt: new Date(0),
+        };
+        (request as any).projectAccess = access;
+        return;
+      }
+      // No team membership and no group grant — hide project existence.
+      throw Errors.notFound('Project not found');
+    }
+
+    if (!membership) throw Errors.forbidden('Not a team member');
+    throw Errors.forbidden('Insufficient team role');
+  };
+}

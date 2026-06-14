@@ -1,5 +1,8 @@
 import { api } from '@/lib/api';
 
+export type GroupAccessLevel = 'FULL' | 'READONLY';
+export type GroupInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
 export interface UserGroupSummary {
   id: string;
   teamId: string;
@@ -12,10 +15,15 @@ export interface UserGroupSummary {
 }
 
 export interface UserGroupMember {
+  id: string;
   userId: string;
   email: string;
   name: string;
-  addedAt: string;
+  accessLevel: GroupAccessLevel;
+  status: GroupInviteStatus;
+  external: boolean;
+  invitedAt: string;
+  respondedAt: string | null;
 }
 
 export interface UserGroupProject {
@@ -30,8 +38,31 @@ export interface UserGroupDetail extends UserGroupSummary {
   projects: UserGroupProject[];
 }
 
+export interface GroupInvite {
+  id: string;
+  groupId: string;
+  groupName: string;
+  teamId: string;
+  teamName: string;
+  accessLevel: GroupAccessLevel;
+  invitedAt: string;
+  invitedByName: string | null;
+}
+
+export interface UserSearchHit {
+  id: string;
+  email: string;
+  name: string;
+}
+
 export async function listGroups(teamId: string): Promise<UserGroupSummary[]> {
   return (await api.get<{ items: UserGroupSummary[] }>(`/teams/${teamId}/groups`)).data.items;
+}
+
+export async function searchUsers(teamId: string, q: string): Promise<UserSearchHit[]> {
+  return (
+    await api.get<{ items: UserSearchHit[] }>(`/teams/${teamId}/groups/user-search`, { params: { q } })
+  ).data.items;
 }
 
 export async function createGroup(
@@ -45,25 +76,34 @@ export async function getGroup(teamId: string, groupId: string): Promise<UserGro
   return (await api.get<UserGroupDetail>(`/teams/${teamId}/groups/${groupId}`)).data;
 }
 
-export async function updateGroup(
-  teamId: string,
-  groupId: string,
-  input: { name?: string; description?: string | null },
-): Promise<UserGroupDetail> {
-  return (await api.patch<UserGroupDetail>(`/teams/${teamId}/groups/${groupId}`, input)).data;
-}
-
 export async function deleteGroup(teamId: string, groupId: string): Promise<void> {
   await api.delete(`/teams/${teamId}/groups/${groupId}`);
 }
 
-export async function addGroupMembers(
+export async function addGroupMember(
   teamId: string,
   groupId: string,
-  userIds: string[],
+  userId: string,
+  accessLevel: GroupAccessLevel = 'FULL',
 ): Promise<UserGroupDetail> {
   return (
-    await api.post<UserGroupDetail>(`/teams/${teamId}/groups/${groupId}/members`, { userIds })
+    await api.post<UserGroupDetail>(`/teams/${teamId}/groups/${groupId}/members`, {
+      userId,
+      accessLevel,
+    })
+  ).data;
+}
+
+export async function updateGroupMemberAccess(
+  teamId: string,
+  groupId: string,
+  userId: string,
+  accessLevel: GroupAccessLevel,
+): Promise<UserGroupDetail> {
+  return (
+    await api.patch<UserGroupDetail>(`/teams/${teamId}/groups/${groupId}/members/${userId}`, {
+      accessLevel,
+    })
   ).data;
 }
 
@@ -83,4 +123,16 @@ export async function setGroupProjects(
   return (
     await api.put<UserGroupDetail>(`/teams/${teamId}/groups/${groupId}/projects`, { projectIds })
   ).data;
+}
+
+export async function listGroupInvites(): Promise<GroupInvite[]> {
+  return (await api.get<{ items: GroupInvite[] }>('/me/group-invites')).data.items;
+}
+
+export async function acceptGroupInvite(memberId: string): Promise<void> {
+  await api.post(`/me/group-invites/${memberId}/accept`);
+}
+
+export async function declineGroupInvite(memberId: string): Promise<void> {
+  await api.post(`/me/group-invites/${memberId}/decline`);
 }

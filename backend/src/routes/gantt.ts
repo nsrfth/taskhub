@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { GanttService } from '../services/ganttService.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
 import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import { Errors } from '../lib/errors.js';
@@ -47,7 +47,7 @@ export async function ganttRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39 visibility cascade — non-owners 404 even via direct URL.
   r.addHook('preHandler', requireProjectAccess());
 

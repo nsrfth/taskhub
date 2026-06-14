@@ -1,6 +1,7 @@
 import { Prisma, type GlobalRole } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
+import { assertCanWriteProject } from '../lib/projectAccess.js';
 import { logActivity } from './activityLogger.js';
 import { notifications } from './notificationsService.js';
 import { WebhookService } from './webhookService.js';
@@ -67,7 +68,18 @@ export class CommentsService {
   // before this service is called, so we only need to verify that the comment,
   // when fetched, actually belongs to the task in question.
 
-  async create(taskId: string, authorId: string, body: string): Promise<CommentView> {
+  async create(
+    taskId: string,
+    authorId: string,
+    authorGlobalRole: GlobalRole,
+    body: string,
+  ): Promise<CommentView> {
+    const taskRow = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { teamId: true, projectId: true },
+    });
+    if (!taskRow) throw Errors.notFound('Task not found');
+    await assertCanWriteProject(taskRow.projectId, taskRow.teamId, authorId, authorGlobalRole);
     // Run the comment insert and the activity log in one transaction so an
     // audit row appears iff the comment is persisted.
     return prisma.$transaction(async (tx) => {

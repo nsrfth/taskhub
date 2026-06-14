@@ -7,6 +7,37 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.51.0] — 2026-06-14
+
+**User Groups — cross-team members, FULL/READONLY access, invitation handshake.**
+
+### User Groups (backend)
+
+- Migration `20260614180000_user_groups_cross_team`: `GroupAccessLevel`, `GroupInviteStatus`,
+  expanded `UserGroupMember` (id, accessLevel, status, external, invitedBy), `GROUP_INVITE` notify type.
+- **`resolveProjectAccess(projectId, teamId, userId, globalRole, scope)`** → `NONE | READ | WRITE`.
+- **`assertCanWriteProject(...)`** — 403 on READ, 404 on NONE (no existence leak).
+- In-team members added as **ACCEPTED** directly; out-of-team users get **PENDING** invite + notification.
+- **`GET/POST /api/me/group-invites`** — list, accept, decline.
+- **`requireTeamRoleOrGrantedProject`** — external accepted members reach nested project routes without TeamMembership.
+- Cross-team users see **only granted projects** at their access level.
+
+### Write enforcement
+
+- `requireProjectWriteAccess` on project-scoped mutation routes (tasks, comments, subtasks, attachments, dependencies, recurrence, task labels).
+- Service-layer guards: `TasksService.create/update/remove/reorder`, `CommentsService.create`.
+
+### User Groups (frontend)
+
+- Group editor: per-member FULL/READONLY, external badge, invite status, user search (all users).
+- **Group invitations** panel in the notifications dropdown (accept/decline).
+
+### Tests
+
+- `backend/tests/integration/userGroups.test.ts` — 12 regression scenarios.
+
+---
+
 ## [1.50.0] — 2026-06-14
 
 **User Groups — grant project access to sets of team members without changing ownership.**

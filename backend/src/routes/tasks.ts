@@ -3,8 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { TasksService } from '../services/tasksService.js';
 import { TasksController } from '../controllers/tasksController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import {
   createTaskBody,
@@ -26,14 +26,14 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
   // Per-task ownership is intentionally absent on a kanban board — the team
   // collaborates on cards. The activity log (future feature) records who did what.
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39 (BREAKING): nested routes 404 for non-ADMIN non-owners. Without
   // this, URL-guessing `/projects/P/tasks` would bypass the projects-list
   // visibility filter.
   r.addHook('preHandler', requireProjectAccess());
 
   r.post('/', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['tasks'],
       summary: 'Create a task in this project',
@@ -71,7 +71,7 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.patch('/:taskId', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['tasks'],
       summary: 'Update a task (any team member)',
@@ -84,7 +84,7 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.post('/:taskId/reorder', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['tasks'],
       summary: 'Move a task to a target column at a specific position',
@@ -97,7 +97,7 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.delete('/:taskId', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['tasks'],
       summary: 'Delete a task (any team member)',

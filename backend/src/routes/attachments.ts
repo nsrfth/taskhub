@@ -3,8 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AttachmentsService } from '../services/attachmentsService.js';
 import { AttachmentsController } from '../controllers/attachmentsController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import { attachmentResponse } from '../schemas/attachments.js';
 import type { Env } from '../config/env.js';
@@ -17,7 +17,7 @@ export async function attachmentsRoutes(app: FastifyInstance, opts: { env: Env }
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39: project visibility cascade.
   r.addHook('preHandler', requireProjectAccess());
 
@@ -25,7 +25,7 @@ export async function attachmentsRoutes(app: FastifyInstance, opts: { env: Env }
   // the handler, not via Zod. Same reasoning as why the validator is omitted
   // on the auth refresh endpoint (cookie-based).
   r.post('/', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['attachments'],
       summary: 'Upload a file to a task (multipart/form-data; single file)',
@@ -68,7 +68,7 @@ export async function attachmentsRoutes(app: FastifyInstance, opts: { env: Env }
   });
 
   r.delete('/:attachmentId', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['attachments'],
       summary: 'Delete an attachment (uploader OR team MANAGER)',

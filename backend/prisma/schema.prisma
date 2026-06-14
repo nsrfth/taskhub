@@ -54,6 +54,19 @@ enum NotifyType {
   // v1.29: a task you depended on completed and you now have zero
   // incomplete blockers. Recipient = assignee + technician of the dependent.
   TASK_UNBLOCKED
+  // v1.51: user group invitation for cross-team project access.
+  GROUP_INVITE
+}
+
+enum GroupAccessLevel {
+  FULL
+  READONLY
+}
+
+enum GroupInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 // v1.29: relationship kind on a TaskDependency edge.
@@ -285,6 +298,7 @@ model User {
   passwordHistory    PasswordHistory[]
   projectBuckets     UserProjectBucket[]
   userGroupMembers   UserGroupMember[]
+  groupInvitesSent   UserGroupMember[] @relation("GroupInvitesSent")
 
   @@index([email])
 }
@@ -509,8 +523,8 @@ model Project {
   @@index([accountableId])
 }
 
-// v1.50: team-scoped user groups for granting project access without
-// changing project ownership.
+// v1.50 / v1.51: team-scoped user groups for granting project access without
+// changing project ownership. v1.51 adds cross-team invites + access levels.
 model UserGroup {
   id          String   @id @default(cuid())
   teamId      String
@@ -528,15 +542,23 @@ model UserGroup {
 }
 
 model UserGroupMember {
-  groupId String
-  userId  String
-  addedAt DateTime @default(now())
+  id          String            @id @default(cuid())
+  groupId     String
+  userId      String
+  accessLevel GroupAccessLevel  @default(FULL)
+  status      GroupInviteStatus @default(ACCEPTED)
+  invitedById String?
+  invitedAt   DateTime          @default(now())
+  respondedAt DateTime?
+  external    Boolean           @default(false)
 
-  group UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User?     @relation("GroupInvitesSent", fields: [invitedById], references: [id], onDelete: SetNull)
 
-  @@id([groupId, userId])
-  @@index([userId])
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@index([groupId])
 }
 
 model ProjectGroupGrant {

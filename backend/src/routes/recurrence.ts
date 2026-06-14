@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { TaskTemplatesService } from '../services/taskTemplatesService.js';
 import { TasksService } from '../services/tasksService.js';
 import { RecurrenceController } from '../controllers/recurrenceController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import { recurrenceResponse, recurrenceUpsertBody } from '../schemas/recurrence.js';
 
@@ -20,7 +20,7 @@ export async function recurrenceRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39: project visibility cascade.
   r.addHook('preHandler', requireProjectAccess());
 
@@ -43,7 +43,7 @@ export async function recurrenceRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.put('/', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['recurrence'],
       summary: 'Create or replace the recurrence rule on this task',
@@ -56,7 +56,7 @@ export async function recurrenceRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.delete('/', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['recurrence'],
       summary: 'Remove the recurrence rule (existing spawned tasks stay)',
@@ -68,7 +68,7 @@ export async function recurrenceRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.post('/tick', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['recurrence'],
       summary: 'Manually run the recurrence scheduler once (ops / tests)',

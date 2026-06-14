@@ -1,6 +1,6 @@
 # Architecture
 
-**Version:** v1.50.0 (2026-06-14)
+**Version:** v1.51.0 (2026-06-14)
 
 This document captures the *why* behind TaskHub's design. The *what* is in the
 code; the *how to run* is in [README.md](README.md). User-facing behaviour is
@@ -232,36 +232,37 @@ UI: `features/projectBuckets/` — `ProjectBucketBoard` (dnd-kit), filters,
 `localStorage` for view mode + collapsed columns. Future: shared buckets,
 smart/rule-based buckets can extend the same tables with a `scope` column.
 
-## User Groups & project access (v1.50)
+## User Groups & project access (v1.50 / v1.51)
 
-Project visibility is **owner-based** by default (v1.39). v1.50 adds an
-**additive** path: team managers (or admins) define **User Groups**, add team
-members, and grant one or more projects to a group. A user in a granting group
-gets the same **list/get visibility and nested-route access** (tasks, comments,
-labels, …) as the project owner — without becoming owner and without broadening
-default member visibility.
+Project visibility is **owner-based** by default (v1.39). v1.50 added team **User Groups**
+with project grants. v1.51 extends groups with **FULL/READONLY** per-member access levels,
+**cross-team members** via invitation handshake (PENDING → ACCEPTED/DECLINED), and
+**write enforcement** for READONLY grantees.
 
 ```
 lib/projectAccess.ts
-  userCanAccessProject(projectId, teamId, userId, globalRole, intent: 'view' | 'nested')
-  projectListWhereForCaller / projectListAllWhereForCaller
+  resolveProjectAccess(...) → NONE | READ | WRITE
+  assertCanWriteProject(...)
 
-services/userGroupsService.ts  → CRUD + grants
-routes/userGroups.ts           → /api/teams/:teamId/groups
+middleware/auth.ts
+  requireTeamRoleOrGrantedProject — team member OR accepted group grant on :projectId
+
+middleware/requireProjectAccess.ts
+  requireProjectAccess / requireProjectWriteAccess
 ```
 
-Access decision order in `userCanAccessProject`:
+Access resolution (highest wins, `scope`: `view` for list/get, `nested` for tasks/…):
 
-1. Global `ADMIN` → always.
-2. `project.ownerId === userId` → always.
-3. `intent === 'view'` + caller has `project.edit` on the team → list/rename visibility only.
-4. Group grant (`ProjectGroupGrant` + `UserGroupMember`) → view **and** nested.
+1. Global `ADMIN` → WRITE
+2. `project.ownerId === userId` → WRITE
+3. `project.edit` manager → READ in **view** scope only (rename via separate update gate)
+4. ACCEPTED group grant with any FULL membership → WRITE; READONLY only → READ
+5. else NONE
 
-The middleware (`requireProjectAccess`) and service gate (`assertCallerCanAccess`)
-both call `userCanAccessProject(..., 'nested')` — never a duplicate owner check.
+External members are **not** given `TeamMembership`; they reach nested routes only via
+`requireTeamRoleOrGrantedProject` when `resolveProjectAccess !== NONE`.
 
-Mutations require `group.manage` (on system Manager by default). Listing/detail
-is open to any team member so the grant UI can populate project pickers.
+Mutations require WRITE (`assertCanWriteProject` / `requireProjectWriteAccess`).
 
 ## Dashboard (v1.46)
 

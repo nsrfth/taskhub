@@ -3,8 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { LabelsService } from '../services/labelsService.js';
 import { LabelsController } from '../controllers/labelsController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireAuth, requireTeamRole, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import { createLabelBody, labelResponse, updateLabelBody } from '../schemas/labels.js';
 
@@ -77,13 +77,13 @@ export async function taskLabelsRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39: project visibility cascade. (labelsRoutes above is team-scoped
   // and intentionally skipped — labels are team-wide vocabulary.)
   r.addHook('preHandler', requireProjectAccess());
 
   r.post('/', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['labels'],
       summary: 'Attach a label to this task (idempotent)',
@@ -96,7 +96,7 @@ export async function taskLabelsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.delete('/:labelId', {
-    preHandler: requireScope('tasks:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
     schema: {
       tags: ['labels'],
       summary: 'Detach a label from this task (no-op if not attached)',

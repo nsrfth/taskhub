@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { CommentsService } from '../services/commentsService.js';
 import { TasksService } from '../services/tasksService.js';
 import { CommentsController } from '../controllers/commentsController.js';
-import { requireAuth, requireTeamRole } from '../middleware/auth.js';
-import { requireProjectAccess } from '../middleware/requireProjectAccess.js';
+import { requireAuth, requireTeamRoleOrGrantedProject } from '../middleware/auth.js';
+import { requireProjectAccess, requireProjectWriteAccess } from '../middleware/requireProjectAccess.js';
 import { requireScope } from '../middleware/requireScope.js';
 import {
   commentResponse,
@@ -23,12 +23,12 @@ export async function commentsRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.addHook('preHandler', requireAuth);
-  r.addHook('preHandler', requireTeamRole('MEMBER', 'MANAGER'));
+  r.addHook('preHandler', requireTeamRoleOrGrantedProject('MEMBER', 'MANAGER'));
   // v1.39: project visibility cascade.
   r.addHook('preHandler', requireProjectAccess());
 
   r.post('/', {
-    preHandler: requireScope('comments:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('comments:write')],
     schema: {
       tags: ['comments'],
       summary: 'Add a comment to a task',
@@ -53,7 +53,7 @@ export async function commentsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.patch('/:commentId', {
-    preHandler: requireScope('comments:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('comments:write')],
     schema: {
       tags: ['comments'],
       summary: 'Edit a comment (author only)',
@@ -71,7 +71,7 @@ export async function commentsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   r.delete('/:commentId', {
-    preHandler: requireScope('comments:write'),
+    preHandler: [requireProjectWriteAccess(), requireScope('comments:write')],
     schema: {
       tags: ['comments'],
       summary: 'Delete a comment (author OR team MANAGER)',
