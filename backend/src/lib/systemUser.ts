@@ -22,6 +22,9 @@ export function clearSystemUserCache(): void {
 }
 
 export async function getSystemUser(): Promise<User | null> {
+  // Prefer the flagged row — survives SYSTEM_USER_EMAIL drift on existing installs.
+  const flagged = await prisma.user.findFirst({ where: { isSystemUser: true } });
+  if (flagged) return flagged;
   return prisma.user.findFirst({
     where: { email: { equals: getSystemUserEmail(), mode: 'insensitive' } },
   });
@@ -130,6 +133,27 @@ export async function ensureSystemManagerOnTeam(teamId: string): Promise<'create
     },
   });
   return 'created';
+}
+
+/** Fill any team rows the system user is missing — cheap gap-heal on list. */
+export async function syncSystemUserMissingTeamMemberships(userId: string): Promise<void> {
+  const systemUserId = await getSystemUserId();
+  if (!isSystemUserId(userId, systemUserId)) return;
+
+  const memberTeamIds = new Set(
+    (
+      await prisma.teamMembership.findMany({
+        where: { userId },
+        select: { teamId: true },
+      })
+    ).map((m) => m.teamId),
+  );
+  const teams = await prisma.team.findMany({ select: { id: true } });
+  for (const { id } of teams) {
+    if (!memberTeamIds.has(id)) {
+      await ensureSystemManagerOnTeam(id);
+    }
+  }
 }
 
 /** Backfill hidden system manager on every existing team. Safe to run on every boot. */

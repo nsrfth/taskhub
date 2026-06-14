@@ -7,11 +7,14 @@ import { logActivity } from './activityLogger.js';
 import { systemRoleIdFor } from '../lib/teamRoles.js';
 import {
   assertNotSystemUserTarget,
+  bootstrapSystemUserFlag,
   countHumanManagers,
   ensureSystemManagerOnTeam,
   filterVisibleMembers,
   getSystemUserId,
   isSystemUser,
+  resolveTeamMembership,
+  syncSystemUserMissingTeamMemberships,
 } from '../lib/systemUser.js';
 
 // Business rules for teams + membership. Route layer enforces auth/RBAC and
@@ -71,6 +74,7 @@ export class TeamsService {
           memberships: { create: { userId: creatorId, role: 'MANAGER' } },
         },
       });
+      await bootstrapSystemUserFlag();
       await ensureSystemManagerOnTeam(team.id);
       const managerRoleId = await systemRoleIdFor(team.id, 'MANAGER');
       await prisma.teamMembership.update({
@@ -99,7 +103,26 @@ export class TeamsService {
     }
   }
 
-  async listMine(userId: string): Promise<TeamWithRole[]> {
+  async listMine(userId: string, globalRole: GlobalRole = 'MEMBER'): Promise<TeamWithRole[]> {
+    await syncSystemUserMissingTeamMemberships(userId);
+
+    if (globalRole === 'ADMIN') {
+      const teams = await prisma.team.findMany({ orderBy: { createdAt: 'asc' } });
+      const memberships = await prisma.teamMembership.findMany({
+        where: { userId },
+        select: { teamId: true, role: true },
+      });
+      const roleByTeam = new Map(memberships.map((m) => [m.teamId, m.role]));
+      return teams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        color: t.color,
+        createdAt: t.createdAt,
+        myRole: roleByTeam.get(t.id) ?? 'MANAGER',
+      }));
+    }
+
     const memberships = await prisma.teamMembership.findMany({
       where: { userId },
       include: { team: true },
@@ -136,7 +159,16 @@ export class TeamsService {
     });
     if (!team) throw Errors.notFound('Team not found');
 
-    const myMembership = team.memberships.find((m) => m.userId === userId);
+    let myMembership = await resolveTeamMembership(userId, teamId);
+    if (!myMembership && globalRole === 'ADMIN') {
+      myMembership = {
+        userId,
+        teamId,
+        role: 'MANAGER',
+        roleId: null,
+        joinedAt: new Date(0),
+      };
+    }
     if (!myMembership) throw Errors.forbidden('Not a team member');
 
     const systemUserId = await getSystemUserId();

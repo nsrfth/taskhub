@@ -81,6 +81,40 @@ describe('hidden system team manager', () => {
     expect(body.members.every((m: { email: string }) => m.email !== SYSTEM_USER_EMAIL)).toBe(true);
   });
 
+  it('system user lists teams created by other users', async () => {
+    const system = await ensureSystemUser();
+    const human = await bootstrapUser(app, {
+      email: 'human@example.com',
+      name: 'Human',
+      password: 'HumanPass9!!',
+    });
+
+    const created = await inject({
+      method: 'POST',
+      url: '/api/teams',
+      headers: { authorization: `Bearer ${human.token}` },
+      payload: { name: 'Masghali Team', slug: 'masghali-team' },
+    });
+    expect(created.statusCode).toBe(201);
+    const team = created.json() as { id: string };
+
+    const list = await inject({
+      method: 'GET',
+      url: '/api/teams',
+      headers: { authorization: `Bearer ${system.token}` },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.json().some((t: { id: string }) => t.id === team.id)).toBe(true);
+
+    const detail = await inject({
+      method: 'GET',
+      url: `/api/teams/${team.id}`,
+      headers: { authorization: `Bearer ${system.token}` },
+    });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().myRole).toBe('MANAGER');
+  });
+
   it('refuses to remove or demote the system manager', async () => {
     const system = await ensureSystemUser();
     const human = await bootstrapUser(app, {

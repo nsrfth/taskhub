@@ -97,6 +97,18 @@ export function requireTeamRole(...allowed: TeamRole[]): preHandlerHookHandler {
     const teamId = (request.params as { teamId?: string } | undefined)?.teamId;
     if (!teamId) throw Errors.badRequest('Missing teamId in route');
 
+    if (request.user.globalRole === 'ADMIN') {
+      const membership = await resolveTeamMembership(request.user.sub, teamId);
+      (request as any).membership = membership ?? {
+        userId: request.user.sub,
+        teamId,
+        role: 'MANAGER',
+        roleId: null,
+        joinedAt: new Date(0),
+      };
+      return;
+    }
+
     const membership = await resolveTeamMembership(request.user.sub, teamId);
     if (!membership) throw Errors.forbidden('Not a team member');
     if (!allowed.includes(membership.role)) throw Errors.forbidden('Insufficient team role');

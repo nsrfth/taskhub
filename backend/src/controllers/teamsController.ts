@@ -22,7 +22,7 @@ export class TeamsController {
 
   listMine = async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.user) throw Errors.unauthorized();
-    const teams = await this.svc.listMine(req.user.sub);
+    const teams = await this.svc.listMine(req.user.sub, req.user.globalRole);
     return reply.send(
       teams.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
     );
