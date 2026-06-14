@@ -3,6 +3,7 @@ import type { TeamsService } from '../services/teamsService.js';
 import type {
   AddMemberBody,
   CreateTeamBody,
+  ListTeamMembersQuery,
   UpdateMemberRoleBody,
   UpdateTeamBody,
 } from '../schemas/teams.js';
@@ -44,6 +45,33 @@ export class TeamsController {
       members: members.map((m) => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
       capabilities,
       deleteBlockers,
+    });
+  };
+
+  listMembers = async (
+    req: FastifyRequest<{ Params: TeamIdParams; Querystring: ListTeamMembersQuery }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const q = req.query;
+    const page = await this.svc.listTeamMembers(
+      req.user.sub,
+      req.params.teamId,
+      req.user.globalRole,
+      {
+        page: q.page,
+        pageSize: q.pageSize,
+        search: q.search,
+        role: q.role,
+        status: q.status,
+        kind: q.kind,
+        sortBy: q.sortBy,
+        sortDir: q.sortDir,
+      },
+    );
+    return reply.send({
+      ...page,
+      items: page.items.map((m) => ({ ...m, joinedAt: m.joinedAt.toISOString() })),
     });
   };
 

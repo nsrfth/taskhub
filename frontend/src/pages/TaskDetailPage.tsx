@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useProjectTeam } from '@/features/projects/useProjectTeam';
-import { getTeam } from '@/features/teams/api';
+import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import * as tasksApi from '@/features/tasks/api';
 import * as commentsApi from '@/features/comments/api';
@@ -121,13 +121,13 @@ export default function TaskDetailPage(): JSX.Element {
   // v1.19: team members feed the Technician dropdown for managers/admins.
   // Fetched lazily — only when the viewer can actually change Technician.
   const canChangeTechnician = isManager || user?.globalRole === 'ADMIN';
-  const { data: teamDetail } = useQuery({
-    queryKey: ['teams', 'detail', teamId],
-    queryFn: () => getTeam(teamId!),
+  const { data: teamMembersRaw = [] } = useQuery({
+    queryKey: ['teams', teamId, 'assignees'],
+    queryFn: () => listTeamMembersForAssignees(teamId!),
     enabled: !!teamId && canChangeTechnician,
     staleTime: 30_000,
   });
-  const teamMembers = visibleTeamMembers(teamDetail?.members ?? []);
+  const teamMembers = visibleTeamMembers(teamMembersRaw);
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery({
     queryKey: ['comments', taskId],

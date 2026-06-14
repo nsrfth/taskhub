@@ -17,7 +17,7 @@ import {
   type BoardGroupBy,
 } from '@/features/planner/grouping';
 import { loadBoardGroupBy, saveBoardGroupBy } from '@/features/planner/storage';
-import { getTeam } from '@/features/teams/api';
+import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 const STATUS_ORDER: tasksApi.TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
 const STATUS_LABEL: Record<tasksApi.TaskStatus, string> = {
@@ -66,19 +66,19 @@ export default function TasksPage(): JSX.Element {
 
   // v1.36: team labels for the filter strip. Cached briefly so re-renders
   // don't hammer the API.
-  const { data: teamDetail } = useQuery({
-    queryKey: ['teams', teamId],
-    queryFn: () => getTeam(teamId!),
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['teams', teamId, 'assignees'],
+    queryFn: () => listTeamMembersForAssignees(teamId!),
     enabled: !!teamId,
   });
 
   const assigneeNames = useMemo(() => {
     const m = new Map<string, string>();
-    for (const mem of visibleTeamMembers(teamDetail?.members ?? [])) {
+    for (const mem of visibleTeamMembers(teamMembers)) {
       m.set(mem.userId, mem.name || mem.email);
     }
     return m;
-  }, [teamDetail]);
+  }, [teamMembers]);
 
   const [boardGroupBy, setBoardGroupBy] = useState<BoardGroupBy>(() => loadBoardGroupBy());
 

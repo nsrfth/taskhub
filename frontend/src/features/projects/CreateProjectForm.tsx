@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import type { Team } from '@/features/teams/api';
-import { getTeam } from '@/features/teams/api';
+import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import * as projectsApi from '@/features/projects/api';
 
@@ -31,13 +31,13 @@ export default function CreateProjectForm({
 
   const [formTeamId, setFormTeamId] = useState<string>(() => currentTeamId ?? '');
   const effectiveFormTeamId = formTeamId || currentTeamId || '';
-  const { data: formTeamDetail } = useQuery({
-    queryKey: ['teams', 'detail', effectiveFormTeamId],
-    queryFn: () => getTeam(effectiveFormTeamId),
+  const { data: formMembersRaw = [] } = useQuery({
+    queryKey: ['teams', effectiveFormTeamId, 'assignees'],
+    queryFn: () => listTeamMembersForAssignees(effectiveFormTeamId),
     enabled: !!effectiveFormTeamId,
     staleTime: 30_000,
   });
-  const formMembers = visibleTeamMembers(formTeamDetail?.members ?? []);
+  const formMembers = visibleTeamMembers(formMembersRaw);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

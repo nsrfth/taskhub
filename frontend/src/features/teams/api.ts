@@ -62,6 +62,57 @@ export async function getTeam(teamId: string): Promise<TeamDetail> {
   return (await api.get<TeamDetail>(`/teams/${teamId}`)).data;
 }
 
+export type TeamMemberKind = 'member' | 'external' | 'all';
+export type TeamMemberStatusFilter = 'active' | 'disabled' | 'locked';
+export type TeamMemberSortBy = 'name' | 'email' | 'joinedAt' | 'role';
+export type SortDir = 'asc' | 'desc';
+
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface ListTeamMembersParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: TeamRole;
+  status?: TeamMemberStatusFilter;
+  kind?: TeamMemberKind;
+  sortBy?: TeamMemberSortBy;
+  sortDir?: SortDir;
+}
+
+export async function listTeamMembers(
+  teamId: string,
+  opts: ListTeamMembersParams = {},
+): Promise<PagedResult<TeamMember>> {
+  const params: Record<string, string> = {};
+  if (opts.page != null) params.page = String(opts.page);
+  if (opts.pageSize != null) params.pageSize = String(opts.pageSize);
+  if (opts.search) params.search = opts.search;
+  if (opts.role) params.role = opts.role;
+  if (opts.status) params.status = opts.status;
+  if (opts.kind) params.kind = opts.kind;
+  if (opts.sortBy) params.sortBy = opts.sortBy;
+  if (opts.sortDir) params.sortDir = opts.sortDir;
+  return (await api.get<PagedResult<TeamMember>>(`/teams/${teamId}/members`, { params })).data;
+}
+
+/** Team members only (excludes external accessors), up to 100 — for assignee pickers. */
+export async function listTeamMembersForAssignees(teamId: string): Promise<TeamMember[]> {
+  const page = await listTeamMembers(teamId, {
+    kind: 'member',
+    pageSize: 100,
+    sortBy: 'name',
+    sortDir: 'asc',
+  });
+  return page.items;
+}
+
 // v1.12: PATCH team metadata. color: null explicitly clears it.
 export async function updateTeam(
   teamId: string,

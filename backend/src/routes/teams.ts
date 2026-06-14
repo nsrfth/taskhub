@@ -9,8 +9,10 @@ import { requireScope } from '../middleware/requireScope.js';
 import {
   addMemberBody,
   createTeamBody,
+  listTeamMembersQuery,
   teamDetailResponse,
   teamMemberResponse,
+  teamMembersPage,
   teamResponse,
   updateMemberRoleBody,
   updateTeamBody,
@@ -52,12 +54,25 @@ export async function teamsRoutes(app: FastifyInstance): Promise<void> {
     preHandler: requireScope('projects:read'),
     schema: {
       tags: ['teams'],
-      summary: 'Get team detail with member list (caller must be a member)',
+      summary: 'Get team detail (first roster page embedded for compat)',
       params: z.object({ teamId: z.string() }),
       response: { 200: teamDetailResponse },
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.getDetail,
+  });
+
+  r.get('/:teamId/members', {
+    preHandler: requireScope('projects:read'),
+    schema: {
+      tags: ['teams'],
+      summary: 'List team roster with search, filter, sort, and pagination',
+      params: z.object({ teamId: z.string() }),
+      querystring: listTeamMembersQuery,
+      response: { 200: teamMembersPage },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.listMembers,
   });
 
   r.patch('/:teamId', {

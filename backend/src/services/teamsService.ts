@@ -97,6 +97,151 @@ export interface TeamDeleteBlockers {
   reasons: string[];
 }
 
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface ListTeamMembersOpts {
+  page: number;
+  pageSize: number;
+  search?: string;
+  role?: TeamRole;
+  status?: 'active' | 'disabled' | 'locked';
+  kind?: 'member' | 'external' | 'all';
+  sortBy?: 'name' | 'email' | 'joinedAt' | 'role';
+  sortDir?: 'asc' | 'desc';
+}
+
+function clampTeamMemberPageSize(pageSize: number): number {
+  if (!Number.isFinite(pageSize) || pageSize <= 0) return 25;
+  return Math.min(100, Math.max(10, pageSize));
+}
+
+async function fetchFullTeamRoster(teamId: string): Promise<TeamMemberView[]> {
+  const systemUserId = await getSystemUserId();
+  const now = new Date();
+
+  const memberships = await prisma.teamMembership.findMany({
+    where: { teamId, user: { isSystemUser: false } },
+    include: { user: true, customRole: { select: { name: true } } },
+    orderBy: { joinedAt: 'asc' },
+  });
+
+  const teamMemberRows = memberships.map((m) => membershipToView(m, now));
+  const memberUserIds = new Set(teamMemberRows.map((m) => m.userId));
+
+  const excludeExternalIds = [...memberUserIds];
+  if (systemUserId) excludeExternalIds.push(systemUserId);
+
+  const externalGroupRows = await prisma.userGroupMember.findMany({
+    where: {
+      status: 'ACCEPTED',
+      group: { teamId },
+      userId: { notIn: excludeExternalIds },
+      user: { isSystemUser: false },
+    },
+    include: { user: true },
+    orderBy: { invitedAt: 'asc' },
+  });
+
+  const externalByUser = new Map<string, (typeof externalGroupRows)[number]>();
+  for (const row of externalGroupRows) {
+    if (isSystemUser(row.user)) continue;
+    const existing = externalByUser.get(row.userId);
+    if (!existing || (row.accessLevel === 'FULL' && existing.accessLevel === 'READONLY')) {
+      externalByUser.set(row.userId, row);
+    }
+  }
+
+  const externalMemberRows: TeamMemberView[] = [...externalByUser.values()].map((row) => ({
+    userId: row.userId,
+    email: row.user.email,
+    name: row.user.name,
+    role: 'MEMBER' as TeamRole,
+    roleId: null,
+    roleName: null,
+    joinedAt: row.respondedAt ?? row.invitedAt,
+    ...memberStatusFromUser(row.user, now),
+    external: true,
+    groupAccessLevel: row.accessLevel,
+  }));
+
+  return filterVisibleMembers([...teamMemberRows, ...externalMemberRows], systemUserId);
+}
+
+function filterAndSortRoster(
+  rows: TeamMemberView[],
+  opts: ListTeamMembersOpts,
+): TeamMemberView[] {
+  let out = rows;
+
+  const search = opts.search?.trim();
+  if (search) {
+    const q = search.toLowerCase();
+    out = out.filter(
+      (m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q),
+    );
+  }
+
+  if (opts.role) {
+    out = out.filter((m) => !m.external && m.role === opts.role);
+  }
+
+  if (opts.kind === 'member') {
+    out = out.filter((m) => !m.external);
+  } else if (opts.kind === 'external') {
+    out = out.filter((m) => m.external);
+  }
+
+  if (opts.status === 'disabled') {
+    out = out.filter((m) => m.disabled);
+  } else if (opts.status === 'locked') {
+    out = out.filter((m) => m.locked);
+  } else if (opts.status === 'active') {
+    out = out.filter((m) => !m.disabled && !m.locked);
+  }
+
+  const dir = opts.sortDir === 'desc' ? -1 : 1;
+  const sortBy = opts.sortBy ?? 'joinedAt';
+
+  return [...out].sort((a, b) => {
+    let cmp = 0;
+    switch (sortBy) {
+      case 'name':
+        cmp = a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+        break;
+      case 'email':
+        cmp = a.email.localeCompare(b.email, 'en', { sensitivity: 'base' });
+        break;
+      case 'role':
+        cmp = a.role.localeCompare(b.role);
+        break;
+      default:
+        cmp = a.joinedAt.getTime() - b.joinedAt.getTime();
+    }
+    if (cmp !== 0) return cmp * dir;
+    if (a.external !== b.external) return a.external ? 1 : -1;
+    return a.userId.localeCompare(b.userId);
+  });
+}
+
+function paginateRoster(
+  rows: TeamMemberView[],
+  page: number,
+  pageSize: number,
+): PagedResult<TeamMemberView> {
+  const safePage = Math.max(1, page);
+  const safePageSize = clampTeamMemberPageSize(pageSize);
+  const totalItems = rows.length;
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safePageSize);
+  const items = rows.slice((safePage - 1) * safePageSize, safePage * safePageSize);
+  return { items, page: safePage, pageSize: safePageSize, totalItems, totalPages };
+}
+
 function permGranted(perms: Set<string>, permission: Permission): boolean {
   return perms.has('*') || perms.has(permission);
 }
@@ -189,15 +334,59 @@ export class TeamsService {
     capabilities: TeamCapabilities;
     deleteBlockers: TeamDeleteBlockers | null;
   }> {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: {
-        memberships: {
-          include: { user: true, customRole: { select: { name: true } } },
-          orderBy: { joinedAt: 'asc' },
-        },
-      },
-    });
+    const { team, capabilities, deleteBlockers } = await this.loadTeamContext(
+      userId,
+      teamId,
+      globalRole,
+    );
+
+    // Compat: embed the first page of the paged roster (default sort/filter).
+    const firstPage = paginateRoster(
+      filterAndSortRoster(await fetchFullTeamRoster(teamId), {
+        page: 1,
+        pageSize: 25,
+        kind: 'all',
+        sortBy: 'joinedAt',
+        sortDir: 'asc',
+      }),
+      1,
+      25,
+    );
+
+    return {
+      team,
+      members: firstPage.items,
+      capabilities,
+      deleteBlockers,
+    };
+  }
+
+  /**
+   * Paged team roster — team members and external group accessors merged,
+   * filtered, sorted together, then paginated. Default sort: joinedAt asc.
+   */
+  async listTeamMembers(
+    userId: string,
+    teamId: string,
+    globalRole: GlobalRole,
+    opts: ListTeamMembersOpts,
+  ): Promise<PagedResult<TeamMemberView>> {
+    await this.loadTeamContext(userId, teamId, globalRole);
+    const roster = await fetchFullTeamRoster(teamId);
+    const filtered = filterAndSortRoster(roster, opts);
+    return paginateRoster(filtered, opts.page, opts.pageSize);
+  }
+
+  private async loadTeamContext(
+    userId: string,
+    teamId: string,
+    globalRole: GlobalRole,
+  ): Promise<{
+    team: TeamWithRole;
+    capabilities: TeamCapabilities;
+    deleteBlockers: TeamDeleteBlockers | null;
+  }> {
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) throw Errors.notFound('Team not found');
 
     let myMembership = await resolveTeamMembership(userId, teamId);
@@ -213,9 +402,6 @@ export class TeamsService {
     }
     if (!myMembership) throw Errors.forbidden('Not a team member');
 
-    const systemUserId = await getSystemUserId();
-    const visibleMemberships = team.memberships.filter((m) => !isSystemUser(m.user));
-
     const perms = await listMembershipPermissions(myMembership, globalRole);
     const capabilities: TeamCapabilities = {
       editDetails: permGranted(perms, 'team.edit_details'),
@@ -226,49 +412,6 @@ export class TeamsService {
       ? await this.getDeleteBlockers(teamId)
       : null;
 
-    const now = new Date();
-    const teamMemberRows = visibleMemberships.map((m) => membershipToView(m, now));
-    const memberUserIds = new Set(teamMemberRows.map((m) => m.userId));
-
-    const excludeExternalIds = [...memberUserIds];
-    if (systemUserId) excludeExternalIds.push(systemUserId);
-
-    const externalGroupRows = await prisma.userGroupMember.findMany({
-      where: {
-        status: 'ACCEPTED',
-        group: { teamId },
-        userId: { notIn: excludeExternalIds },
-        user: { isSystemUser: false },
-      },
-      include: { user: true },
-      orderBy: { invitedAt: 'asc' },
-    });
-
-    const externalByUser = new Map<
-      string,
-      (typeof externalGroupRows)[number]
-    >();
-    for (const row of externalGroupRows) {
-      if (isSystemUser(row.user)) continue;
-      const existing = externalByUser.get(row.userId);
-      if (!existing || (row.accessLevel === 'FULL' && existing.accessLevel === 'READONLY')) {
-        externalByUser.set(row.userId, row);
-      }
-    }
-
-    const externalMemberRows: TeamMemberView[] = [...externalByUser.values()].map((row) => ({
-      userId: row.userId,
-      email: row.user.email,
-      name: row.user.name,
-      role: 'MEMBER' as TeamRole,
-      roleId: null,
-      roleName: null,
-      joinedAt: row.respondedAt ?? row.invitedAt,
-      ...memberStatusFromUser(row.user, now),
-      external: true,
-      groupAccessLevel: row.accessLevel,
-    }));
-
     return {
       team: {
         id: team.id,
@@ -278,7 +421,6 @@ export class TeamsService {
         createdAt: team.createdAt,
         myRole: myMembership.role,
       },
-      members: filterVisibleMembers([...teamMemberRows, ...externalMemberRows], systemUserId),
       capabilities,
       deleteBlockers,
     };

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import * as groupsApi from '@/features/groups/api';
 import * as projectsApi from '@/features/projects/api';
-import type { TeamMember } from '@/features/teams/api';
+import { listTeamMembersForAssignees, type TeamMember } from '@/features/teams/api';
 import { useT } from '@/lib/i18n';
 import { visibleTeamMembers } from '@/lib/systemUser';
 
@@ -15,16 +15,15 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function TeamGroupsPanel({
-  teamId,
-  members,
-}: {
-  teamId: string;
-  members: TeamMember[];
-}): JSX.Element {
+export default function TeamGroupsPanel({ teamId }: { teamId: string }): JSX.Element {
   const t = useT();
   const qc = useQueryClient();
-  const visibleMembers = visibleTeamMembers(members);
+
+  const { data: rosterMembers = [] } = useQuery({
+    queryKey: ['teams', teamId, 'assignees'],
+    queryFn: () => listTeamMembersForAssignees(teamId),
+  });
+  const visibleMembers = visibleTeamMembers(rosterMembers);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');

@@ -9,7 +9,7 @@ import PlannerFilterBar, {
   collectAssigneeOptions,
   collectLabelOptions,
 } from '@/features/planner/PlannerFilterBar';
-import { getTeam } from '@/features/teams/api';
+import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import { useT } from '@/lib/i18n';
 
@@ -39,19 +39,19 @@ export default function PlannerGridPage(): JSX.Element {
   });
 
   const teamId = targetProjects[0]?.teamId;
-  const { data: teamDetail } = useQuery({
-    queryKey: ['teams', teamId],
-    queryFn: () => getTeam(teamId!),
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['teams', teamId, 'assignees'],
+    queryFn: () => listTeamMembersForAssignees(teamId!),
     enabled: !!teamId,
   });
 
   const assigneeNames = useMemo(() => {
     const m = new Map<string, string>();
-    for (const mem of visibleTeamMembers(teamDetail?.members ?? [])) {
+    for (const mem of visibleTeamMembers(teamMembers)) {
       m.set(mem.userId, mem.name || mem.email);
     }
     return m;
-  }, [teamDetail]);
+  }, [teamMembers]);
 
   const rows = useMemo(() => {
     return taskQueries.flatMap((q, i) => {

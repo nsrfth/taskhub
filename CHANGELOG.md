@@ -7,6 +7,23 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.55.0] — 2026-06-09
+
+**Team roster — searchable, filterable, sortable, paginated member list.**
+
+### Teams (backend + frontend)
+
+- New `GET /api/teams/:teamId/members` with server-side search (name/email),
+  filters (role, status active/disabled/locked, member vs external), sort
+  (name/email/joinedAt/role), and page-numbered pagination with total count —
+  mirroring the Phase-1 admin user list pattern.
+- `listTeamMembers` service method; `GET /api/teams/:teamId` still embeds the
+  **first page** (25 rows, default sort/filter) in `members` for backward compatibility.
+- Teams page: debounced search, filter dropdowns, sortable headers, pagination footer.
+- Assignee pickers fetch members via the paged endpoint (`kind=member`, up to 100).
+
+---
+
 ## [1.54.0] — 2026-06-09
 
 **Team roster — member status badges + external group accessors.**

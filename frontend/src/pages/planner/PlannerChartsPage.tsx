@@ -5,7 +5,7 @@ import * as projectsApi from '@/features/projects/api';
 import * as tasksApi from '@/features/tasks/api';
 import type { TaskStatus } from '@/features/tasks/api';
 import { fetchSummary, fetchWorkload } from '@/features/reports/api';
-import { getTeam } from '@/features/teams/api';
+import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import PlannerChartsPanel from '@/features/planner/charts/PlannerChartsPanel';
 import {
@@ -74,14 +74,15 @@ export default function PlannerChartsPage(): JSX.Element {
   });
 
   const memberTeamQuery = useQuery({
-    queryKey: ['teams', teamId, 'members'],
-    queryFn: () => getTeam(teamId === ALL_TEAMS ? teams[0]!.id : teamId),
+    queryKey: ['teams', teamId, 'assignees'],
+    queryFn: () =>
+      listTeamMembersForAssignees(teamId === ALL_TEAMS ? teams[0]!.id : teamId),
     enabled: teamId !== ALL_TEAMS ? !!teamId : teams.length > 0,
   });
 
   const assigneeNames = useMemo(() => {
     const m = new Map<string, string>();
-    for (const mem of visibleTeamMembers(memberTeamQuery.data?.members ?? [])) {
+    for (const mem of visibleTeamMembers(memberTeamQuery.data ?? [])) {
       m.set(mem.userId, mem.name || mem.email);
     }
     return m;

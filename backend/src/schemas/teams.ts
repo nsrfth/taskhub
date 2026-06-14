@@ -95,6 +95,38 @@ export const teamDetailResponse = teamResponse.extend({
   deleteBlockers: teamDeleteBlockersResponse.nullable(),
 });
 
+export const teamMemberKindEnum = z.enum(['member', 'external', 'all']);
+export const teamMemberStatusEnum = z.enum(['active', 'disabled', 'locked']);
+export const teamMemberSortByEnum = z.enum(['name', 'email', 'joinedAt', 'role']);
+export const teamMemberSortDirEnum = z.enum(['asc', 'desc']);
+export const teamRoleEnum = z.enum(['MANAGER', 'MEMBER']);
+
+function clampTeamMembersPageSize(v: number): number {
+  if (!Number.isFinite(v) || v <= 0) return 25;
+  return Math.min(100, Math.max(10, v));
+}
+
+export const listTeamMembersQuery = z.object({
+  page: z.coerce.number().int().transform((p) => Math.max(1, p)).default(1),
+  pageSize: z.coerce.number().int().transform(clampTeamMembersPageSize).default(25),
+  search: z.string().optional(),
+  role: teamRoleEnum.optional(),
+  status: teamMemberStatusEnum.optional(),
+  kind: teamMemberKindEnum.default('all'),
+  sortBy: teamMemberSortByEnum.default('joinedAt'),
+  sortDir: teamMemberSortDirEnum.default('asc'),
+});
+
+export type ListTeamMembersQuery = z.infer<typeof listTeamMembersQuery>;
+
+export const teamMembersPage = z.object({
+  items: z.array(teamMemberResponse),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
+
 export type CreateTeamBody = z.infer<typeof createTeamBody>;
 export type UpdateTeamBody = z.infer<typeof updateTeamBody>;
 export type AddMemberBody = z.infer<typeof addMemberBody>;

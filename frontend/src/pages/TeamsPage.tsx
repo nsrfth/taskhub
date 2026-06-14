@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import * as teamsApi from '@/features/teams/api';
@@ -77,7 +77,11 @@ export default function TeamsPage(): JSX.Element {
     onSuccess: async () => {
       setInviteEmail('');
       setInviteError(null);
-      await qc.invalidateQueries({ queryKey: ['teams', 'detail', currentTeamId] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['teams', 'detail', currentTeamId] }),
+        qc.invalidateQueries({ queryKey: ['teams', currentTeamId, 'members'] }),
+        qc.invalidateQueries({ queryKey: ['teams', currentTeamId, 'assignees'] }),
+      ]);
     },
     onError: (err) => setInviteError(errorMessage(err, 'Could not add member')),
   });
@@ -95,16 +99,88 @@ export default function TeamsPage(): JSX.Element {
     mutationFn: (args: { userId: string; roleId: string }) =>
       teamsApi.updateMemberRole(currentTeamId!, args.userId, { roleId: args.roleId }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['teams', 'detail', currentTeamId] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['teams', 'detail', currentTeamId] }),
+        qc.invalidateQueries({ queryKey: ['teams', currentTeamId, 'members'] }),
+      ]);
     },
   });
 
   const removeMut = useMutation({
     mutationFn: (userId: string) => teamsApi.removeMember(currentTeamId!, userId),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['teams', 'detail', currentTeamId] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['teams', 'detail', currentTeamId] }),
+        qc.invalidateQueries({ queryKey: ['teams', currentTeamId, 'members'] }),
+        qc.invalidateQueries({ queryKey: ['teams', currentTeamId, 'assignees'] }),
+      ]);
     },
   });
+
+  const DEFAULT_PAGE_SIZE = 25;
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [roleFilter, setRoleFilter] = useState<teamsApi.TeamRole | ''>('');
+  const [statusFilter, setStatusFilter] = useState<teamsApi.TeamMemberStatusFilter | ''>('');
+  const [kindFilter, setKindFilter] = useState<teamsApi.TeamMemberKind>('all');
+  const [sortBy, setSortBy] = useState<teamsApi.TeamMemberSortBy>('joinedAt');
+  const [sortDir, setSortDir] = useState<teamsApi.SortDir>('asc');
+  const [jumpPage, setJumpPage] = useState('');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, roleFilter, statusFilter, kindFilter, sortBy, sortDir, currentTeamId]);
+
+  const listParams: teamsApi.ListTeamMembersParams = {
+    page,
+    pageSize,
+    search: search || undefined,
+    role: roleFilter || undefined,
+    status: statusFilter || undefined,
+    kind: kindFilter,
+    sortBy,
+    sortDir,
+  };
+
+  const { data: membersPage, isLoading: membersLoading, isFetching: membersFetching } = useQuery({
+    queryKey: ['teams', currentTeamId, 'members', listParams],
+    queryFn: () => teamsApi.listTeamMembers(currentTeamId!, listParams),
+    enabled: !!currentTeamId,
+  });
+
+  const roster = visibleTeamMembers(membersPage?.items ?? []);
+  const totalPages = membersPage?.totalPages ?? 0;
+  const totalItems = membersPage?.totalItems ?? 0;
+  const currentPage = membersPage?.page ?? page;
+
+  function toggleSort(column: teamsApi.TeamMemberSortBy): void {
+    if (sortBy === column) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      setSortDir('asc');
+    }
+  }
+
+  function sortIndicator(column: teamsApi.TeamMemberSortBy): string {
+    if (sortBy !== column) return '';
+    return sortDir === 'asc' ? ' ↑' : ' ↓';
+  }
+
+  function submitJumpPage(e: FormEvent): void {
+    e.preventDefault();
+    const n = Number.parseInt(jumpPage, 10);
+    if (!Number.isFinite(n) || n < 1) return;
+    setPage(Math.min(n, Math.max(1, totalPages)));
+    setJumpPage('');
+  }
 
   const isManager = detail?.myRole === 'MANAGER';
   const canEditDetails = detail?.capabilities?.editDetails ?? isManager;
@@ -372,103 +448,216 @@ export default function TeamsPage(): JSX.Element {
                 </div>
               )}
 
-              {(() => {
-                const roster = visibleTeamMembers(detail.members);
-                const regularMembers = roster.filter((m) => !m.external);
-                const externalMembers = roster.filter((m) => m.external);
+              <h3 className="text-sm font-medium mb-2">Members</h3>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <input
+                  type="search"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder={t('team.members.search')}
+                  className="flex-1 min-w-[12rem] rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                />
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value as teamsApi.TeamRole | '')}
+                  className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  aria-label={t('team.members.filter.role')}
+                >
+                  <option value="">{t('team.members.filter.roleAll')}</option>
+                  <option value="MANAGER">MANAGER</option>
+                  <option value="MEMBER">MEMBER</option>
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as teamsApi.TeamMemberStatusFilter | '')
+                  }
+                  className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  aria-label={t('team.members.filter.status')}
+                >
+                  <option value="">{t('team.members.filter.statusAll')}</option>
+                  <option value="active">{t('team.members.filter.status.active')}</option>
+                  <option value="disabled">{t('team.members.filter.status.disabled')}</option>
+                  <option value="locked">{t('team.members.filter.status.locked')}</option>
+                </select>
+                <select
+                  value={kindFilter}
+                  onChange={(e) => setKindFilter(e.target.value as teamsApi.TeamMemberKind)}
+                  className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  aria-label={t('team.members.filter.kind')}
+                >
+                  <option value="all">{t('team.members.filter.kind.all')}</option>
+                  <option value="member">{t('team.members.filter.kind.member')}</option>
+                  <option value="external">{t('team.members.filter.kind.external')}</option>
+                </select>
+              </div>
 
-                function renderMemberRow(m: teamsApi.TeamMember, externalRow: boolean): JSX.Element {
-                  return (
-                    <li
-                      key={m.userId}
-                      className={`flex items-center justify-between text-sm border-b last:border-0 py-1 ${
-                        externalRow ? 'bg-slate-50/80 dark:bg-slate-900/30' : ''
-                      }`}
-                    >
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{m.name}</span>
-                        <span className="text-slate-500">{m.email}</span>
-                        <MemberStatusBadges member={m} t={t} />
-                        {externalRow && (
-                          <>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
-                              {t('team.member.external')}
-                            </span>
-                            {m.groupAccessLevel && (
-                              <span className="text-xs text-slate-500">
-                                {m.groupAccessLevel === 'FULL'
-                                  ? t('team.member.access.full')
-                                  : t('team.member.access.readonly')}
-                              </span>
+              {membersLoading && (
+                <p className="text-sm text-slate-500 mb-4">{t('team.members.loading')}</p>
+              )}
+              {!membersLoading && roster.length === 0 && (
+                <p className="text-sm text-slate-500 italic mb-4">{t('team.members.empty')}</p>
+              )}
+
+              {roster.length > 0 && (
+                <table className="w-full text-sm mb-4">
+                  <thead className="text-left text-xs text-slate-500 uppercase">
+                    <tr>
+                      <th className="py-1 pr-4">
+                        <button type="button" onClick={() => toggleSort('name')} className="hover:underline">
+                          {t('team.members.col.name')}
+                          {sortIndicator('name')}
+                        </button>
+                      </th>
+                      <th className="py-1 pr-4">
+                        <button type="button" onClick={() => toggleSort('email')} className="hover:underline">
+                          {t('team.members.col.email')}
+                          {sortIndicator('email')}
+                        </button>
+                      </th>
+                      <th className="py-1 pr-4">{t('team.members.col.status')}</th>
+                      <th className="py-1 pr-4">
+                        <button type="button" onClick={() => toggleSort('role')} className="hover:underline">
+                          {t('team.members.col.role')}
+                          {sortIndicator('role')}
+                        </button>
+                      </th>
+                      <th className="py-1 pr-4">
+                        <button type="button" onClick={() => toggleSort('joinedAt')} className="hover:underline">
+                          {t('team.members.col.joined')}
+                          {sortIndicator('joinedAt')}
+                        </button>
+                      </th>
+                      {isManager && <th className="py-1">{t('team.members.col.action')}</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roster.map((m) => (
+                      <tr
+                        key={m.userId}
+                        className={`border-t dark:border-slate-700 ${m.external ? 'bg-slate-50/80 dark:bg-slate-900/30' : ''}`}
+                      >
+                        <td className="py-2 pr-4 font-medium">{m.name}</td>
+                        <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">{m.email}</td>
+                        <td className="py-2 pr-4">
+                          <div className="flex flex-wrap gap-1">
+                            <MemberStatusBadges member={m} t={t} />
+                            {m.external && (
+                              <>
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
+                                  {t('team.member.external')}
+                                </span>
+                                {m.groupAccessLevel && (
+                                  <span className="text-xs text-slate-500">
+                                    {m.groupAccessLevel === 'FULL'
+                                      ? t('team.member.access.full')
+                                      : t('team.member.access.readonly')}
+                                  </span>
+                                )}
+                              </>
                             )}
-                          </>
+                            {!m.disabled && !m.locked && !m.external && (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2 pr-4">
+                          {!m.external ? (
+                            isManager && teamRoles.length > 0 ? (
+                              <select
+                                value={m.roleId ?? ''}
+                                onChange={(e) =>
+                                  updateRoleMut.mutate({
+                                    userId: m.userId,
+                                    roleId: e.target.value,
+                                  })
+                                }
+                                disabled={updateRoleMut.isPending}
+                                className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-1 py-0.5"
+                              >
+                                {!m.roleId && <option value="">— ({m.role})</option>}
+                                {teamRoles.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.name}
+                                    {r.isSystem ? ' (system)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs uppercase tracking-wide text-slate-500">
+                                {m.roleName ?? m.role}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-slate-500 text-xs" dir="rtl">
+                          {formatShamsiTimestampDate(m.joinedAt)}
+                        </td>
+                        {isManager && (
+                          <td className="py-2">
+                            {!m.external && (
+                              <button
+                                type="button"
+                                onClick={() => removeMut.mutate(m.userId)}
+                                className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                                disabled={removeMut.isPending}
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </td>
                         )}
-                        {!externalRow && (
-                          <span className="text-xs text-slate-400" dir="rtl">
-                            {formatShamsiTimestampDate(m.joinedAt)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        {!externalRow && isManager && teamRoles.length > 0 ? (
-                          <select
-                            value={m.roleId ?? ''}
-                            onChange={(e) =>
-                              updateRoleMut.mutate({
-                                userId: m.userId,
-                                roleId: e.target.value,
-                              })
-                            }
-                            disabled={updateRoleMut.isPending}
-                            className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5"
-                            title="Change role"
-                          >
-                            {!m.roleId && <option value="">— ({m.role})</option>}
-                            {teamRoles.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name}
-                                {r.isSystem ? ' (system)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        ) : !externalRow ? (
-                          <span className="text-xs uppercase tracking-wide text-slate-500">
-                            {m.roleName ?? m.role}
-                          </span>
-                        ) : null}
-                        {!externalRow && isManager && (
-                          <button
-                            onClick={() => removeMut.mutate(m.userId)}
-                            className="text-xs text-red-600 hover:underline disabled:opacity-50"
-                            disabled={removeMut.isPending}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </span>
-                    </li>
-                  );
-                }
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
 
-                return (
-                  <>
-                    <h3 className="text-sm font-medium mb-2">Members</h3>
-                    <ul className="space-y-1 mb-4">
-                      {regularMembers.map((m) => renderMemberRow(m, false))}
-                    </ul>
-                    {externalMembers.length > 0 && (
-                      <>
-                        <h3 className="text-sm font-medium mb-2 text-slate-600 dark:text-slate-300">
-                          {t('team.member.externalSection')}
-                        </h3>
-                        <ul className="space-y-1 mb-4 border-s border-slate-200 dark:border-slate-600 ps-3">
-                          {externalMembers.map((m) => renderMemberRow(m, true))}
-                        </ul>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
+              {totalPages > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                  <span>
+                    {t('team.members.pagination.pageOf')
+                      .replace('{page}', String(currentPage))
+                      .replace('{totalPages}', String(totalPages))}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {t('team.members.pagination.total').replace('{count}', String(totalItems))}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1 || membersFetching}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="text-xs underline disabled:opacity-40"
+                  >
+                    {t('team.members.pagination.prev')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages || membersFetching}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="text-xs underline disabled:opacity-40"
+                  >
+                    {t('team.members.pagination.next')}
+                  </button>
+                  <form onSubmit={submitJumpPage} className="flex items-center gap-1 text-xs">
+                    <label htmlFor="team-members-jump">{t('team.members.pagination.jump')}</label>
+                    <input
+                      id="team-members-jump"
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={jumpPage}
+                      onChange={(e) => setJumpPage(e.target.value)}
+                      className="w-14 rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-1 py-0.5"
+                    />
+                    <button type="submit" className="underline" disabled={membersFetching}>
+                      {t('team.members.pagination.go')}
+                    </button>
+                  </form>
+                </div>
+              )}
 
               {isManager && (
                 <form
@@ -512,7 +701,7 @@ export default function TeamsPage(): JSX.Element {
               )}
 
               {canManageGroups && currentTeamId && (
-                <TeamGroupsPanel teamId={currentTeamId} members={detail.members} />
+                <TeamGroupsPanel teamId={currentTeamId} />
               )}
             </>
           )}
