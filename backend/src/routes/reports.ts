@@ -17,6 +17,8 @@ import {
   upcomingResponse,
   upcomingTasksQuery,
   workloadResponse,
+  workloadDetailQuery,
+  workloadDetailResponse,
 } from '../schemas/reports.js';
 
 // Team-scoped read-only reports. Mounted at /api/teams/:teamId/reports.
@@ -54,6 +56,19 @@ export async function reportsRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.workload,
+  });
+
+  r.get('/workload/detail', {
+    schema: {
+      tags: ['reports'],
+      summary:
+        'Per-assignee open-task capacity: status + due-bucket split, optional project/window filter and priority weighting',
+      params: z.object({ teamId: z.string() }),
+      querystring: workloadDetailQuery,
+      response: { 200: workloadDetailResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.workloadDetail,
   });
 
   r.get('/overdue', {

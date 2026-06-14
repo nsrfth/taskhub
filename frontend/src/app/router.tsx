@@ -8,6 +8,7 @@ import TaskDetailPage from '@/pages/TaskDetailPage';
 import ProjectGanttPage from '@/pages/ProjectGanttPage';
 import AdminPage from '@/pages/AdminPage';
 import ReportsPage from '@/pages/ReportsPage';
+import WorkloadPage from '@/pages/WorkloadPage';
 import DashboardsListPage from '@/pages/DashboardsListPage';
 import DashboardEditorPage from '@/pages/DashboardEditorPage';
 import SettingsLayout from '@/features/settings/SettingsLayout';
@@ -54,6 +55,7 @@ export const router = createBrowserRouter([
       { path: '/projects/:projectId/reports/gantt', element: <ProjectGanttPage /> },
       { path: '/admin', element: <Navigate to="/settings/admin" replace /> },
       { path: '/reports', element: <ReportsPage /> },
+      { path: '/workload', element: <WorkloadPage /> },
       { path: '/dashboards', element: <DashboardsListPage /> },
       { path: '/dashboards/:dashboardId', element: <DashboardEditorPage /> },
       { path: '/calendar', element: <Navigate to="/planner/calendar" replace /> },

@@ -47,6 +47,7 @@ export default function LeftSidebar({ open, onClose }: Props): JSX.Element {
     { to: '/projects', label: t('nav.projects'), icon: IconProjects },
     { to: '/planner/my-tasks', label: t('nav.planner'), icon: IconCalendar },
     { to: '/reports', label: t('nav.reports'), icon: IconReports },
+    { to: '/workload', label: t('nav.workload'), icon: IconReports },
     { to: '/dashboards', label: t('nav.dashboards'), icon: IconReports },
     { to: '/settings', label: t('nav.settings'), icon: IconSettings },
   ];

@@ -7,6 +7,22 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.68.0] — 2026-06-09
+
+**Team workload / capacity view — built on existing `/reports/workload`.**
+
+- New `GET /api/teams/:teamId/reports/workload/detail` with optional `projectId`, `window`
+  (`all` | `overdue` | `this_week` | `next_week`), and `weighted` query params.
+- `ReportsService.workloadDetail()` + shared `lib/workloadAggregation.ts` — one indexed
+  task query, in-memory assignee grouping (reuses the same pattern as `listWorkload`).
+- Per member: `openByStatus`, `byDueBucket` (overdue / this_week / next_week / later / no_due),
+  `total`, `weightedTotal` (LOW=1 … URGENT=4 when weighted).
+- Existing `GET /reports/workload` + `workload.csv` unchanged (now share fetch helper + `deletedAt` filter).
+- Frontend **Workload** page (`/workload`): stacked Recharts bars, sortable table, project/window
+  filters, weighted toggle, client-side capacity threshold highlighting. i18n EN + FA.
+
+---
+
 ## [1.67.0] — 2026-06-09
 
 **Configurable widget dashboards — team-scoped, shareable, Recharts-powered.**

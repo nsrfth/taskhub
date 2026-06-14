@@ -1,6 +1,16 @@
 import type { TaskPriority, TaskStatus } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { isSystemUser, maskActorName } from '../lib/systemUser.js';
+import {
+  aggregateWorkloadDetail,
+  aggregateWorkloadList,
+  buildWorkloadTaskWhere,
+  type WorkloadDetailRow,
+  type WorkloadListRow,
+  type WorkloadWindow,
+} from '../lib/workloadAggregation.js';
+
+export interface WorkloadRow extends WorkloadListRow {}
 
 export interface DoneTaskRow {
   taskId: string;
@@ -12,12 +22,13 @@ export interface DoneTaskRow {
   completedAt: Date;
 }
 
-export interface WorkloadRow {
-  assigneeId: string | null;
-  assigneeName: string | null;
-  total: number;
-  byStatus: { TODO: number; IN_PROGRESS: number; REVIEW: number };
+export interface WorkloadDetailOptions {
+  projectId?: string;
+  window?: WorkloadWindow;
+  weighted?: boolean;
 }
+
+export type { WorkloadDetailRow };
 
 export interface OverdueTaskRow {
   taskId: string;
@@ -112,31 +123,48 @@ export class ReportsService {
       }));
   }
 
-  // Workload: open tasks (status != DONE) grouped by assignee with a
-  // per-status breakdown. Group in-memory rather than via groupBy because we
-  // also need to materialize the assignee name, and the team size is small.
+  // Workload: open tasks grouped by assignee with per-status breakdown.
+  // Single query + in-memory group — team size is small; indexes on
+  // [teamId, assigneeId] cover the hot path.
   async listWorkload(teamId: string): Promise<WorkloadRow[]> {
-    const rows = await prisma.task.findMany({
-      where: { teamId, status: { in: OPEN_STATUSES } },
-      include: { assignee: { select: { id: true, name: true } } },
+    const tasks = await this.fetchOpenWorkloadTasks(teamId);
+    return aggregateWorkloadList(tasks);
+  }
+
+  // v1.68: capacity view — per-assignee open load with due-bucket split and
+  // optional priority weighting. Same task fetch as listWorkload; filters
+  // are optional query params on /reports/workload/detail.
+  async workloadDetail(
+    teamId: string,
+    opts: WorkloadDetailOptions = {},
+  ): Promise<WorkloadDetailRow[]> {
+    const tasks = await this.fetchOpenWorkloadTasks(teamId, {
+      projectId: opts.projectId,
+      window: opts.window,
     });
-    const buckets = new Map<string, WorkloadRow>();
-    for (const r of rows) {
-      const key = r.assignee?.id ?? '__unassigned__';
-      let b = buckets.get(key);
-      if (!b) {
-        b = {
-          assigneeId: r.assignee?.id ?? null,
-          assigneeName: r.assignee?.name ?? null,
-          total: 0,
-          byStatus: { TODO: 0, IN_PROGRESS: 0, REVIEW: 0 },
-        };
-        buckets.set(key, b);
-      }
-      b.total += 1;
-      b.byStatus[r.status as 'TODO' | 'IN_PROGRESS' | 'REVIEW'] += 1;
-    }
-    return [...buckets.values()].sort((a, b) => b.total - a.total);
+    return aggregateWorkloadDetail(tasks, opts.weighted ?? false);
+  }
+
+  private async fetchOpenWorkloadTasks(
+    teamId: string,
+    opts: { projectId?: string; window?: WorkloadWindow } = {},
+  ) {
+    const rows = await prisma.task.findMany({
+      where: buildWorkloadTaskWhere(teamId, opts),
+      select: {
+        status: true,
+        priority: true,
+        dueDate: true,
+        assignee: { select: { id: true, name: true } },
+      },
+    });
+    return rows.map((r) => ({
+      status: r.status,
+      priority: r.priority,
+      dueDate: r.dueDate,
+      assigneeId: r.assignee?.id ?? null,
+      assigneeName: r.assignee?.name ?? null,
+    }));
   }
 
   async listOverdue(teamId: string): Promise<OverdueTaskRow[]> {

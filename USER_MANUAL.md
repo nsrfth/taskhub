@@ -355,6 +355,21 @@ Charts use the same **Recharts** library as Planner charts. Under Persian (RTL),
 
 ---
 
+## Workload / capacity (v1.68)
+
+**Workload** (`/workload`) shows each team member's open-task load with a due-date bucket breakdown. It calls `GET /api/teams/:teamId/reports/workload/detail` — an extension of the existing workload report, not a replacement. The legacy `GET /reports/workload` and `workload.csv` export are unchanged.
+
+- **Due buckets:** overdue, this week (next 7 days from today UTC), next week (+7–14 days), later, no due date.
+- **Filters:** project, due window (all / overdue / this week / next week).
+- **Weighted mode:** totals use priority weights (Low=1, Medium=2, High=3, Urgent=4) instead of raw counts.
+- **Capacity threshold:** a number you enter in the UI; members above it are highlighted in red (not stored server-side in v1).
+
+Charts use Recharts stacked bars (`dir="ltr"` under RTL). Read-only — no task mutations.
+
+**Deferred:** hour-level capacity, leave/PTO, story points.
+
+---
+
 ## Notifications
 
 The bell icon (top-right after sign-in) lights up when you have unread notifications. Types:

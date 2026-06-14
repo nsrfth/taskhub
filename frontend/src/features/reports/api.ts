@@ -30,6 +30,51 @@ export async function fetchWorkload(teamId: string): Promise<{ items: WorkloadRo
   return (await api.get<{ items: WorkloadRow[] }>(`/teams/${teamId}/reports/workload`)).data;
 }
 
+export type WorkloadWindow = 'all' | 'overdue' | 'this_week' | 'next_week';
+
+export interface WorkloadDueBucketCounts {
+  overdue: number;
+  this_week: number;
+  next_week: number;
+  later: number;
+  no_due: number;
+}
+
+export interface WorkloadDetailRow {
+  userId: string | null;
+  name: string | null;
+  openByStatus: { TODO: number; IN_PROGRESS: number; REVIEW: number };
+  byDueBucket: WorkloadDueBucketCounts;
+  total: number;
+  weightedTotal: number;
+}
+
+export interface WorkloadDetailReport {
+  window: WorkloadWindow;
+  weighted: boolean;
+  projectId: string | null;
+  items: WorkloadDetailRow[];
+}
+
+export async function fetchWorkloadDetail(
+  teamId: string,
+  params?: {
+    projectId?: string;
+    window?: WorkloadWindow;
+    weighted?: boolean;
+  },
+): Promise<WorkloadDetailReport> {
+  return (
+    await api.get<WorkloadDetailReport>(`/teams/${teamId}/reports/workload/detail`, {
+      params: {
+        projectId: params?.projectId,
+        window: params?.window ?? 'all',
+        weighted: params?.weighted ? 'true' : 'false',
+      },
+    })
+  ).data;
+}
+
 export interface OverdueTaskRow {
   taskId: string;
   taskTitle: string;

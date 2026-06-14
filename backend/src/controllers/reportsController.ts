@@ -5,6 +5,7 @@ import type {
   TeamActivityQuery,
   TimelinessQuery,
   UpcomingTasksQuery,
+  WorkloadDetailQuery,
 } from '../schemas/reports.js';
 import { Errors } from '../lib/errors.js';
 import { toCsv } from '../lib/csv.js';
@@ -41,6 +42,24 @@ export class ReportsController {
   workload = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {
     const items = await this.svc.listWorkload(req.params.teamId);
     return reply.send({ items });
+  };
+
+  workloadDetail = async (
+    req: FastifyRequest<{ Params: TeamParams; Querystring: WorkloadDetailQuery }>,
+    reply: FastifyReply,
+  ) => {
+    const { projectId, window, weighted } = req.query;
+    const items = await this.svc.workloadDetail(req.params.teamId, {
+      projectId,
+      window,
+      weighted,
+    });
+    return reply.send({
+      window: window ?? 'all',
+      weighted: weighted ?? false,
+      projectId: projectId ?? null,
+      items,
+    });
   };
 
   overdue = async (req: FastifyRequest<{ Params: TeamParams }>, reply: FastifyReply) => {

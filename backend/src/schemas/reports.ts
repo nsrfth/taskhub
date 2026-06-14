@@ -39,6 +39,46 @@ export const workloadResponse = z.object({
   items: z.array(workloadRow),
 });
 
+export const workloadDetailQuery = z.object({
+  projectId: z.string().optional(),
+  window: z.enum(['all', 'overdue', 'this_week', 'next_week']).optional().default('all'),
+  weighted: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true')
+    .default(false),
+});
+
+export const workloadDueBucketCounts = z.object({
+  overdue: z.number().int().nonnegative(),
+  this_week: z.number().int().nonnegative(),
+  next_week: z.number().int().nonnegative(),
+  later: z.number().int().nonnegative(),
+  no_due: z.number().int().nonnegative(),
+});
+
+export const workloadDetailRow = z.object({
+  userId: z.string().nullable(),
+  name: z.string().nullable(),
+  openByStatus: z.object({
+    TODO: z.number().int().nonnegative(),
+    IN_PROGRESS: z.number().int().nonnegative(),
+    REVIEW: z.number().int().nonnegative(),
+  }),
+  byDueBucket: workloadDueBucketCounts,
+  total: z.number().int().nonnegative(),
+  weightedTotal: z.number().nonnegative(),
+});
+
+export const workloadDetailResponse = z.object({
+  window: z.enum(['all', 'overdue', 'this_week', 'next_week']),
+  weighted: z.boolean(),
+  projectId: z.string().nullable(),
+  items: z.array(workloadDetailRow),
+});
+
+export type WorkloadDetailQuery = z.infer<typeof workloadDetailQuery>;
+
 export const overdueTaskRow = z.object({
   taskId: z.string(),
   taskTitle: z.string(),
