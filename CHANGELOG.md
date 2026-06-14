@@ -7,6 +7,19 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.53.1] — 2026-06-09
+
+**Settings sidebar — English-alphabetical order in both languages.**
+
+### Settings (frontend)
+
+- Settings sidebar items are sorted alphabetically by their **English** label after
+  role filtering. The Persian UI shows translated labels in the same English-derived
+  order (not Persian collation). Bare `/settings` now redirects to the first visible
+  item in that order (e.g. Admin for global admins).
+
+---
+
 ## [1.53.0] — 2026-06-09
 
 **Admin user lifecycle — disable/enable, unlock, force-logout, local profile edit.**

@@ -2,6 +2,7 @@ import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useTeams } from '@/features/teams/TeamsContext';
 import { useT } from '@/lib/i18n';
+import enMessages from '@/i18n/en.json';
 
 // Role-gated sidebar shell shared by every Settings sub-page. Each entry
 // declares the GlobalRole that may see it; entries the current user lacks are
@@ -113,7 +114,13 @@ export default function SettingsLayout(): JSX.Element {
   const effective = new Set<SettingsRole>([user.globalRole as SettingsRole]);
   if (teams.some((t) => t.myRole === 'MANAGER')) effective.add('MANAGER');
 
-  const visible = NAV.filter((item) => item.roles.some((r) => effective.has(r)));
+  const visible = NAV.filter((item) => item.roles.some((r) => effective.has(r))).sort((a, b) =>
+    ((enMessages as Record<string, string>)[a.labelKey] ?? a.labelKey).localeCompare(
+      (enMessages as Record<string, string>)[b.labelKey] ?? b.labelKey,
+      'en',
+      { sensitivity: 'base' },
+    ),
+  );
   if (visible.length === 0) return <Navigate to="/dashboard" replace />;
 
   // Bare /settings — land on the first item the user can actually see.

@@ -96,7 +96,7 @@ Once you're signed in, a sticky **navigation bar** sits at the top of every page
 
 - **TaskHub** (brand link, far left) — jumps to the Dashboard.
 - **Dashboard / Projects / Planner / Reports / Teams** — your primary destinations in the left sidebar. The active page is highlighted.
-- **Settings** — left sidebar (opens **Preferences** by default). **Admin** and **Trash** live inside Settings for users with access.
+- **Settings** — left sidebar (opens the first settings section you can access — alphabetically by English label, e.g. **Admin** for global admins). **Admin** and **Trash** live inside Settings for users with access.
 - **Sign out** — user menu in the top bar.
 
 The corner buttons (ℹ️ About / 📖 Help / 🔔 Notifications) stay in the top-right; the nav bar leaves room for them.
@@ -383,7 +383,7 @@ The token authenticates as you — it sees what you see. Scopes are advisory in 
 
 ## Admin / manager — Settings
 
-The **Settings** link in the left sidebar opens the Settings shell. The sidebar items you see depend on your role:
+The **Settings** link in the left sidebar opens the Settings shell. Sidebar items are ordered alphabetically by their English label (same order in the Persian UI). The items you see depend on your role:
 
 - **Preferences** — everyone (personal calendar + theme + language). Admins additionally see the Workweek section.
 - **Trash** — everyone (restore or purge soft-deleted projects and tasks).
