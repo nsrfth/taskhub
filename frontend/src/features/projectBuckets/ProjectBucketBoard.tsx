@@ -24,10 +24,11 @@ interface ProjectCardProps {
   bucketId: string;
   accent: string;
   onOpen: (projectId: string) => void;
-  menu?: React.ReactNode;
+  bucketMenu?: React.ReactNode;
+  actionsMenu?: React.ReactNode;
 }
 
-function ProjectCard({ project, bucketId, accent, onOpen, menu }: ProjectCardProps): JSX.Element {
+function ProjectCard({ project, bucketId, accent, onOpen, bucketMenu, actionsMenu }: ProjectCardProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `project:${bucketId}:${project.id}`,
     data: { kind: 'project' as const, bucketId, projectId: project.id },
@@ -60,7 +61,10 @@ function ProjectCard({ project, bucketId, accent, onOpen, menu }: ProjectCardPro
         >
           {project.name}
         </button>
-        {menu}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {bucketMenu}
+          {actionsMenu}
+        </div>
       </div>
       <p className="text-[10px] text-slate-500 mt-1 truncate">{project.teamName}</p>
     </li>
@@ -75,7 +79,8 @@ function BucketColumn({
   onEdit,
   onDelete,
   onOpen,
-  renderMenu,
+  renderBucketMenu,
+  renderActionsMenu,
 }: {
   bucket: ProjectBucket;
   projects: ProjectCrossTeam[];
@@ -84,7 +89,8 @@ function BucketColumn({
   onEdit: () => void;
   onDelete: () => void;
   onOpen: (id: string) => void;
-  renderMenu: (project: ProjectCrossTeam) => React.ReactNode;
+  renderBucketMenu: (project: ProjectCrossTeam) => React.ReactNode;
+  renderActionsMenu?: (project: ProjectCrossTeam) => React.ReactNode;
 }): JSX.Element {
   const accent = bucket.color ?? '#94a3b8';
   const { setNodeRef, isOver } = useDroppable({
@@ -152,7 +158,8 @@ function BucketColumn({
                 bucketId={bucket.id}
                 accent={accent}
                 onOpen={onOpen}
-                menu={renderMenu(p)}
+                bucketMenu={renderBucketMenu(p)}
+                actionsMenu={renderActionsMenu?.(p)}
               />
             ))}
             {projects.length === 0 && (
@@ -207,7 +214,8 @@ export interface ProjectBucketBoardProps {
   onReorderBuckets: (bucketIds: string[]) => void;
   onAddToBucket: (bucketId: string, projectId: string) => void;
   onReorderInBucket: (bucketId: string, projectIds: string[]) => void;
-  renderProjectMenu: (project: ProjectCrossTeam) => React.ReactNode;
+  renderBucketMenu: (project: ProjectCrossTeam) => React.ReactNode;
+  renderActionsMenu?: (project: ProjectCrossTeam) => React.ReactNode;
 }
 
 export default function ProjectBucketBoard({
@@ -221,7 +229,8 @@ export default function ProjectBucketBoard({
   onReorderBuckets,
   onAddToBucket,
   onReorderInBucket,
-  renderProjectMenu,
+  renderBucketMenu,
+  renderActionsMenu,
 }: ProjectBucketBoardProps): JSX.Element {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -315,7 +324,8 @@ export default function ProjectBucketBoard({
                   onEdit={() => onEditBucket(bucket)}
                   onDelete={() => onDeleteBucket(bucket)}
                   onOpen={onOpenProject}
-                  renderMenu={renderProjectMenu}
+                  renderBucketMenu={renderBucketMenu}
+                  renderActionsMenu={renderActionsMenu}
                 />
               </SortableBucketShell>
             );

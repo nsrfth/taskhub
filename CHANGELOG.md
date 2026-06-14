@@ -7,6 +7,20 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.60.1] — 2026-06-09
+
+**Projects page — per-row actions menu (edit project, edit budget, delete).**
+
+- Each project row on `/projects` now has a **⋯ actions menu** consolidating edit project
+  (name + description + status), edit budget (planned/actual/currency), and delete — replacing
+  scattered rename/delete/budget inline controls.
+- **Edit project** extended beyond rename-only: modal edits description and status (fields already
+  supported by `updateProjectBody`; no schema change).
+- **☰ bucket assignment** kept as a separate control beside the actions menu.
+- i18n: `projects.action.*`, `projects.edit.*`, `projects.delete.confirm` (EN + FA).
+
+---
+
 ## [1.60.0] — 2026-06-09
 
 **Automation rules — no-code trigger → conditions → actions engine (Tier A).**

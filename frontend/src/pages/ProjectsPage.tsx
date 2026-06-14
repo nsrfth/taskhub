@@ -21,13 +21,15 @@ import {
   saveProjectsViewMode,
   type ProjectsViewMode,
 } from '@/features/projectBuckets/storage';
-import { formatShamsiTimestampDate } from '@/lib/shamsi';
 import CreateProjectForm from '@/features/projects/CreateProjectForm';
+import ProjectBudgetModal from '@/features/projects/ProjectBudgetModal';
+import ProjectEditModal from '@/features/projects/ProjectEditModal';
+import ProjectListRow from '@/features/projects/ProjectListRow';
+import ProjectActionsMenu from '@/features/projects/ProjectActionsMenu';
+import { toggleActionsMenuProjectId } from '@/features/projects/projectActionsLogic';
 import Modal from '@/features/ui/Modal';
-import CurrencySelector from '@/features/budget/CurrencySelector';
 import type { BudgetCurrency } from '@/lib/formatBudget';
-import { budgetLocaleFromLanguage, formatBudget } from '@/lib/formatBudget';
-import { getLanguage, useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -48,6 +50,7 @@ export default function ProjectsPage(): JSX.Element {
   const { teams, currentTeam } = useTeams();
   const qc = useQueryClient();
   const nav = useNavigate();
+  const t = useT();
   const isAdmin = user?.globalRole === 'ADMIN';
 
   const [viewMode, setViewMode] = useState<ProjectsViewMode>(() => loadProjectsViewMode());
@@ -57,13 +60,21 @@ export default function ProjectsPage(): JSX.Element {
     { mode: 'create' } | { mode: 'edit'; bucket: bucketsApi.ProjectBucket } | null
   >(null);
   const [assignProjectId, setAssignProjectId] = useState<string | null>(null);
+  const [actionsMenuProjectId, setActionsMenuProjectId] = useState<string | null>(null);
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [budgetProjectId, setBudgetProjectId] = useState<string | null>(null);
+  const [projectSaveError, setProjectSaveError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedBuckets());
-  const menuRef = useRef<HTMLDivElement>(null);
+  const bucketMenuRef = useRef<HTMLDivElement>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent): void {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (bucketMenuRef.current && !bucketMenuRef.current.contains(e.target as Node)) {
         setAssignProjectId(null);
+      }
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setActionsMenuProjectId(null);
       }
     }
     document.addEventListener('click', onDocClick);
@@ -180,14 +191,21 @@ export default function ProjectsPage(): JSX.Element {
     [teams],
   );
 
-  const updateNameMut = useMutation({
-    mutationFn: (args: { teamId: string; projectId: string; name: string }) =>
-      projectsApi.updateProject(args.teamId, args.projectId, { name: args.name }),
+  const updateProjectMut = useMutation({
+    mutationFn: (args: {
+      teamId: string;
+      projectId: string;
+      name?: string;
+      description?: string | null;
+      status?: projectsApi.ProjectStatus;
+    }) => projectsApi.updateProject(args.teamId, args.projectId, args),
     onSuccess: async (_d, vars) => {
+      setProjectSaveError(null);
+      setEditProjectId(null);
       await qc.invalidateQueries({ queryKey: ['projects', 'all'] });
       await qc.invalidateQueries({ queryKey: ['projects', vars.teamId] });
     },
-    onError: (err) => window.alert(errorMessage(err, 'Could not rename project')),
+    onError: (err) => setProjectSaveError(errorMessage(err, t('projects.edit.error'))),
   });
 
   const updateBudgetMut = useMutation({
@@ -204,10 +222,11 @@ export default function ProjectsPage(): JSX.Element {
         ...(args.budgetCurrency !== undefined && { budgetCurrency: args.budgetCurrency }),
       }),
     onSuccess: async (_d, vars) => {
+      setBudgetProjectId(null);
       await qc.invalidateQueries({ queryKey: ['projects', 'all'] });
       await qc.invalidateQueries({ queryKey: ['projects', vars.teamId] });
     },
-    onError: (err) => window.alert(errorMessage(err, 'Could not save budget')),
+    onError: (err) => window.alert(errorMessage(err, t('projects.budget.error'))),
   });
 
   const deleteMut = useMutation({
@@ -243,17 +262,25 @@ export default function ProjectsPage(): JSX.Element {
     setBucketsMut.mutate({ projectId, bucketIds: [...next] });
   }
 
-  function renderProjectMenu(project: projectsApi.ProjectCrossTeam): React.ReactNode {
+  function canManageProject(project: projectsApi.ProjectCrossTeam): boolean {
+    return project.ownerId === user?.id || isAdmin || managerTeamIds.has(project.teamId);
+  }
+
+  function renderBucketAssignMenu(project: projectsApi.ProjectCrossTeam): React.ReactNode {
     return (
-      <div className="relative shrink-0" ref={assignProjectId === project.id ? menuRef : undefined}>
+      <div
+        className="relative shrink-0"
+        ref={assignProjectId === project.id ? bucketMenuRef : undefined}
+      >
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            setActionsMenuProjectId(null);
             setAssignProjectId(assignProjectId === project.id ? null : project.id);
           }}
           className="text-[10px] px-1 rounded border text-slate-500"
-          title="Assign to buckets"
+          title={t('projects.bucketAssign')}
         >
           ☰
         </button>
@@ -268,6 +295,43 @@ export default function ProjectsPage(): JSX.Element {
       </div>
     );
   }
+
+  function renderActionsMenu(project: projectsApi.ProjectCrossTeam): React.ReactNode {
+    if (!canManageProject(project)) return null;
+    return (
+      <ProjectActionsMenu
+        open={actionsMenuProjectId === project.id}
+        menuRef={actionsMenuProjectId === project.id ? actionsMenuRef : undefined}
+        onToggle={(e) => {
+          e.stopPropagation();
+          setAssignProjectId(null);
+          setActionsMenuProjectId(toggleActionsMenuProjectId(actionsMenuProjectId, project.id));
+        }}
+        onEdit={() => {
+          setActionsMenuProjectId(null);
+          setProjectSaveError(null);
+          setEditProjectId(project.id);
+        }}
+        onEditBudget={() => {
+          setActionsMenuProjectId(null);
+          setBudgetProjectId(project.id);
+        }}
+        onDelete={() => {
+          setActionsMenuProjectId(null);
+          if (window.confirm(t('projects.delete.confirm').replace('{name}', project.name))) {
+            deleteMut.mutate({ teamId: project.teamId, projectId: project.id });
+          }
+        }}
+      />
+    );
+  }
+
+  const editProject = editProjectId
+    ? filteredProjects.find((p) => p.id === editProjectId) ?? projects.find((p) => p.id === editProjectId)
+    : null;
+  const budgetProject = budgetProjectId
+    ? filteredProjects.find((p) => p.id === budgetProjectId) ?? projects.find((p) => p.id === budgetProjectId)
+    : null;
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -401,7 +465,8 @@ export default function ProjectsPage(): JSX.Element {
           onReorderInBucket={(bucketId, projectIds) =>
             reorderInBucketMut.mutate({ bucketId, projectIds })
           }
-          renderProjectMenu={renderProjectMenu}
+          renderBucketMenu={renderBucketAssignMenu}
+          renderActionsMenu={renderActionsMenu}
         />
       )}
 
@@ -419,39 +484,70 @@ export default function ProjectsPage(): JSX.Element {
                 key={p.id}
                 project={p}
                 userId={user?.id}
-                isAdmin={!!isAdmin}
-                canRename={
-                  p.ownerId === user?.id
-                  || isAdmin
-                  || managerTeamIds.has(p.teamId)
-                }
+                canManage={canManageProject(p)}
                 bucketNames={bucketNamesByProject.get(p.id) ?? []}
-                onOpen={() => nav(`/projects/${p.id}/tasks`)}
-                onRename={(name) =>
-                  updateNameMut.mutate({ teamId: p.teamId, projectId: p.id, name })
-                }
-                renamePending={updateNameMut.isPending}
-                onDelete={() => {
-                  if (window.confirm(`Delete project "${p.name}"?`)) {
-                    deleteMut.mutate({ teamId: p.teamId, projectId: p.id });
-                  }
+                actionsMenuOpen={actionsMenuProjectId === p.id}
+                actionsMenuRef={actionsMenuProjectId === p.id ? actionsMenuRef : undefined}
+                onToggleActionsMenu={(e) => {
+                  e.stopPropagation();
+                  setAssignProjectId(null);
+                  setActionsMenuProjectId(toggleActionsMenuProjectId(actionsMenuProjectId, p.id));
                 }}
-                deletePending={deleteMut.isPending}
-                onSaveBudget={(planned, actual, currency) =>
-                  updateBudgetMut.mutate({
-                    teamId: p.teamId,
-                    projectId: p.id,
-                    plannedBudget: planned,
-                    actualSpent: actual,
-                    budgetCurrency: currency,
-                  })
-                }
-                budgetPending={updateBudgetMut.isPending}
-                bucketMenu={renderProjectMenu(p)}
+                onCloseActionsMenu={() => setActionsMenuProjectId(null)}
+                onOpen={() => nav(`/projects/${p.id}/tasks`)}
+                onEditProject={() => {
+                  setProjectSaveError(null);
+                  setEditProjectId(p.id);
+                }}
+                onEditBudget={() => setBudgetProjectId(p.id)}
+                onDelete={() => deleteMut.mutate({ teamId: p.teamId, projectId: p.id })}
+                bucketMenu={renderBucketAssignMenu(p)}
               />
             ))}
           </ul>
         </section>
+      )}
+
+      {editProject && (
+        <ProjectEditModal
+          initial={{
+            name: editProject.name,
+            description: editProject.description ?? '',
+            status: editProject.status,
+          }}
+          pending={updateProjectMut.isPending}
+          error={projectSaveError}
+          onClose={() => {
+            setEditProjectId(null);
+            setProjectSaveError(null);
+          }}
+          onSave={(values) =>
+            updateProjectMut.mutate({
+              teamId: editProject.teamId,
+              projectId: editProject.id,
+              name: values.name,
+              description: values.description || null,
+              status: values.status,
+            })
+          }
+        />
+      )}
+
+      {budgetProject && (
+        <ProjectBudgetModal
+          project={budgetProject}
+          pending={updateBudgetMut.isPending}
+          onClose={() => setBudgetProjectId(null)}
+          onSave={(planned, actual, currency) =>
+            updateBudgetMut.mutate({
+              teamId: budgetProject.teamId,
+              projectId: budgetProject.id,
+              plannedBudget: planned,
+              actualSpent: actual,
+              budgetCurrency: currency,
+            })
+          }
+        />
       )}
     </div>
   );
@@ -555,234 +651,6 @@ function ProjectFilterBar({
           className="rounded border px-2 py-1 dark:bg-slate-800"
         />
       </label>
-    </div>
-  );
-}
-
-function ProjectListRow({
-  project,
-  userId,
-  isAdmin,
-  canRename,
-  bucketNames,
-  onOpen,
-  onRename,
-  renamePending,
-  onDelete,
-  deletePending,
-  onSaveBudget,
-  budgetPending,
-  bucketMenu,
-}: {
-  project: projectsApi.ProjectCrossTeam;
-  userId?: string;
-  isAdmin: boolean;
-  canRename: boolean;
-  bucketNames: string[];
-  onOpen: () => void;
-  onRename: (name: string) => void;
-  renamePending: boolean;
-  onDelete: () => void;
-  deletePending: boolean;
-  onSaveBudget: (planned: string | null, actual: string | null, currency?: BudgetCurrency) => void;
-  budgetPending: boolean;
-  bucketMenu: React.ReactNode;
-}): JSX.Element {
-  const canEdit = project.ownerId === userId || isAdmin;
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(project.name);
-
-  useEffect(() => {
-    if (!editingName) setDraftName(project.name);
-  }, [project.name, editingName]);
-
-  function commitRename(): void {
-    const trimmed = draftName.trim();
-    setEditingName(false);
-    if (!trimmed || trimmed === project.name) return;
-    onRename(trimmed);
-  }
-
-  return (
-    <li className="py-3">
-      <div className="flex items-start justify-between gap-4">
-        <div className="text-left min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            {editingName ? (
-              <input
-                type="text"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename();
-                  if (e.key === 'Escape') {
-                    setDraftName(project.name);
-                    setEditingName(false);
-                  }
-                }}
-                disabled={renamePending}
-                autoFocus
-                maxLength={120}
-                className="font-medium rounded border px-2 py-0.5 text-sm dark:bg-slate-700 min-w-[8rem] flex-1"
-              />
-            ) : (
-              <button type="button" onClick={onOpen} className="font-medium truncate hover:underline">
-                {project.name}
-              </button>
-            )}
-            {canRename && !editingName && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingName(true);
-                }}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
-                title="Rename project"
-              >
-                Rename
-              </button>
-            )}
-            <span className="text-xs uppercase tracking-wide text-slate-500 shrink-0">
-              {STATUS_LABEL[project.status]}
-            </span>
-          </div>
-          {project.description && (
-            <button type="button" onClick={onOpen} className="text-sm text-slate-600 dark:text-slate-300 mt-0.5 truncate block hover:underline w-full text-left">
-              {project.description}
-            </button>
-          )}
-          {bucketNames.length > 0 && (
-            <p className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">
-              {bucketNames.join(' · ')}
-            </p>
-          )}
-          <p className="text-xs text-slate-400 mt-1">
-            Owned by {project.ownerId === userId ? 'you' : project.ownerId?.slice(0, 8) ?? '—'}
-            {' · '}
-            <span dir="rtl">ایجاد {formatShamsiTimestampDate(project.createdAt)}</span>
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          {bucketMenu}
-          <span className="text-[11px] uppercase rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
-            {project.teamName}
-          </span>
-          <Link
-            to={`/projects/${project.id}/reports/gantt`}
-            className="text-xs text-indigo-600 hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Gantt
-          </Link>
-          {canEdit && (
-            <button
-              onClick={onDelete}
-              disabled={deletePending}
-              className="text-xs text-red-600 hover:underline disabled:opacity-50"
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-      <BudgetRow
-        project={project}
-        canEdit={canEdit}
-        pending={budgetPending}
-        onSave={onSaveBudget}
-      />
-    </li>
-  );
-}
-
-function BudgetRow({
-  project,
-  canEdit,
-  pending,
-  onSave,
-}: {
-  project: projectsApi.Project;
-  canEdit: boolean;
-  pending: boolean;
-  onSave: (plannedBudget: string | null, actualSpent: string | null, budgetCurrency?: BudgetCurrency) => void;
-}): JSX.Element | null {
-  const t = useT();
-  const locale = budgetLocaleFromLanguage(getLanguage());
-  const [editing, setEditing] = useState(false);
-  const [planned, setPlanned] = useState(project.plannedBudget ?? '');
-  const [actual, setActual] = useState(project.actualSpent ?? '');
-  const [currency, setCurrency] = useState<BudgetCurrency>(project.budgetCurrency);
-
-  useEffect(() => {
-    if (editing) {
-      setPlanned(project.plannedBudget ?? '');
-      setActual(project.actualSpent ?? '');
-      setCurrency(project.budgetCurrency);
-    }
-  }, [editing, project.plannedBudget, project.actualSpent, project.budgetCurrency]);
-
-  const hasBudget = !!(project.plannedBudget || project.actualSpent);
-  if (!hasBudget && !canEdit) return null;
-
-  const utilization =
-    project.plannedBudget && project.actualSpent && Number(project.plannedBudget) > 0
-      ? (Number(project.actualSpent) / Number(project.plannedBudget)) * 100
-      : null;
-
-  const fmt = (s: string | null): string =>
-    formatBudget(s, project.budgetCurrency, locale);
-
-  const validNumber = (v: string): boolean =>
-    v.trim().length === 0 || (/^\d+(\.\d{1,2})?$/.test(v.trim()) && Number(v) >= 0);
-
-  function saveBudget(): void {
-    const currencyChanged = currency !== project.budgetCurrency;
-    if (currencyChanged && !window.confirm(t('budget.currencyChangeNote'))) {
-      return;
-    }
-    onSave(planned.trim() || null, actual.trim() || null, currency);
-    setEditing(false);
-  }
-
-  return (
-    <div className="mt-2 ml-7 text-xs">
-      {!editing ? (
-        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 flex-wrap">
-          <span className="font-medium">Budget:</span>
-          <span dir="ltr" className="inline-block">
-            Planned <code>{fmt(project.plannedBudget)}</code> · Spent{' '}
-            <code>{fmt(project.actualSpent)}</code>
-            {utilization !== null && <span className="ml-2">({utilization.toFixed(1)}%)</span>}
-          </span>
-          {canEdit && (
-            <button type="button" onClick={() => setEditing(true)} className="ml-auto hover:underline">
-              Edit
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1">
-            <span className="text-slate-500">{t('budget.currency')}</span>
-            <CurrencySelector value={currency} onChange={setCurrency} className="rounded border px-1 py-0.5 dark:bg-slate-700 text-xs" />
-          </label>
-          <input type="number" min="0" step="0.01" value={planned} onChange={(e) => setPlanned(e.target.value)} className="w-28 rounded border px-1 py-0.5 dark:bg-slate-700" />
-          <input type="number" min="0" step="0.01" value={actual} onChange={(e) => setActual(e.target.value)} className="w-28 rounded border px-1 py-0.5 dark:bg-slate-700" />
-          <button
-            type="button"
-            disabled={pending || !validNumber(planned) || !validNumber(actual)}
-            onClick={saveBudget}
-            className="bg-slate-900 text-white rounded px-2 py-0.5 disabled:opacity-50"
-          >
-            Save
-          </button>
-          <button type="button" onClick={() => setEditing(false)} className="hover:underline">
-            Cancel
-          </button>
-        </div>
-      )}
     </div>
   );
 }
