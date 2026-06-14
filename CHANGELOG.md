@@ -7,6 +7,22 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.62.0] — 2026-06-09
+
+**Instance holiday calendar — specific-date off-days shown in red.**
+
+- New **`Holiday`** model (UTC-midnight calendar dates, name, optional yearly recurrence,
+  `MANUAL`/`IMPORT`/`SYNC` source) — distinct from recurring weekend weekdays
+  (`calendar.weekend` InstanceSetting).
+- Admin API: `GET/POST/PATCH/DELETE /api/holidays` + `GET /api/holidays/range`; duplicate
+  dates return **409**. Activity log on create/update/delete.
+- Public bootstrap: `calendarHolidays` on `GET /api/system/info` seeds the frontend cache.
+- Frontend: `isHoliday()`, `isOffDay()` in `lib/calendar.ts`; red off-day rendering on
+  Calendar, planner calendar, Gantt, and timeline; holiday name on hover/tooltip.
+- Settings → **Preferences** (admin): Holidays section with Jalali date picker.
+
+---
+
 ## [1.61.0] — 2026-06-09
 
 **Multiple themes — CSS-variable token system with 7 user-selectable themes.**

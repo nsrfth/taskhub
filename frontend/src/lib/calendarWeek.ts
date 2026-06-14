@@ -1,4 +1,4 @@
-import { getWeekStartDay, getWeekendDays } from './calendar';
+import { getWeekStartDay, getWeekendDays, isOffDay } from './calendar';
 
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -40,10 +40,10 @@ export function startOfWeekUtc(date: Date, weekStart = getWeekStartDay()): Date 
 
 export type CalendarViewMode = 'work-week' | 'week' | 'month' | 'timeline';
 
-function firstWorkdayOnOrAfter(from: Date, off: number[]): Date {
+function firstWorkdayOnOrAfter(from: Date): Date {
   let d = utcDay(from);
-  for (let i = 0; i < 7; i++) {
-    if (!off.includes(d.getUTCDay())) return d;
+  for (let i = 0; i < 366; i++) {
+    if (!isOffDay(d)) return d;
     d = addDaysUtc(d, 1);
   }
   return utcDay(from);
@@ -58,11 +58,11 @@ export function rangeForCalendarView(
   const weekStart = getWeekStartDay(off);
 
   if (view === 'work-week') {
-    const start = firstWorkdayOnOrAfter(cursor, off);
+    const start = firstWorkdayOnOrAfter(cursor);
     const cells: Date[] = [];
     let d = start;
     while (cells.length < 5) {
-      if (!off.includes(d.getUTCDay())) cells.push(d);
+      if (!isOffDay(d)) cells.push(d);
       d = addDaysUtc(d, 1);
     }
     const end = addDaysUtc(cells[cells.length - 1]!, 1);

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchMyTasks, type MeTask } from '@/features/meTasks/api';
 import { formatShamsiDate } from '@/lib/shamsi';
 import { addDaysUtc, utcDay, sameDayUtc } from '@/lib/calendarWeek';
+import { getHolidayName, isOffDay } from '@/lib/calendar';
 
 interface Props {
   limit?: number;
@@ -66,13 +67,22 @@ export default function MyTasksCalendar({ limit = 200 }: Props): JSX.Element {
         {days.map((d) => {
           const key = d.toISOString();
           const items = byDay.get(key) ?? [];
+          const offDay = isOffDay(d);
+          const holidayName = getHolidayName(d);
           return (
             <div
               key={key}
-              className="bg-white dark:bg-slate-800 rounded shadow p-2 min-h-[100px]"
+              className={[
+                'rounded shadow p-2 min-h-[100px]',
+                offDay ? 'bg-red-50 dark:bg-red-950/30' : 'bg-white dark:bg-slate-800',
+              ].join(' ')}
+              title={holidayName ?? undefined}
             >
-              <div className="text-xs font-medium mb-2 text-slate-500">
+              <div className={`text-xs font-medium mb-2 ${offDay ? 'text-red-600' : 'text-slate-500'}`}>
                 {formatShamsiDate(d.toISOString()) ?? d.getUTCDate()}
+                {holidayName && (
+                  <span className="block text-[10px] truncate">{holidayName}</span>
+                )}
               </div>
               <ul className="space-y-1">
                 {items.slice(0, 5).map((t) => (

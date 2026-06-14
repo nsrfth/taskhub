@@ -116,6 +116,104 @@ export function isWeekend(date: Date): boolean {
   return _weekendDays.includes(date.getUTCDay());
 }
 
+// ── Holidays (v1.62) ─────────────────────────────────────────────────────
+// Specific-date off-days stored as UTC-midnight calendar dates. Cached from
+// /system/info bootstrap (same pattern as weekends).
+
+export interface HolidayEntry {
+  id: string;
+  date: string;
+  name: string;
+  recurring: boolean;
+}
+
+const HOLIDAY_STORAGE_KEY = 'taskhub.holidays';
+
+export function utcDateKey(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function readInitialHolidays(): HolidayEntry[] {
+  if (typeof window === 'undefined') return [];
+  const stored = window.localStorage?.getItem(HOLIDAY_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (h): h is HolidayEntry =>
+        typeof h === 'object'
+        && h !== null
+        && typeof (h as HolidayEntry).id === 'string'
+        && typeof (h as HolidayEntry).date === 'string'
+        && typeof (h as HolidayEntry).name === 'string'
+        && typeof (h as HolidayEntry).recurring === 'boolean',
+    );
+  } catch {
+    return [];
+  }
+}
+
+let _holidays: HolidayEntry[] = readInitialHolidays();
+
+function findHolidayOnDate(date: Date): HolidayEntry | null {
+  const key = utcDateKey(date);
+  const exact = _holidays.find((h) => utcDateKey(new Date(h.date)) === key);
+  if (exact) return exact;
+  const mm = date.getUTCMonth();
+  const dd = date.getUTCDate();
+  for (const h of _holidays) {
+    if (!h.recurring) continue;
+    const hd = new Date(h.date);
+    if (hd.getUTCMonth() === mm && hd.getUTCDate() === dd) return h;
+  }
+  return null;
+}
+
+export function getHolidays(): HolidayEntry[] {
+  return _holidays.slice();
+}
+
+export function setHolidays(next: HolidayEntry[]): boolean {
+  const changed = JSON.stringify(next) !== JSON.stringify(_holidays);
+  _holidays = next.slice();
+  try {
+    window.localStorage?.setItem(HOLIDAY_STORAGE_KEY, JSON.stringify(_holidays));
+  } catch {
+    // private-mode Safari
+  }
+  return changed;
+}
+
+export function adoptServerHolidays(serverPref: HolidayEntry[] | undefined | null): void {
+  if (!serverPref) return;
+  setHolidays(serverPref);
+}
+
+export function isHoliday(date: Date): boolean {
+  return findHolidayOnDate(date) !== null;
+}
+
+export function getHolidayName(date: Date): string | null {
+  return findHolidayOnDate(date)?.name ?? null;
+}
+
+/** Weekend weekday OR instance holiday on this UTC calendar date. */
+export function isOffDay(date: Date): boolean {
+  return isWeekend(date) || isHoliday(date);
+}
+
+/** Tooltip label for off-days — holiday name when applicable. */
+export function getOffDayTitle(date: Date): string | null {
+  const name = getHolidayName(date);
+  if (name) return name;
+  if (isWeekend(date)) return null;
+  return null;
+}
+
 // ── Week layout ───────────────────────────────────────────────────────────
 // Derive the first column of 7-day calendar rows from the off-day set.
 // JS convention: 0=Sun .. 6=Sat. Both supported presets (Sat+Sun and

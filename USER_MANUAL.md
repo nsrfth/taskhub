@@ -298,7 +298,7 @@ Each task appears as a coloured pill — the pill colour is the **team accent** 
 
 The **Date field** dropdown (Due vs Planned) applies to grid modes only — the Timeline view uses each task's start/due (or subtask start/end) range directly. Completed tasks are omitted from grid calendar fetches; the Timeline shows all non-deleted tasks (including done) so historical bars remain visible.
 
-Off-days are determined by the [Workweek](#workweek-off-days) admin setting (see below). They render with a red label + a red-50 background tint so they're impossible to miss.
+Off-days are determined by **weekend weekdays** ([Workweek](#workweek-off-days)) plus **instance holidays** ([Holidays](#holidays-admin)). Both render with a red label and red-50 background tint; holidays also show their **name** on hover.
 
 ---
 
@@ -438,7 +438,7 @@ The token authenticates as you — it sees what you see. Scopes are advisory in 
 
 The **Settings** link in the left sidebar opens the Settings shell. Sidebar items are ordered alphabetically by their English label (same order in the Persian UI). The items you see depend on your role:
 
-- **Preferences** — everyone (personal calendar + theme + language). Admins additionally see the Workweek section.
+- **Preferences** — everyone (personal calendar + theme + language). Admins additionally see the Workweek and Holidays sections.
 - **Trash** — everyone (restore or purge soft-deleted projects and tasks).
 - **Roles** — team role templates and permission matrix.
 - **Labels** — team-scoped label management.
@@ -474,6 +474,17 @@ Admin-only section on **Settings → Preferences**. Sets the instance-wide off-d
 An **Or pick custom days** disclosure lets you select any subset of the 7 weekdays (e.g. Friday-only, or a 3-day weekend). Saving reloads the page; every date picker in the app immediately paints the configured days in **red**, and the Calendar views tint those cells with a red-50 background.
 
 The setting lives in the `InstanceSetting` key/JSON store (`calendar.weekend`), read publicly via `/api/system/info` so the date picker has the right colours before login.
+
+### Holidays (admin)
+
+**v1.62:** Admins can add **specific calendar dates** as instance-wide holidays (e.g. Nowruz / نوروز) — distinct from recurring weekend weekdays. Each holiday has a **name** and optional **yearly recurrence** (same month/day every year).
+
+- **Settings → Preferences → Holidays** — add, edit, or delete holidays using the Jalali/Gregorian date picker (same as task dates).
+- Holidays appear in **red** on the Calendar page, planner calendar, project Gantt, and timeline — alongside weekend off-days.
+- Hover a holiday cell to see its name.
+- Stored in the **`Holiday`** table at **UTC midnight** so every user sees the same calendar day regardless of browser timezone.
+
+Non-admins can read holidays (for calendar colouring) but cannot create or delete them.
 
 ### Security — password policy (v1.43, admin)
 

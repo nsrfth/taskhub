@@ -5,6 +5,8 @@ import { prisma } from '../data/prisma.js';
 import { PERMISSIONS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import { passwordPolicyService } from '../services/passwordPolicyService.js';
 import { publicPasswordPolicyResponse } from '../schemas/passwordPolicy.js';
+import { HolidaysService } from '../services/holidaysService.js';
+import { holidayResponse } from '../schemas/holidays.js';
 
 // Public read-only system metadata. Used by:
 //   - The frontend's About button (version + build + license + counts).
@@ -30,6 +32,10 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
           // convention) that the instance treats as off-days. Public so
           // the date picker can colour cells red before login.
           calendarWeekend: z.array(z.number().int().min(0).max(6)),
+          // v1.62: instance holidays for off-day rendering (UTC calendar dates).
+          calendarHolidays: z.array(
+            holidayResponse.pick({ id: true, date: true, name: true, recurring: true }),
+          ),
           // v1.18: who can MODIFY (vs add) the due/planned dates on a task.
           //   open         — anyone in the team can edit (default)
           //   manager-only — members can only ADD dates when null;
@@ -80,10 +86,11 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
         // Leave default.
       }
 
-      const [users, teams, tasks] = await Promise.all([
+      const [users, teams, tasks, calendarHolidays] = await Promise.all([
         prisma.user.count().catch(() => 0),
         prisma.team.count().catch(() => 0),
         prisma.task.count().catch(() => 0),
+        new HolidaysService().listForBootstrap().catch(() => []),
       ]);
 
       return reply.send({
@@ -98,6 +105,12 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
         buildTime: process.env.TASKHUB_BUILD_TIME || null,
         nodeEnv: process.env.NODE_ENV ?? 'unknown',
         calendarWeekend: weekend,
+        calendarHolidays: calendarHolidays.map((h) => ({
+          id: h.id,
+          date: h.date,
+          name: h.name,
+          recurring: h.recurring,
+        })),
         dateEditRestriction,
         counts: { users, teams, tasks },
       });

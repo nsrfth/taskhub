@@ -134,6 +134,12 @@ enum ThemePreference {
   NORD
 }
 
+enum HolidaySource {
+  MANUAL
+  IMPORT
+  SYNC
+}
+
 // v1.13: per-user UI language. EN is the canonical key source; FA covers
 // the most-visible surfaces in this release. Strings without an FA entry
 // fall back to EN.
@@ -324,6 +330,7 @@ model User {
   userGroupMembers   UserGroupMember[]
   groupInvitesSent   UserGroupMember[] @relation("GroupInvitesSent")
   customFieldValues  CustomFieldValue[] @relation("CustomFieldPerson")
+  holidaysCreated    Holiday[]          @relation("HolidayCreatedBy")
 
   @@index([email])
 }
@@ -1043,6 +1050,24 @@ model WebhookDelivery {
 
   @@index([status, nextAttemptAt])
   @@index([webhookId, createdAt])
+}
+
+// v1.62: instance-wide calendar holidays — specific-date off-days distinct
+// from recurring weekend weekdays (calendar.weekend InstanceSetting).
+// Dates are UTC midnight calendar anchors (same rule as task dueDate).
+model Holiday {
+  id          String        @id @default(cuid())
+  date        DateTime
+  name        String
+  recurring   Boolean       @default(false)
+  source      HolidaySource @default(MANUAL)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String?
+  createdBy   User?         @relation("HolidayCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([date])
+  @@index([date])
 }
 
 // Global instance configuration. Key-value store for toggles that apply to

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchGantt, type GanttSubtaskRow } from '@/features/reports/ganttApi';
 import { formatShamsiCalendarDate } from '@/lib/shamsi';
+import { getHolidayName, isOffDay } from '@/lib/calendar';
 
 // v1.42: per-project Gantt report page. Mounted at
 // /projects/:projectId/reports/gantt (router resolves project's teamId
@@ -363,7 +364,7 @@ function GanttChart({
   // text label per day at our default zoom; for very long projects this
   // can crowd, but the simple horizontal scroll covers it. A follow-up
   // could introduce zoom controls.
-  const dayMarkers = [];
+  const dayMarkers: Array<{ x: number; label: string; ms: number; offDay: boolean; holidayName: string | null }> = [];
   for (let i = 0; i < axis.days; i++) {
     const ms = axis.startMs + i * 86_400_000;
     const d = new Date(ms);
@@ -371,6 +372,8 @@ function GanttChart({
       x: i * DAY_PX,
       label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}`,
       ms,
+      offDay: isOffDay(d),
+      holidayName: getHolidayName(d),
     });
   }
 
@@ -392,8 +395,12 @@ function GanttChart({
       <g>
         {dayMarkers.map((m, i) => (
           <g key={i}>
+            {m.offDay && (
+              <rect x={m.x} y={0} width={DAY_PX} height={chartHeight} fill="#fef2f2" />
+            )}
             <line x1={m.x} y1={0} x2={m.x} y2={chartHeight} stroke="#f1f5f9" strokeWidth={1} />
-            <text x={m.x + 2} y={14} fontSize="10" fill="#64748b">
+            <text x={m.x + 2} y={14} fontSize="10" fill={m.offDay ? '#dc2626' : '#64748b'}>
+              {m.holidayName ? <title>{m.holidayName}</title> : null}
               {m.label}
             </text>
           </g>

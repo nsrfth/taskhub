@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useT } from '@/lib/i18n';
 import type { Team } from '@/features/teams/api';
 import { startOfWeekUtc, utcDay, addDaysUtc } from '@/lib/calendarWeek';
-import { getWeekStartDay, getWeekendDays } from '@/lib/calendar';
+import { getWeekStartDay, getWeekendDays, getHolidayName, isOffDay } from '@/lib/calendar';
 import { useTimelineData } from './useTimelineData';
 import TimelineBar, { useTimelineBarDrag } from './TimelineBar';
 import DependencyLayer from './DependencyLayer';
@@ -99,7 +99,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
   }, [chartRows]);
 
   const dayMarkers = useMemo(() => {
-    const markers: Array<{ x: number; label: string; ms: number; major: boolean }> = [];
+    const markers: Array<{ x: number; label: string; ms: number; major: boolean; offDay: boolean; holidayName: string | null }> = [];
     for (let i = 0; i < dayCount; i++) {
       const ms = axisStartMs + i * 86_400_000;
       const d = new Date(ms);
@@ -121,7 +121,14 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
         label = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
         major = true;
       }
-      markers.push({ x: i * dayPx, label, ms, major });
+      markers.push({
+        x: i * dayPx,
+        label,
+        ms,
+        major,
+        offDay: isOffDay(d),
+        holidayName: getHolidayName(d),
+      });
     }
     return markers;
   }, [dayCount, axisStartMs, dayPx, zoom]);
@@ -387,17 +394,23 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
                       <div
                         key={i}
                         className={`absolute top-0 bottom-0 border-l border-slate-100 dark:border-slate-700 ${
-                          m.major ? 'text-slate-700 font-medium' : 'text-slate-400'
+                          m.offDay ? 'bg-red-50 dark:bg-red-950/30' : ''
+                        } ${m.major ? 'text-slate-700 font-medium' : 'text-slate-400'} ${
+                          m.offDay ? 'text-red-600' : ''
                         }`}
-                        style={{ left: m.x }}
+                        style={{ left: m.x, width: dayPx }}
+                        title={m.holidayName ?? undefined}
                       >
                         <span className="text-[10px] pl-1 pt-2 inline-block whitespace-nowrap">{m.label}</span>
                       </div>
                     ) : (
                       <div
                         key={i}
-                        className="absolute top-0 bottom-0 border-l border-slate-50 dark:border-slate-800"
-                        style={{ left: m.x }}
+                        className={`absolute top-0 bottom-0 border-l border-slate-50 dark:border-slate-800 ${
+                          m.offDay ? 'bg-red-50 dark:bg-red-950/30' : ''
+                        }`}
+                        style={{ left: m.x, width: dayPx }}
+                        title={m.holidayName ?? undefined}
                       />
                     ),
                   )}
@@ -430,8 +443,10 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
                   {dayMarkers.map((m, i) => (
                     <div
                       key={i}
-                      className="absolute top-0 bottom-0 border-l border-slate-100 dark:border-slate-800 pointer-events-none"
-                      style={{ left: m.x }}
+                      className={`absolute top-0 bottom-0 border-l border-slate-100 dark:border-slate-800 pointer-events-none ${
+                        m.offDay ? 'bg-red-50/80 dark:bg-red-950/20' : ''
+                      }`}
+                      style={{ left: m.x, width: dayPx }}
                     />
                   ))}
                   {todayX !== null && (

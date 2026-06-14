@@ -6,7 +6,7 @@ import { formatShamsiCalendarDate } from '@/lib/shamsi';
 import { useT } from '@/lib/i18n';
 import { fetchCalendar, type CalendarTask } from '@/features/calendar/api';
 import AsanaTimelineView from '@/features/calendar/timeline/AsanaTimelineView';
-import { getWeekStartDay, getWeekendDays, isWeekend } from '@/lib/calendar';
+import { getWeekStartDay, getWeekendDays, getHolidayName, isOffDay } from '@/lib/calendar';
 import {
   addDaysUtc,
   addMonthsUtc,
@@ -354,7 +354,8 @@ export default function CalendarPage(): JSX.Element {
         {cells.map((day) => {
           const k = day.toISOString().slice(0, 10);
           const tasks = byDay.get(k) ?? [];
-          const off = isWeekend(day);
+          const offDay = isOffDay(day);
+          const holidayName = getHolidayName(day);
           const inMonth = monthMode ? day.getUTCMonth() === cursor.getUTCMonth() : true;
           const isToday = sameDayUtc(day, utcDay(new Date()));
           return (
@@ -362,12 +363,13 @@ export default function CalendarPage(): JSX.Element {
               key={k}
               className={[
                 'bg-white p-1 min-h-[110px] flex flex-col',
-                off ? 'bg-red-50' : '',
+                offDay ? 'bg-red-50' : '',
                 !inMonth ? 'opacity-60' : '',
               ].join(' ')}
+              title={holidayName ?? undefined}
             >
               <div className="flex items-center justify-between text-xs">
-                <span className={`${off ? 'text-red-600' : 'text-slate-600'} ${isToday ? 'font-bold' : ''}`}>
+                <span className={`${offDay ? 'text-red-600' : 'text-slate-600'} ${isToday ? 'font-bold' : ''}`}>
                   {monthMode ? day.getUTCDate() : `${DAY_NAMES_FULL[day.getUTCDay()]} · ${shortLabel(day, false)}`}
                 </span>
                 {tasks.length > 0 && (

@@ -8,6 +8,12 @@ export interface SystemInfo {
   // Int[] of weekday IDs (0=Sun..6=Sat). Days the instance treats as
   // off-days. Default [0,6]; admins can pick any subset.
   calendarWeekend: number[];
+  calendarHolidays: Array<{
+    id: string;
+    date: string;
+    name: string;
+    recurring: boolean;
+  }>;
   // v1.18: instance-wide rule for who can MODIFY (vs add when null) the
   // dueDate / plannedDate / completedAt fields. "open" preserves the
   // pre-v1.18 behaviour; "manager-only" lets members add but not change.

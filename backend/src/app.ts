@@ -27,6 +27,7 @@ import { recurrenceRoutes } from './routes/recurrence.js';
 import { dependenciesRoutes } from './routes/dependencies.js';
 import { searchRoutes } from './routes/search.js';
 import { systemRoutes } from './routes/system.js';
+import { holidaysRoutes } from './routes/holidays.js';
 import { calendarRoutes } from './routes/calendar.js';
 import { trashRoutes } from './routes/trash.js';
 import { rolesRoutes } from './routes/roles.js';
@@ -184,6 +185,7 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // v1.11: public read-only system info. No auth, no rate limit — used
     // by the About page + the calendar weekend reader.
     await api.register(systemRoutes, { prefix: '/system' });
+    await api.register(holidaysRoutes, { prefix: '/holidays' });
 
     // v1.12: team-scoped cross-project calendar feed.
     await api.register(calendarRoutes, { prefix: '/teams/:teamId/calendar' });

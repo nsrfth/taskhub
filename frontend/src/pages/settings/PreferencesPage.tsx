@@ -6,6 +6,7 @@ import { updatePreferences } from '@/features/auth/api';
 import { setCalendar, setWeekendDays, type Calendar } from '@/lib/calendar';
 import { setThemePreference, type ThemePreference } from '@/lib/theme';
 import ThemePicker from '@/features/settings/ThemePicker';
+import HolidaysSection from '@/features/settings/HolidaysSection';
 import { setLanguage, useT, type Language } from '@/lib/i18n';
 import { fetchSystemInfo } from '@/features/system/api';
 import { api } from '@/lib/api';
@@ -151,6 +152,8 @@ export default function PreferencesPage(): JSX.Element {
 
       {/* Admin-only Workweek section — instance-wide. Untouched from v1.11. */}
       {user?.globalRole === 'ADMIN' && <WorkweekSection />}
+
+      {user?.globalRole === 'ADMIN' && <HolidaysSection />}
 
       {/* v1.18: admin-only date-edit restriction. Instance-wide. */}
       {user?.globalRole === 'ADMIN' && <DateEditRestrictionSection />}

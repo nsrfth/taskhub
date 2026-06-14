@@ -3,7 +3,7 @@ import persian from 'react-date-object/calendars/persian';
 import gregorian from 'react-date-object/calendars/gregorian';
 import persian_fa from 'react-date-object/locales/persian_fa';
 import gregorian_en from 'react-date-object/locales/gregorian_en';
-import { getCalendar, isWeekend } from './calendar';
+import { getCalendar, getHolidayName, isOffDay } from './calendar';
 
 // Calendar date picker. Values are ISO 8601 UTC strings (or null) on both
 // sides of the API so this drops into anywhere we previously had
@@ -64,8 +64,13 @@ export function ShamsiDatePicker({
       // local-day and UTC-day match here and the red flag lands on the
       // right column. Inline style avoids a Tailwind purge dependency.
       mapDays={({ date }) => {
-        if (isWeekend(date.toDate())) {
-          return { style: { color: '#dc2626' } };
+        const js = date.toDate();
+        if (isOffDay(js)) {
+          const holiday = getHolidayName(js);
+          return {
+            style: { color: '#dc2626' },
+            title: holiday ?? undefined,
+          };
         }
         return {};
       }}
