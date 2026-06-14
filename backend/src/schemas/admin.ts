@@ -60,6 +60,8 @@ export const adminUserResponse = z.object({
   ldapSyncedAt: z.string().nullable(),
   directoryName: z.string().nullable(),
   directoryActive: z.boolean(),
+  disabledAt: z.string().nullable(),
+  lockedUntil: z.string().nullable(),
 });
 
 export const usersPage = z.object({
@@ -134,3 +136,18 @@ export const ldapSyncResponse = adminUserResponse;
 export const ldapTestAuthResponse = z.object({
   ok: z.literal(true),
 });
+
+export const setUserDisabledBody = z.object({
+  disabled: z.boolean(),
+});
+
+export type SetUserDisabledBody = z.infer<typeof setUserDisabledBody>;
+
+export const updateUserProfileBody = z.object({
+  name: z.string().min(1).max(120).trim().optional(),
+  email: z.string().email().max(254).toLowerCase().optional(),
+  department: z.string().max(120).trim().nullable().optional(),
+  jobTitle: z.string().max(120).trim().nullable().optional(),
+});
+
+export type UpdateUserProfileBody = z.infer<typeof updateUserProfileBody>;

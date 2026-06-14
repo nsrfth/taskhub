@@ -19,7 +19,9 @@ import {
   ldapTestAuthResponse,
   listQuery,
   listUsersQuery,
+  setUserDisabledBody,
   teamsPage,
+  updateUserProfileBody,
   updateUserRoleBody,
   usersPage,
 } from '../schemas/admin.js';
@@ -123,6 +125,52 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.resetUserPassword,
+  });
+
+  r.post('/users/:userId/disable', {
+    schema: {
+      tags: ['admin'],
+      summary: 'Disable or enable a user (ADMIN only). Disabling revokes all refresh tokens.',
+      params: z.object({ userId: z.string() }),
+      body: setUserDisabledBody,
+      response: { 200: adminUserResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.setUserDisabled,
+  });
+
+  r.post('/users/:userId/unlock', {
+    schema: {
+      tags: ['admin'],
+      summary: 'Clear account lockout (ADMIN only)',
+      params: z.object({ userId: z.string() }),
+      response: { 200: adminUserResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.unlockUser,
+  });
+
+  r.post('/users/:userId/force-logout', {
+    schema: {
+      tags: ['admin'],
+      summary: 'Revoke all active sessions without disabling the account (ADMIN only)',
+      params: z.object({ userId: z.string() }),
+      response: { 200: adminUserResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.forceLogoutUser,
+  });
+
+  r.patch('/users/:userId/profile', {
+    schema: {
+      tags: ['admin'],
+      summary: 'Edit a local user profile (ADMIN only). Directory-owned accounts rejected.',
+      params: z.object({ userId: z.string() }),
+      body: updateUserProfileBody,
+      response: { 200: adminUserResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.updateUserProfile,
   });
 
   r.get('/teams', {

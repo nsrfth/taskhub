@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.52.0** (2026-06-14)
+Version **v1.53.0** (2026-06-09)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -395,11 +395,22 @@ The **Settings** link in the left sidebar opens the Settings shell. The sidebar 
 - **Audit** — global ADMIN or team MANAGER.
 - **API & Webhooks** — everyone (tokens) + MANAGER (webhooks for that team).
 - **Backups** — global ADMIN only (scheduled DB backups, download/restore).
-- **Admin** — global ADMIN only (user accounts, instance management). **v1.52:** the user list supports search (name/email), filters (role, auth source, status, directory), sortable columns, and page-numbered navigation with total count.
+- **Admin** — global ADMIN only (user accounts, instance management). **v1.52:** the user list supports search (name/email), filters (role, auth source, status, directory), sortable columns, and page-numbered navigation with total count. **v1.53:** lifecycle actions — disable/enable, unlock, force-logout, edit local profiles.
 
 ### Admin user list (v1.52)
 
 **Settings → Admin → Users** — search by name or email (debounced), filter by role (Admin/Member), auth source (Local/LDAP/SCIM), account status (Active/Disabled/Locked), or directory. Click column headers to sort; use Previous/Next or jump to a page. Changing any filter returns to page 1. The hidden system account never appears in this list.
+
+### Admin user lifecycle (v1.53)
+
+From the user list, click **Manage** on a row to open the detail panel:
+
+- **Disable / Enable** — disables the account and immediately revokes all active sessions (including group-granted access). Re-enabling clears the disabled flag; the user must sign in again for a new session. You cannot disable yourself or the last enabled Admin.
+- **Unlock** — clears a lockout after too many failed logins (available when the account shows a Locked badge).
+- **Force logout** — revokes all sessions without disabling the account. You cannot force-logout yourself.
+- **Edit profile** — change name, email, department, and job title for **local** accounts only. LDAP/SCIM profiles are read-only (“Managed by {directory}”) because the next directory sync would overwrite local edits.
+
+Disable and force-logout ask for confirmation. Status badges (Disabled, Locked) update in the list after each action.
 
 Admin-only section on **Settings → Preferences**. Sets the instance-wide off-day set. Two one-click presets cover the common conventions:
 

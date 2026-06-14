@@ -1,6 +1,6 @@
 # Architecture
 
-**Version:** v1.52.0 (2026-06-14)
+**Version:** v1.53.0 (2026-06-09)
 
 This document captures the *why* behind TaskHub's design. The *what* is in the
 code; the *how to run* is in [README.md](README.md). User-facing behaviour is
@@ -277,7 +277,9 @@ Reports page remains team-scoped via the team picker.
 Administration surfaces live under `/settings/*`:
 
 - `/settings/trash` — soft-deleted items (was `/trash` in main nav).
-- `/settings/admin` — user management (was `/admin` in main nav).
+- `/settings/admin` — user management (was `/admin` in main nav). **v1.53:** lifecycle
+  controls (disable/enable, unlock, force-logout, local profile edit) with token
+  revocation on disable so group-granted access cannot outlive a disabled account.
 
 Legacy paths redirect. Main sidebar links to `/settings` (highlights for any
 settings sub-route).

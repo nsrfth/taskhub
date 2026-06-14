@@ -7,6 +7,8 @@ import type {
   ListQuery,
   ListUsersQuery,
   LdapTestAuthBody,
+  SetUserDisabledBody,
+  UpdateUserProfileBody,
 } from '../schemas/admin.js';
 import { Errors } from '../lib/errors.js';
 
@@ -19,6 +21,8 @@ function serializeUser(u: AdminUserView) {
     emailVerifiedAt: u.emailVerifiedAt ? u.emailVerifiedAt.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
     ldapSyncedAt: u.ldapSyncedAt ? u.ldapSyncedAt.toISOString() : null,
+    disabledAt: u.disabledAt ? u.disabledAt.toISOString() : null,
+    lockedUntil: u.lockedUntil ? u.lockedUntil.toISOString() : null,
   };
 }
 
@@ -115,5 +119,39 @@ export class AdminController {
   ) => {
     await this.auth.testLdapUserCredentials(req.params.userId, req.body.password);
     return reply.send({ ok: true as const });
+  };
+
+  setUserDisabled = async (
+    req: FastifyRequest<{ Params: UserParams; Body: SetUserDisabledBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const updated = await this.svc.setUserDisabled(
+      req.user.sub,
+      req.params.userId,
+      req.body.disabled,
+    );
+    return reply.send(serializeUser(updated));
+  };
+
+  unlockUser = async (req: FastifyRequest<{ Params: UserParams }>, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    const updated = await this.svc.unlockUser(req.user.sub, req.params.userId);
+    return reply.send(serializeUser(updated));
+  };
+
+  forceLogoutUser = async (req: FastifyRequest<{ Params: UserParams }>, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    const updated = await this.svc.forceLogoutUser(req.user.sub, req.params.userId);
+    return reply.send(serializeUser(updated));
+  };
+
+  updateUserProfile = async (
+    req: FastifyRequest<{ Params: UserParams; Body: UpdateUserProfileBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const updated = await this.svc.updateUserProfile(req.user.sub, req.params.userId, req.body);
+    return reply.send(serializeUser(updated));
   };
 }

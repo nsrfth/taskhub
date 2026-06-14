@@ -7,6 +7,34 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.53.0] — 2026-06-09
+
+**Admin user lifecycle — disable/enable, unlock, force-logout, local profile edit.**
+
+### Admin (backend)
+
+- **`POST /api/admin/users/:userId/disable`** — `{ disabled: boolean }`. Disabling sets
+  `disabledAt` and revokes all refresh tokens (same idiom as SCIM deprovision) so
+  group-granted project access is cut immediately; enabling clears `disabledAt` only.
+- **`POST /api/admin/users/:userId/unlock`** — clears `lockedUntil` and
+  `failedLoginAttempts` (idempotent).
+- **`POST /api/admin/users/:userId/force-logout`** — revokes all sessions without
+  disabling the account.
+- **`PATCH /api/admin/users/:userId/profile`** — `{ name?, email?, department?, jobTitle? }`
+  for LOCAL users only; directory-owned profiles return 409.
+- Guards mirror role update: no system user, no self-disable/force-logout, no disabling
+  the last enabled ADMIN. Activity log: `admin.user.disabled|enabled|unlocked|force_logout|profile_updated`.
+- JWT auth middleware now rejects disabled users on every request (matches existing
+  API-token path).
+
+### Admin (frontend)
+
+- User list: Disabled/Locked status badges; **Manage** detail panel with disable/enable,
+  unlock, force-logout, and profile edit. Confirm dialogs for disable and force-logout.
+  Directory-owned profile fields read-only with tooltip; self-row destructive actions disabled.
+
+---
+
 ## [1.52.0] — 2026-06-14
 
 **Admin user list — search, filters, sort, page-numbered pagination.**

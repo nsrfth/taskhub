@@ -4,6 +4,7 @@ import { Errors } from '../lib/errors.js';
 import { hashPassword } from '../lib/hashing.js';
 import { generateCompliantPassword } from '../lib/passwordPolicy.js';
 import { passwordPolicyService } from './passwordPolicyService.js';
+import { logActivity } from './activityLogger.js';
 import { assertNotSystemUserTarget, getSystemUserId, isSystemUser } from '../lib/systemUser.js';
 
 // Admin operations bypass team-level RBAC and instead require GlobalRole=ADMIN
@@ -29,6 +30,8 @@ export interface AdminUserView {
   ldapSyncedAt: Date | null;
   directoryName: string | null;
   directoryActive: boolean;
+  disabledAt: Date | null;
+  lockedUntil: Date | null;
 }
 
 export interface AdminTeamView {
@@ -149,7 +152,26 @@ function toAdminUserView(u: UserWithCounts): AdminUserView {
     ldapSyncedAt: u.ldapSyncedAt,
     directoryName: u.directory?.name ?? null,
     directoryActive: linked && !!u.directory?.host,
+    disabledAt: u.disabledAt,
+    lockedUntil: u.lockedUntil,
   };
+}
+
+async function revokeAllRefreshTokens(userId: string, when = new Date()): Promise<void> {
+  await prisma.refreshToken.updateMany({
+    where: { userId, revokedAt: null },
+    data: { revokedAt: when },
+  });
+}
+
+async function loadAdminUser(userId: string): Promise<UserWithCounts> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    include: USER_LIST_INCLUDE,
+  });
+  if (!u) throw Errors.notFound('User not found');
+  if (isSystemUser(u)) throw Errors.notFound('User not found');
+  return u;
 }
 
 export class AdminService {
@@ -227,6 +249,145 @@ export class AdminService {
       },
     });
     return toAdminUserView(updated);
+  }
+
+  async setUserDisabled(
+    callerId: string,
+    targetUserId: string,
+    disabled: boolean,
+  ): Promise<AdminUserView> {
+    const target = await loadAdminUser(targetUserId);
+
+    if (disabled) {
+      if (targetUserId === callerId) {
+        throw Errors.conflict('Cannot disable your own account');
+      }
+      if (target.globalRole === 'ADMIN' && !target.disabledAt) {
+        const enabledAdmins = await prisma.user.count({
+          where: { globalRole: 'ADMIN', disabledAt: null, isSystemUser: false },
+        });
+        if (enabledAdmins <= 1) throw Errors.conflict('Cannot disable the last enabled ADMIN');
+      }
+      const now = new Date();
+      await revokeAllRefreshTokens(targetUserId, now);
+      const updated = await prisma.user.update({
+        where: { id: targetUserId },
+        data: { disabledAt: now },
+        include: USER_LIST_INCLUDE,
+      });
+      await logActivity(prisma, {
+        actorId: callerId,
+        action: 'admin.user.disabled',
+        meta: {
+          targetUserId,
+          external: !!target.directoryId,
+        },
+      });
+      return toAdminUserView(updated);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: targetUserId },
+      data: { disabledAt: null },
+      include: USER_LIST_INCLUDE,
+    });
+    await logActivity(prisma, {
+      actorId: callerId,
+      action: 'admin.user.enabled',
+      meta: { targetUserId, external: !!target.directoryId },
+    });
+    return toAdminUserView(updated);
+  }
+
+  async unlockUser(callerId: string, targetUserId: string): Promise<AdminUserView> {
+    await loadAdminUser(targetUserId);
+    const updated = await prisma.user.update({
+      where: { id: targetUserId },
+      data: { lockedUntil: null, failedLoginAttempts: 0 },
+      include: USER_LIST_INCLUDE,
+    });
+    await logActivity(prisma, {
+      actorId: callerId,
+      action: 'admin.user.unlocked',
+      meta: { targetUserId },
+    });
+    return toAdminUserView(updated);
+  }
+
+  async forceLogoutUser(callerId: string, targetUserId: string): Promise<AdminUserView> {
+    const target = await loadAdminUser(targetUserId);
+    if (targetUserId === callerId) {
+      throw Errors.conflict('Cannot force-logout your own account');
+    }
+    await revokeAllRefreshTokens(targetUserId);
+    await logActivity(prisma, {
+      actorId: callerId,
+      action: 'admin.user.force_logout',
+      meta: { targetUserId, external: !!target.directoryId },
+    });
+    return toAdminUserView(target);
+  }
+
+  async updateUserProfile(
+    callerId: string,
+    targetUserId: string,
+    input: {
+      name?: string;
+      email?: string;
+      department?: string | null;
+      jobTitle?: string | null;
+    },
+  ): Promise<AdminUserView> {
+    const target = await loadAdminUser(targetUserId);
+    if (target.authSource !== 'LOCAL' || target.directoryId) {
+      throw Errors.conflict('Profile is managed by the directory');
+    }
+
+    const data: Prisma.UserUpdateInput = {};
+    const changedFields: string[] = [];
+
+    if (input.name !== undefined && input.name !== target.name) {
+      data.name = input.name;
+      changedFields.push('name');
+    }
+    if (input.email !== undefined) {
+      const email = input.email.trim().toLowerCase();
+      if (email !== target.email) {
+        data.email = email;
+        changedFields.push('email');
+      }
+    }
+    if (input.department !== undefined && input.department !== target.department) {
+      data.department = input.department;
+      changedFields.push('department');
+    }
+    if (input.jobTitle !== undefined && input.jobTitle !== target.jobTitle) {
+      data.jobTitle = input.jobTitle;
+      changedFields.push('jobTitle');
+    }
+
+    if (changedFields.length === 0) {
+      return toAdminUserView(target);
+    }
+
+    try {
+      const updated = await prisma.user.update({
+        where: { id: targetUserId },
+        data,
+        include: USER_LIST_INCLUDE,
+      });
+      await logActivity(prisma, {
+        actorId: callerId,
+        action: 'admin.user.profile_updated',
+        meta: { targetUserId, fields: changedFields },
+      });
+      return toAdminUserView(updated);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw Errors.conflict('A user with this email already exists');
+      }
+      throw err;
+    }
   }
 
   async listTeams(opts: { cursor?: string; limit: number }): Promise<Page<AdminTeamView>> {

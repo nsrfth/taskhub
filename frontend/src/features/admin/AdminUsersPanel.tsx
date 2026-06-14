@@ -37,6 +37,26 @@ function authSourceBadgeClass(source: adminApi.AuthSource): string {
   }
 }
 
+function isUserDisabled(u: adminApi.AdminUser): boolean {
+  return u.disabledAt != null;
+}
+
+function isUserLocked(u: adminApi.AdminUser): boolean {
+  if (!u.lockedUntil) return false;
+  return new Date(u.lockedUntil) > new Date();
+}
+
+function directoryLabel(u: adminApi.AdminUser): string {
+  if (u.directoryName) return u.directoryName;
+  if (u.authSource === 'LDAP') return 'LDAP';
+  if (u.authSource === 'SCIM') return 'SCIM';
+  return 'directory';
+}
+
+function isDirectoryOwned(u: adminApi.AdminUser): boolean {
+  return u.authSource !== 'LOCAL' || u.directoryId != null;
+}
+
 const DEFAULT_PAGE_SIZE = 25;
 
 export default function AdminUsersPanel(): JSX.Element {
@@ -94,6 +114,19 @@ export default function AdminUsersPanel(): JSX.Element {
 
   function invalidateUsers(): void {
     void qc.invalidateQueries({ queryKey: ['admin', 'users'] });
+  }
+
+  function patchUserInList(updated: adminApi.AdminUser): void {
+    qc.setQueriesData<adminApi.PagedResult<adminApi.AdminUser>>(
+      { queryKey: ['admin', 'users'] },
+      (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((row) => (row.id === updated.id ? updated : row)),
+        };
+      },
+    );
   }
 
   function toggleSort(column: adminApi.UserSortBy): void {
@@ -196,6 +229,99 @@ export default function AdminUsersPanel(): JSX.Element {
     setResetCustom('');
   }
 
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const [profileTarget, setProfileTarget] = useState<adminApi.AdminUser | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    email: '',
+    department: '',
+    jobTitle: '',
+  });
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
+
+  const disableMut = useMutation({
+    mutationFn: (input: { userId: string; disabled: boolean }) =>
+      adminApi.setUserDisabled(input.userId, input.disabled),
+    onSuccess: (updated) => {
+      patchUserInList(updated);
+      invalidateUsers();
+    },
+    onError: (err) => window.alert(errorMessage(err, t('admin.users.errorLifecycle'))),
+  });
+
+  const unlockMut = useMutation({
+    mutationFn: (userId: string) => adminApi.unlockUser(userId),
+    onSuccess: (updated) => {
+      patchUserInList(updated);
+      invalidateUsers();
+    },
+    onError: (err) => window.alert(errorMessage(err, t('admin.users.errorLifecycle'))),
+  });
+
+  const forceLogoutMut = useMutation({
+    mutationFn: (userId: string) => adminApi.forceLogoutUser(userId),
+    onSuccess: (updated) => {
+      patchUserInList(updated);
+      invalidateUsers();
+    },
+    onError: (err) => window.alert(errorMessage(err, t('admin.users.errorLifecycle'))),
+  });
+
+  const profileMut = useMutation({
+    mutationFn: () =>
+      adminApi.updateUserProfile(profileTarget!.id, {
+        name: profileForm.name,
+        email: profileForm.email,
+        department: profileForm.department || null,
+        jobTitle: profileForm.jobTitle || null,
+      }),
+    onSuccess: (updated) => {
+      patchUserInList(updated);
+      invalidateUsers();
+      setProfileTarget(null);
+      setProfileError(null);
+    },
+    onError: (err) => setProfileError(errorMessage(err, t('admin.users.errorProfile'))),
+  });
+
+  function openProfile(u: adminApi.AdminUser): void {
+    setProfileTarget(u);
+    setProfileForm({
+      name: u.name,
+      email: u.email,
+      department: u.department ?? '',
+      jobTitle: u.jobTitle ?? '',
+    });
+    setProfileError(null);
+  }
+
+  function toggleDisabled(u: adminApi.AdminUser): void {
+    const disabling = !isUserDisabled(u);
+    const msg = disabling
+      ? t('admin.users.confirm.disable').replace('{email}', u.email)
+      : undefined;
+    if (disabling && !window.confirm(msg)) return;
+    setLifecycleBusy(u.id);
+    disableMut.mutate(
+      { userId: u.id, disabled: disabling },
+      { onSettled: () => setLifecycleBusy(null) },
+    );
+  }
+
+  function runForceLogout(u: adminApi.AdminUser): void {
+    if (!window.confirm(t('admin.users.confirm.forceLogout').replace('{email}', u.email))) return;
+    setLifecycleBusy(u.id);
+    forceLogoutMut.mutate(u.id, { onSettled: () => setLifecycleBusy(null) });
+  }
+
+  function runUnlock(u: adminApi.AdminUser): void {
+    setLifecycleBusy(u.id);
+    unlockMut.mutate(u.id, { onSettled: () => setLifecycleBusy(null) });
+  }
+
+  const detailUser = detailUserId ? users.find((row) => row.id === detailUserId) : null;
+
   return (
     <section className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6">
       <h2 className="font-medium mb-3">{t('admin.users.title')}</h2>
@@ -278,6 +404,7 @@ export default function AdminUsersPanel(): JSX.Element {
                 </button>
               </th>
               <th className="py-1 pr-4">{t('admin.users.col.auth')}</th>
+              <th className="py-1 pr-4">{t('admin.users.col.status')}</th>
               <th className="py-1 pr-4">{t('admin.users.col.ldapUser')}</th>
               <th className="py-1 pr-4">{t('admin.users.col.role')}</th>
               <th className="py-1 pr-4">{t('admin.users.col.teams')}</th>
@@ -300,6 +427,9 @@ export default function AdminUsersPanel(): JSX.Element {
             {users.map((u) => {
               const isSelf = u.id === user?.id;
               const roleBusy = roleUpdatingId === u.id && updateRoleMut.isPending;
+              const lifecyclePending = lifecycleBusy === u.id;
+              const disabled = isUserDisabled(u);
+              const locked = isUserLocked(u);
               return (
                 <tr key={u.id} className="border-t dark:border-slate-700">
                   <td className="py-2 pr-4">{u.name}</td>
@@ -308,6 +438,23 @@ export default function AdminUsersPanel(): JSX.Element {
                     <span className={`text-xs px-1.5 py-0.5 rounded ${authSourceBadgeClass(u.authSource)}`}>
                       {authSourceLabel(u.authSource)}
                     </span>
+                  </td>
+                  <td className="py-2 pr-4">
+                    <div className="flex flex-wrap gap-1">
+                      {disabled && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">
+                          {t('admin.users.badge.disabled')}
+                        </span>
+                      )}
+                      {locked && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                          {t('admin.users.badge.locked')}
+                        </span>
+                      )}
+                      {!disabled && !locked && (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-2 pr-4 text-slate-500 font-mono text-xs">{u.ldapUsername ?? '—'}</td>
                   <td className="py-2 pr-4">
@@ -333,6 +480,14 @@ export default function AdminUsersPanel(): JSX.Element {
                     {u.ldapSyncedAt ? formatShamsiTimestampDate(u.ldapSyncedAt) : '—'}
                   </td>
                   <td className="py-2">
+                    <button
+                      type="button"
+                      disabled={lifecyclePending}
+                      onClick={() => setDetailUserId(detailUserId === u.id ? null : u.id)}
+                      className="text-xs underline mr-3 disabled:opacity-40"
+                    >
+                      {t('admin.users.action.manage')}
+                    </button>
                     <button
                       disabled={u.authSource !== 'LOCAL'}
                       onClick={() => openReset(u)}
@@ -414,6 +569,156 @@ export default function AdminUsersPanel(): JSX.Element {
               {t('admin.users.pagination.go')}
             </button>
           </form>
+        </div>
+      )}
+
+      {detailUser && (
+        <div className="mt-4 rounded border border-slate-200 dark:border-slate-600 p-3 text-sm bg-slate-50/50 dark:bg-slate-900/20">
+          <p className="font-medium mb-2">
+            {t('admin.users.detail.title').replace('{email}', detailUser.email)}
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 mb-3 text-xs text-slate-600 dark:text-slate-300">
+            <div>
+              <span className="text-slate-500">{t('admin.users.profile.name')}: </span>
+              {detailUser.name}
+            </div>
+            <div>
+              <span className="text-slate-500">{t('admin.users.profile.department')}: </span>
+              {detailUser.department ?? '—'}
+            </div>
+            <div>
+              <span className="text-slate-500">{t('admin.users.profile.jobTitle')}: </span>
+              {detailUser.jobTitle ?? '—'}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(() => {
+              const isSelf = detailUser.id === user?.id;
+              const disabled = isUserDisabled(detailUser);
+              const locked = isUserLocked(detailUser);
+              const busy = lifecycleBusy === detailUser.id;
+              const disableTitle = isSelf ? t('admin.users.selfActionTooltip') : undefined;
+              return (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy || (isSelf && !disabled)}
+                    title={isSelf && !disabled ? disableTitle : undefined}
+                    onClick={() => toggleDisabled(detailUser)}
+                    className="text-xs rounded border px-2 py-1 disabled:opacity-40"
+                  >
+                    {disabled ? t('admin.users.action.enable') : t('admin.users.action.disable')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !locked}
+                    onClick={() => runUnlock(detailUser)}
+                    className="text-xs rounded border px-2 py-1 disabled:opacity-40"
+                  >
+                    {t('admin.users.action.unlock')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || isSelf}
+                    title={isSelf ? t('admin.users.selfActionTooltip') : undefined}
+                    onClick={() => runForceLogout(detailUser)}
+                    className="text-xs rounded border px-2 py-1 disabled:opacity-40"
+                  >
+                    {t('admin.users.action.forceLogout')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => openProfile(detailUser)}
+                    className="text-xs rounded border px-2 py-1 disabled:opacity-40"
+                  >
+                    {t('admin.users.action.editProfile')}
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {profileTarget && (
+        <div className="mt-4 rounded border p-3 text-sm bg-slate-50 dark:bg-slate-800/40">
+          <p className="font-medium mb-2">
+            {t('admin.users.profile.title').replace('{email}', profileTarget.email)}
+          </p>
+          {isDirectoryOwned(profileTarget) ? (
+            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+              <p title={t('admin.users.directoryManaged').replace('{directory}', directoryLabel(profileTarget))}>
+                {t('admin.users.profile.name')}: {profileTarget.name}
+              </p>
+              <p>{t('admin.users.profile.email')}: {profileTarget.email}</p>
+              <p>{t('admin.users.profile.department')}: {profileTarget.department ?? '—'}</p>
+              <p>{t('admin.users.profile.jobTitle')}: {profileTarget.jobTitle ?? '—'}</p>
+              <p className="text-slate-500 italic">
+                {t('admin.users.directoryManaged').replace('{directory}', directoryLabel(profileTarget))}
+              </p>
+              <button type="button" onClick={() => setProfileTarget(null)} className="text-xs underline">
+                {t('admin.users.profile.cancel')}
+              </button>
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                profileMut.mutate();
+              }}
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              <label className="text-xs">
+                {t('admin.users.profile.name')}
+                <input
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, name: e.target.value }))}
+                  className="mt-0.5 block w-full rounded border px-2 py-1 dark:bg-slate-700"
+                  required
+                />
+              </label>
+              <label className="text-xs">
+                {t('admin.users.profile.email')}
+                <input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, email: e.target.value }))}
+                  className="mt-0.5 block w-full rounded border px-2 py-1 dark:bg-slate-700"
+                  required
+                />
+              </label>
+              <label className="text-xs">
+                {t('admin.users.profile.department')}
+                <input
+                  value={profileForm.department}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, department: e.target.value }))}
+                  className="mt-0.5 block w-full rounded border px-2 py-1 dark:bg-slate-700"
+                />
+              </label>
+              <label className="text-xs">
+                {t('admin.users.profile.jobTitle')}
+                <input
+                  value={profileForm.jobTitle}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, jobTitle: e.target.value }))}
+                  className="mt-0.5 block w-full rounded border px-2 py-1 dark:bg-slate-700"
+                />
+              </label>
+              <div className="sm:col-span-2 flex flex-wrap gap-2 items-center">
+                <button
+                  type="submit"
+                  disabled={profileMut.isPending}
+                  className="rounded bg-slate-900 text-white px-3 py-1 text-sm disabled:opacity-50"
+                >
+                  {t('admin.users.profile.save')}
+                </button>
+                <button type="button" onClick={() => setProfileTarget(null)} className="text-xs underline">
+                  {t('admin.users.profile.cancel')}
+                </button>
+                {profileError && <p className="basis-full text-xs text-red-600">{profileError}</p>}
+              </div>
+            </form>
+          )}
         </div>
       )}
 

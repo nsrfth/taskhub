@@ -21,6 +21,8 @@ export interface AdminUser {
   ldapSyncedAt: string | null;
   directoryName: string | null;
   directoryActive: boolean;
+  disabledAt: string | null;
+  lockedUntil: string | null;
 }
 
 export interface AdminTeam {
@@ -135,4 +137,30 @@ export async function refreshLdapUser(userId: string): Promise<AdminUser> {
 
 export async function testLdapUserAuth(userId: string, password: string): Promise<void> {
   await api.post(`/admin/users/${userId}/ldap/test-auth`, { password });
+}
+
+export async function setUserDisabled(userId: string, disabled: boolean): Promise<AdminUser> {
+  return (await api.post<AdminUser>(`/admin/users/${userId}/disable`, { disabled })).data;
+}
+
+export async function unlockUser(userId: string): Promise<AdminUser> {
+  return (await api.post<AdminUser>(`/admin/users/${userId}/unlock`)).data;
+}
+
+export async function forceLogoutUser(userId: string): Promise<AdminUser> {
+  return (await api.post<AdminUser>(`/admin/users/${userId}/force-logout`)).data;
+}
+
+export interface UpdateUserProfileInput {
+  name?: string;
+  email?: string;
+  department?: string | null;
+  jobTitle?: string | null;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  input: UpdateUserProfileInput,
+): Promise<AdminUser> {
+  return (await api.patch<AdminUser>(`/admin/users/${userId}/profile`, input)).data;
 }

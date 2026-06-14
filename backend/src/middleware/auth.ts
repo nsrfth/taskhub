@@ -42,6 +42,11 @@ export const requireAuth: preHandlerHookHandler = async (request, _reply) => {
   } catch {
     throw Errors.unauthorized('Invalid or expired token');
   }
+  const live = await prisma.user.findUnique({
+    where: { id: request.user.sub },
+    select: { disabledAt: true },
+  });
+  if (!live || live.disabledAt) throw Errors.unauthorized('Invalid or expired token');
 };
 
 export function requireGlobalRole(...allowed: GlobalRole[]): preHandlerHookHandler {
