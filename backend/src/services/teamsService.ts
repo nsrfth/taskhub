@@ -163,6 +163,7 @@ export class TeamsService {
     let myMembership = await resolveTeamMembership(userId, teamId);
     if (!myMembership && globalRole === 'ADMIN') {
       myMembership = {
+        id: 'admin-bypass',
         userId,
         teamId,
         role: 'MANAGER',
