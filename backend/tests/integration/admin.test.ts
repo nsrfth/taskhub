@@ -83,10 +83,13 @@ describe('GET /api/admin/users', () => {
     expect(res.statusCode).toBe(200);
     const page = res.json() as {
       items: Array<{ email: string; globalRole: string; membershipCount: number }>;
-      nextCursor: string | null;
+      page: number;
+      totalItems: number;
+      totalPages: number;
     };
     expect(page.items).toHaveLength(2);
-    expect(page.nextCursor).toBeNull();
+    expect(page.totalItems).toBe(2);
+    expect(page.page).toBe(1);
     const adminRow = page.items.find((u) => u.email === 'admin@example.com')!;
     expect(adminRow.globalRole).toBe('ADMIN');
     expect(adminRow.membershipCount).toBe(1);
@@ -94,34 +97,40 @@ describe('GET /api/admin/users', () => {
     void member;
   });
 
-  it('paginates with cursor when more rows exist than the page limit', async () => {
+  it('paginates with page numbers when more rows exist than the page size', async () => {
     const admin = await register('admin@example.com');
-    // Register additional users so there are 4 total.
-    await register('b@example.com');
-    await register('c@example.com');
-    await register('d@example.com');
+    for (let i = 0; i < 11; i++) {
+      await register(`user${i}@example.com`);
+    }
 
-    // Limit 2 → expect 2 items + a nextCursor.
     const r1 = await inject({
       method: 'GET',
-      url: '/api/admin/users?limit=2',
+      url: '/api/admin/users?page=1&pageSize=10',
       headers: { authorization: `Bearer ${admin.token}` },
     });
-    const p1 = r1.json() as { items: Array<{ id: string }>; nextCursor: string | null };
-    expect(p1.items).toHaveLength(2);
-    expect(p1.nextCursor).toBeTruthy();
+    const p1 = r1.json() as {
+      items: Array<{ id: string }>;
+      page: number;
+      totalPages: number;
+      totalItems: number;
+      pageSize: number;
+    };
+    expect(p1.items).toHaveLength(10);
+    expect(p1.page).toBe(1);
+    expect(p1.pageSize).toBe(10);
+    expect(p1.totalItems).toBe(12);
+    expect(p1.totalPages).toBe(2);
 
-    // Follow the cursor for the second page.
     const r2 = await inject({
       method: 'GET',
-      url: `/api/admin/users?limit=2&cursor=${p1.nextCursor}`,
+      url: '/api/admin/users?page=2&pageSize=10',
       headers: { authorization: `Bearer ${admin.token}` },
     });
-    const p2 = r2.json() as { items: Array<{ id: string }>; nextCursor: string | null };
+    const p2 = r2.json() as { items: Array<{ id: string }>; page: number; totalPages: number };
     expect(p2.items).toHaveLength(2);
-    expect(p2.nextCursor).toBeNull(); // no more pages
-    // No overlap between pages.
-    expect(new Set([...p1.items.map((u) => u.id), ...p2.items.map((u) => u.id)]).size).toBe(4);
+    expect(p2.page).toBe(2);
+    expect(p2.totalPages).toBe(2);
+    expect(new Set([...p1.items.map((u) => u.id), ...p2.items.map((u) => u.id)]).size).toBe(12);
   });
 });
 

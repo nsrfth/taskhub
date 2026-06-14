@@ -1,6 +1,6 @@
 # Architecture
 
-**Version:** v1.51.0 (2026-06-14)
+**Version:** v1.52.0 (2026-06-14)
 
 This document captures the *why* behind TaskHub's design. The *what* is in the
 code; the *how to run* is in [README.md](README.md). User-facing behaviour is

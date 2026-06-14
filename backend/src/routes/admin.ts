@@ -18,6 +18,7 @@ import {
   ldapTestAuthBody,
   ldapTestAuthResponse,
   listQuery,
+  listUsersQuery,
   teamsPage,
   updateUserRoleBody,
   usersPage,
@@ -47,8 +48,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   r.get('/users', {
     schema: {
       tags: ['admin'],
-      summary: 'List users (ADMIN only) — cursor pagination',
-      querystring: listQuery,
+      summary:
+        'List users (ADMIN only) — search, filter, sort, offset pagination with total count',
+      querystring: listUsersQuery,
       response: { 200: usersPage },
       security: [{ bearerAuth: [] }],
     },

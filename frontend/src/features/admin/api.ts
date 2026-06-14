@@ -32,16 +32,47 @@ export interface AdminTeam {
   projectCount: number;
 }
 
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
 }
 
-export async function listUsers(opts?: { cursor?: string; limit?: number }): Promise<Page<AdminUser>> {
+export type UserStatusFilter = 'active' | 'disabled' | 'locked';
+export type UserSortBy = 'name' | 'email' | 'createdAt' | 'lastSynced';
+export type SortDir = 'asc' | 'desc';
+
+export interface ListUsersParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: GlobalRole;
+  authSource?: AuthSource;
+  status?: UserStatusFilter;
+  directoryId?: string;
+  sortBy?: UserSortBy;
+  sortDir?: SortDir;
+}
+
+export async function listUsers(opts: ListUsersParams = {}): Promise<PagedResult<AdminUser>> {
   const params: Record<string, string> = {};
-  if (opts?.cursor) params.cursor = opts.cursor;
-  if (opts?.limit) params.limit = String(opts.limit);
-  return (await api.get<Page<AdminUser>>('/admin/users', { params })).data;
+  if (opts.page != null) params.page = String(opts.page);
+  if (opts.pageSize != null) params.pageSize = String(opts.pageSize);
+  if (opts.search) params.search = opts.search;
+  if (opts.role) params.role = opts.role;
+  if (opts.authSource) params.authSource = opts.authSource;
+  if (opts.status) params.status = opts.status;
+  if (opts.directoryId) params.directoryId = opts.directoryId;
+  if (opts.sortBy) params.sortBy = opts.sortBy;
+  if (opts.sortDir) params.sortDir = opts.sortDir;
+  return (await api.get<PagedResult<AdminUser>>('/admin/users', { params })).data;
 }
 
 export async function updateUserRole(userId: string, globalRole: GlobalRole): Promise<AdminUser> {

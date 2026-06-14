@@ -7,8 +7,8 @@ export const updateUserRoleBody = z.object({
   globalRole: globalRoleEnum,
 });
 
-// Cursor pagination — clients pass the last id from the previous page back
-// in via `?cursor=…`. `limit` is capped to keep responses fast.
+// Cursor pagination — used by GET /admin/teams. Clients pass the last id
+// from the previous page back in via `?cursor=…`.
 export const listQuery = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
@@ -17,6 +17,30 @@ export const listQuery = z.object({
 export type ListQuery = z.infer<typeof listQuery>;
 
 export const authSourceEnum = z.enum(['LOCAL', 'LDAP', 'SCIM']);
+
+export const userStatusFilterEnum = z.enum(['active', 'disabled', 'locked']);
+export const userSortByEnum = z.enum(['name', 'email', 'createdAt', 'lastSynced']);
+export const sortDirEnum = z.enum(['asc', 'desc']);
+
+function clampUserPageSize(v: number): number {
+  if (!Number.isFinite(v) || v <= 0) return 25;
+  return Math.min(100, Math.max(10, v));
+}
+
+// Offset pagination + filters for GET /admin/users (v1.52).
+export const listUsersQuery = z.object({
+  page: z.coerce.number().int().transform((p) => Math.max(1, p)).default(1),
+  pageSize: z.coerce.number().int().transform(clampUserPageSize).default(25),
+  search: z.string().optional(),
+  role: globalRoleEnum.optional(),
+  authSource: authSourceEnum.optional(),
+  status: userStatusFilterEnum.optional(),
+  directoryId: z.string().optional(),
+  sortBy: userSortByEnum.default('createdAt'),
+  sortDir: sortDirEnum.default('asc'),
+});
+
+export type ListUsersQuery = z.infer<typeof listUsersQuery>;
 
 export const adminUserResponse = z.object({
   id: z.string(),
@@ -38,10 +62,12 @@ export const adminUserResponse = z.object({
   directoryActive: z.boolean(),
 });
 
-// Paginated envelopes — `nextCursor` is null when there's no more data.
 export const usersPage = z.object({
   items: z.array(adminUserResponse),
-  nextCursor: z.string().nullable(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
 });
 
 export const adminTeamResponse = z.object({

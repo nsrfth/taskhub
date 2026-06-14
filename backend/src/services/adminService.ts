@@ -45,6 +45,85 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface ListUsersOpts {
+  page: number;
+  pageSize: number;
+  search?: string;
+  role?: GlobalRole;
+  authSource?: AuthSource;
+  status?: 'active' | 'disabled' | 'locked';
+  directoryId?: string;
+  sortBy?: 'name' | 'email' | 'createdAt' | 'lastSynced';
+  sortDir?: 'asc' | 'desc';
+}
+
+const USER_LIST_INCLUDE = {
+  _count: { select: { memberships: true } },
+  directory: { select: { name: true, host: true } },
+} as const;
+
+function buildUserListWhere(opts: ListUsersOpts): Prisma.UserWhereInput {
+  const now = new Date();
+  const clauses: Prisma.UserWhereInput[] = [{ isSystemUser: false }];
+
+  const search = opts.search?.trim();
+  if (search) {
+    clauses.push({
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  if (opts.role) clauses.push({ globalRole: opts.role });
+  if (opts.authSource) clauses.push({ authSource: opts.authSource });
+  if (opts.directoryId) clauses.push({ directoryId: opts.directoryId });
+
+  if (opts.status === 'disabled') {
+    clauses.push({ disabledAt: { not: null } });
+  } else if (opts.status === 'locked') {
+    clauses.push({ lockedUntil: { gt: now } });
+  } else if (opts.status === 'active') {
+    clauses.push({
+      disabledAt: null,
+      OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+    });
+  }
+
+  return clauses.length === 1 ? clauses[0]! : { AND: clauses };
+}
+
+function userListOrderBy(
+  sortBy: ListUsersOpts['sortBy'],
+  sortDir: ListUsersOpts['sortDir'],
+): Prisma.UserOrderByWithRelationInput {
+  const dir = sortDir ?? 'asc';
+  switch (sortBy ?? 'createdAt') {
+    case 'name':
+      return { name: dir };
+    case 'email':
+      return { email: dir };
+    case 'lastSynced':
+      return { ldapSyncedAt: dir };
+    default:
+      return { createdAt: dir };
+  }
+}
+
+function clampUserListPageSize(pageSize: number): number {
+  if (!Number.isFinite(pageSize) || pageSize <= 0) return 25;
+  return Math.min(100, Math.max(10, pageSize));
+}
+
 type UserWithCounts = User & {
   _count: { memberships: number };
   directory: { name: string; host: string | null } | null;
@@ -87,25 +166,31 @@ export class AdminService {
     return toAdminUserView(u);
   }
 
-  async listUsers(opts: { cursor?: string; limit: number }): Promise<Page<AdminUserView>> {
-    // Cursor pagination: fetch limit+1 to know if there's a next page without
-    // a separate count query. The last item is the cursor for the next page.
-    const rows = await prisma.user.findMany({
-      where: { isSystemUser: false },
-      orderBy: { createdAt: 'asc' },
-      take: opts.limit + 1,
-      ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
-      include: {
-        _count: { select: { memberships: true } },
-        directory: { select: { name: true, host: true } },
-      },
-    });
-    const hasMore = rows.length > opts.limit;
-    const page = hasMore ? rows.slice(0, opts.limit) : rows;
-    const last = page[page.length - 1];
+  async listUsers(opts: ListUsersOpts): Promise<PagedResult<AdminUserView>> {
+    const page = Math.max(1, opts.page);
+    const pageSize = clampUserListPageSize(opts.pageSize);
+    const where = buildUserListWhere(opts);
+    const orderBy = userListOrderBy(opts.sortBy, opts.sortDir);
+
+    const [totalItems, rows] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: USER_LIST_INCLUDE,
+      }),
+    ]);
+
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize);
+
     return {
-      items: page.map(toAdminUserView),
-      nextCursor: hasMore && last ? last.id : null,
+      items: rows.map(toAdminUserView),
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
     };
   }
 

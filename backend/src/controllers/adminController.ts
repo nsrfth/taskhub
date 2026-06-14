@@ -5,6 +5,7 @@ import type {
   AdminResetPasswordBody,
   CreateUserBody,
   ListQuery,
+  ListUsersQuery,
   LdapTestAuthBody,
 } from '../schemas/admin.js';
 import { Errors } from '../lib/errors.js';
@@ -32,11 +33,17 @@ export class AdminController {
   ) {}
 
   listUsers = async (
-    req: FastifyRequest<{ Querystring: ListQuery }>,
+    req: FastifyRequest<{ Querystring: ListUsersQuery }>,
     reply: FastifyReply,
   ) => {
-    const page = await this.svc.listUsers(req.query);
-    return reply.send({ items: page.items.map(serializeUser), nextCursor: page.nextCursor });
+    const result = await this.svc.listUsers(req.query);
+    return reply.send({
+      items: result.items.map(serializeUser),
+      page: result.page,
+      pageSize: result.pageSize,
+      totalItems: result.totalItems,
+      totalPages: result.totalPages,
+    });
   };
 
   createUser = async (

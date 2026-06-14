@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.51.0** (2026-06-14)
+Version **v1.52.0** (2026-06-14)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -395,9 +395,11 @@ The **Settings** link in the left sidebar opens the Settings shell. The sidebar 
 - **Audit** — global ADMIN or team MANAGER.
 - **API & Webhooks** — everyone (tokens) + MANAGER (webhooks for that team).
 - **Backups** — global ADMIN only (scheduled DB backups, download/restore).
-- **Admin** — global ADMIN only (user accounts, instance management).
+- **Admin** — global ADMIN only (user accounts, instance management). **v1.52:** the user list supports search (name/email), filters (role, auth source, status, directory), sortable columns, and page-numbered navigation with total count.
 
-### Workweek (off-days)
+### Admin user list (v1.52)
+
+**Settings → Admin → Users** — search by name or email (debounced), filter by role (Admin/Member), auth source (Local/LDAP/SCIM), account status (Active/Disabled/Locked), or directory. Click column headers to sort; use Previous/Next or jump to a page. Changing any filter returns to page 1. The hidden system account never appears in this list.
 
 Admin-only section on **Settings → Preferences**. Sets the instance-wide off-day set. Two one-click presets cover the common conventions:
 

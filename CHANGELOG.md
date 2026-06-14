@@ -7,6 +7,25 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.52.0] — 2026-06-14
+
+**Admin user list — search, filters, sort, page-numbered pagination.**
+
+### Admin (backend)
+
+- **`GET /api/admin/users`** — breaking contract change: cursor pagination replaced with
+  offset/limit + `totalItems` / `totalPages`. Query params: `page`, `pageSize`, `search`,
+  `role`, `authSource`, `status` (`active`|`disabled`|`locked`), `directoryId`, `sortBy`,
+  `sortDir`. System user always excluded.
+- `AdminService.listUsers(opts)` rewritten; shared `where` for `count` + `findMany`.
+
+### Admin (frontend)
+
+- User list: debounced search, role/auth/status/directory filters, sortable columns,
+  page navigation with jump-to-page. Filter changes reset to page 1.
+
+---
+
 ## [1.51.0] — 2026-06-14
 
 **User Groups — cross-team members, FULL/READONLY access, invitation handshake.**
