@@ -35,6 +35,7 @@ import { groupInvitesRoutes } from './routes/groupInvites.js';
 import { userGroupsRoutes } from './routes/userGroups.js';
 import { customFieldsRoutes, taskCustomFieldsRoutes } from './routes/customFields.js';
 import { automationsRoutes } from './routes/automations.js';
+import { dashboardsRoutes } from './routes/dashboards.js';
 import { backupsRoutes } from './routes/backups.js';
 import { taskhubRoutes } from './routes/taskhub.js';
 import { securitySettingsRoutes } from './routes/securitySettings.js';
@@ -205,6 +206,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
       prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/custom-fields',
     });
     await api.register(automationsRoutes, { prefix: '/teams/:teamId/automations' });
+    // v1.67: team-scoped configurable widget dashboards.
+    await api.register(dashboardsRoutes, { prefix: '/teams/:teamId/dashboards' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

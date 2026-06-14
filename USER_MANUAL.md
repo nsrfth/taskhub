@@ -84,7 +84,7 @@ The subtitle under the greeting shows how many teams are included (e.g. “Acros
 
 ## Left sidebar & top bar
 
-The **left sidebar** (always visible on desktop) links to **Dashboard**, **Teams**, **Projects**, **Planner**, **Reports**, and **Settings**. Your avatar and name appear at the bottom (links to **Settings → Preferences**).
+The **left sidebar** (always visible on desktop) links to **Dashboard**, **Teams**, **Projects**, **Planner**, **Reports**, **Dashboards**, and **Settings**. Your avatar and name appear at the bottom (links to **Settings → Preferences**).
 
 The **top bar** adds global search, notifications, and **+ New Task**.
 
@@ -320,6 +320,38 @@ Completion timestamps in reports use your timezone + time format; planned/due da
 ### Exporting to CSV (v1.14)
 
 Each report section (Tasks completed / Timeliness / Workload / Overdue) has an **Export CSV** button. Clicking it downloads a UTF-8 CSV with the section's data, named e.g. `tasks-done-7d-2026-05-24.csv`. The file opens cleanly in Excel, Numbers, and Google Sheets. The Summary widget is not exported on its own — its three numbers already live inside Workload / Tasks completed / Overdue.
+
+---
+
+## Configurable dashboards (v1.67)
+
+**Dashboards** (`/dashboards`) let you build saved collections of chart widgets over a team's tasks. Pick the current team (same as Reports) from the team switcher.
+
+### Creating and sharing
+
+1. Click **Dashboards** in the left sidebar → **New dashboard**.
+2. Name the dashboard; optionally tick **Shared with team** so every member can view it (only the owner or a team manager can edit).
+3. Click **Add widget**, choose type → data source → group-by dimension → optional filters → **Save widget**.
+
+### Widget catalog (v1)
+
+| Type | Best for |
+|------|----------|
+| **Metric** | Single number (total task count or budget/custom-field sum) |
+| **Bar** | Compare buckets side-by-side |
+| **Pie / donut** | Share of whole (status, priority, select field, …) |
+| **Line** | Tasks completed or created over time (day / week / month buckets) |
+| **Table** | Raw bucket labels + counts |
+
+**Data sources:** task count; sum of planned budget; sum of actual spent; sum of a **Number** custom field.
+
+**Group by:** status, priority, assignee, label, project, due-date bucket (overdue / today / this week / later / no due date), or a **Single/Multi select** custom field.
+
+**Filters (optional):** narrow by status, priority, assignee, label, project, or custom-field value before aggregating.
+
+Charts use the same **Recharts** library as Planner charts. Under Persian (RTL), chart axes render left-to-right inside each widget for readability.
+
+**Not in v1:** cross-team dashboards, click-through drill-down, scheduled email digests, custom SQL.
 
 ---
 

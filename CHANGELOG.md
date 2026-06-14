@@ -7,7 +7,27 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
-## [1.66.0] — 2026-06-09
+## [1.67.0] — 2026-06-09
+
+**Configurable widget dashboards — team-scoped, shareable, Recharts-powered.**
+
+- Schema: `Dashboard` + `DashboardWidget` (migration `20260619120000_dashboards`). Team-owned;
+  optional `shared` flag for read access by all members.
+- API: `/api/teams/:teamId/dashboards` — CRUD + idempotent `PUT …/widgets` + per-widget
+  `GET …/widgets/:widgetId/data` resolver.
+- **Widget types (v1):** METRIC, BAR, PIE, LINE, TABLE.
+- **Data sources:** task count; sum of `plannedBudget` / `actualSpent`; sum of NUMBER custom field.
+- **Group by:** status, priority, assignee, label, project, due-bucket (overdue/today/this-week/later/no_due),
+  or SINGLE/MULTI select custom field (`custom_field:{fieldId}`).
+- **Filters:** status/priority/assignee/label/project/custom-field equals (automation-style ALL/ANY).
+- **LINE:** `completedAt` or `createdAt` bucketed day/week/month.
+- Widget data resolver reuses `ReportsService.summary()` (status counts, open total) and
+  `listWorkload()` (assignee buckets) when unfiltered; adds grouped Prisma queries elsewhere.
+- Frontend: **Dashboards** nav → list + editor with live widget preview (`recharts` ^2.15.4).
+  Charts render in `dir="ltr"` under Persian RTL. i18n EN + FA flat keys (`dashboard.*`).
+- **Deferred:** cross-team dashboards, drill-down, scheduled email, custom SQL.
+
+---
 
 **Offline Iranian holiday import — admin-triggered, ISP-filtering safe.**
 

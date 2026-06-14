@@ -343,6 +343,7 @@ model User {
   groupInvitesSent   UserGroupMember[] @relation("GroupInvitesSent")
   customFieldValues  CustomFieldValue[] @relation("CustomFieldPerson")
   holidaysCreated    Holiday[]          @relation("HolidayCreatedBy")
+  ownedDashboards    Dashboard[]        @relation("DashboardOwner")
 
   @@index([email])
 }
@@ -470,6 +471,7 @@ model Team {
   userGroups    UserGroup[]
   customFields  CustomFieldDefinition[]
   automationRules AutomationRule[]
+  dashboards    Dashboard[]
   directory     Directory?       @relation("TeamDirectory", fields: [directoryId], references: [id], onDelete: SetNull)
 
   @@index([directoryId])
@@ -915,6 +917,43 @@ model CustomFieldValueOption {
 
   @@id([valueId, optionId])
   @@index([optionId])
+}
+
+// v1.67: team-scoped configurable dashboards — saved widget collections.
+model Dashboard {
+  id          String   @id @default(cuid())
+  teamId      String
+  ownerId     String
+  name        String
+  description String?
+  shared      Boolean  @default(false)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team    Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner   User              @relation("DashboardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  widgets DashboardWidget[]
+
+  @@index([teamId])
+  @@index([ownerId])
+}
+
+model DashboardWidget {
+  id          String  @id @default(cuid())
+  dashboardId String
+  type        String
+  title       String
+  dataSource  String
+  groupBy     String?
+  timeBucket  String?
+  filtersJson Json?
+  configJson  Json?
+  position    Int     @default(0)
+
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
 }
 
 model Attachment {
