@@ -27,9 +27,25 @@ import { api } from '@/lib/api';
 // formatters, picker, theme class, RTL direction, translations) gets the
 // new value in one paint.
 
+function normalizeTimeZone(tz: string | null | undefined): string | null {
+  if (tz == null) return null;
+  const trimmed = tz.trim();
+  return trimmed.length ? trimmed : null;
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
-    const msg = err.response?.data?.error?.message;
+    const data = err.response?.data as
+      | { error?: { message?: string; details?: { fieldErrors?: Record<string, string[]> } } }
+      | undefined;
+    const fieldErrors = data?.error?.details?.fieldErrors;
+    if (fieldErrors) {
+      const parts = Object.entries(fieldErrors).flatMap(([field, msgs]) =>
+        msgs.map((m) => `${field}: ${m}`),
+      );
+      if (parts.length) return parts.join('; ');
+    }
+    const msg = data?.error?.message;
     if (typeof msg === 'string' && msg.length) return msg;
   }
   return fallback;
@@ -42,7 +58,7 @@ export default function PreferencesPage(): JSX.Element {
   const initialCalendar: Calendar = (user?.calendarPreference ?? 'SHAMSI') as Calendar;
   const initialTheme: ThemePreference = (user?.themePreference ?? 'LIGHT') as ThemePreference;
   const initialLanguage: Language = (user?.languagePreference ?? 'EN') as Language;
-  const initialTimeZone: string | null = user?.timeZone ?? null;
+  const initialTimeZone: string | null = normalizeTimeZone(user?.timeZone);
   const initialTimeFormat: TimeFormat = user?.timeFormat ?? 'H24';
   const initialDualCalendar = user?.dualCalendar ?? false;
   const initialReminderLeadHours = user?.reminderLeadHours ?? 24;
@@ -62,7 +78,7 @@ export default function PreferencesPage(): JSX.Element {
         calendar,
         theme,
         language,
-        timeZone,
+        timeZone: normalizeTimeZone(timeZone),
         timeFormat,
         dualCalendar,
         reminderLeadHours,

@@ -9,6 +9,7 @@ import type {
   VerificationPerformBody,
   VerificationRequestBody,
 } from '../schemas/auth.js';
+import { normalizeTimeZoneInput } from '../schemas/datetimePrefs.js';
 import type { ThemePreferenceValue } from '../schemas/themePreference.js';
 import type { UpdatePreferencesBody } from '../schemas/auth.js';
 import type { TimeFormatValue } from '../schemas/datetimePrefs.js';
@@ -203,7 +204,9 @@ export class AuthController {
     if (req.body.calendar) data.calendarPreference = req.body.calendar;
     if (req.body.theme) data.themePreference = req.body.theme;
     if (req.body.language) data.languagePreference = req.body.language;
-    if (req.body.timeZone !== undefined) data.timeZone = req.body.timeZone;
+    if (req.body.timeZone !== undefined) {
+      data.timeZone = normalizeTimeZoneInput(req.body.timeZone);
+    }
     if (req.body.timeFormat) data.timeFormat = req.body.timeFormat;
     if (req.body.dualCalendar !== undefined) data.dualCalendar = req.body.dualCalendar;
     if (req.body.reminderLeadHours !== undefined) {
@@ -226,7 +229,7 @@ export class AuthController {
       calendar: updated.calendarPreference,
       theme: updated.themePreference,
       language: updated.languagePreference,
-      timeZone: updated.timeZone,
+      timeZone: normalizeTimeZoneInput(updated.timeZone),
       timeFormat: updated.timeFormat as TimeFormatValue,
       dualCalendar: updated.dualCalendar,
       reminderLeadHours: updated.reminderLeadHours ?? 24,

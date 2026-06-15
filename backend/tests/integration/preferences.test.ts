@@ -180,6 +180,18 @@ describe('PATCH /api/auth/me/preferences — datetime (v1.63)', () => {
     });
   });
 
+  it('treats empty timeZone string as null (browser fallback)', async () => {
+    const { token } = await register();
+    const cleared = await app.inject({
+      method: 'PATCH',
+      url: '/api/auth/me/preferences',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { timeZone: '' },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().timeZone).toBeNull();
+  });
+
   it('allows clearing timeZone with null (browser fallback)', async () => {
     const { token } = await register();
     await app.inject({
@@ -226,6 +238,26 @@ describe('PATCH /api/auth/me/preferences — datetime (v1.63)', () => {
     });
     expect(patch.statusCode).toBe(200);
     expect(patch.json().reminderLeadHours).toBe(48);
+  });
+
+  it('persists theme when timeZone is sent as empty string', async () => {
+    const { token } = await register();
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: '/api/auth/me/preferences',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        theme: 'MIDNIGHT',
+        calendar: 'SHAMSI',
+        language: 'EN',
+        timeZone: '',
+        timeFormat: 'H24',
+        dualCalendar: false,
+        reminderLeadHours: 24,
+      },
+    });
+    expect(patch.statusCode).toBe(200);
+    expect(patch.json()).toMatchObject({ theme: 'MIDNIGHT', timeZone: null });
   });
 
   it('rejects reminderLeadHours outside 1–168', async () => {

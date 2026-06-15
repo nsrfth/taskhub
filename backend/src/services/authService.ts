@@ -12,6 +12,7 @@ import { emailService } from './emailService.js';
 import { groupDnsMatch } from '../lib/ldapDn.js';
 import { systemRoleIdFor } from '../lib/teamRoles.js';
 import { passwordPolicyService } from './passwordPolicyService.js';
+import { normalizeTimeZoneInput } from '../schemas/datetimePrefs.js';
 import type { ThemePreferenceValue } from '../schemas/themePreference.js';
 import type { TimeFormatValue } from '../schemas/datetimePrefs.js';
 
@@ -738,7 +739,7 @@ export class AuthService {
         calendarPreference: user.calendarPreference,
         themePreference: user.themePreference,
         languagePreference: user.languagePreference,
-        timeZone: user.timeZone,
+        timeZone: normalizeTimeZoneInput(user.timeZone),
         timeFormat: user.timeFormat,
         dualCalendar: user.dualCalendar,
         reminderLeadHours: user.reminderLeadHours ?? 24,
