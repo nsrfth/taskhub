@@ -320,6 +320,22 @@ Click **Reports** in the dashboard header. All sections are team-scoped (current
 
 Completion timestamps in reports use your timezone + time format; planned/due dates stay calendar-neutral.
 
+### Project Gantt chart (v1.42, scales v1.76)
+
+Open a project → **Gantt** (or `/projects/:id/reports/gantt`). The chart lists every **scheduled subtask** (start + end dates) grouped under its parent task. Bars are coloured by parent status; overdue open items get a red border. Off-days (weekends + holidays) are shaded red; hover a red day for the holiday name.
+
+**Time scale** toolbar (session-only — not persisted across reloads):
+
+| Mode | Visible window | Navigation step |
+|------|----------------|-----------------|
+| **Year** | 12 month columns for the anchor year | ±1 year |
+| **Month** | Full calendar month (day columns, week dividers) | ±1 month |
+| **Week** | 7 days from the configured week start | ±1 week |
+| **Working week** | Same week range but **off-days omitted** (only working-day columns) | ±1 week |
+| **Day** | **Fit** — spans the whole filtered project at day resolution (legacy default); prev/next switches to month windows | ±1 month when not fit |
+
+Use **‹ Today ›** to jump the anchor to the current period. The period label follows your Shamsi/Gregorian preference.
+
 ### Exporting to CSV (v1.14)
 
 Each report section (Tasks completed / Timeliness / Workload / **Budget** / Overdue) has an **Export CSV** button. Clicking it downloads a UTF-8 CSV with the section's data, named e.g. `tasks-done-7d-2026-05-24.csv`. The file opens cleanly in Excel, Numbers, and Google Sheets. The Summary widget is not exported on its own — its three numbers already live inside Workload / Tasks completed / Overdue.

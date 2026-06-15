@@ -16,6 +16,17 @@
   "reports.budget.currency": "ارز",
   "reports.budget.projects": "پروژه‌ها",
 
+  "gantt.scale.label": "مقیاس زمانی",
+  "gantt.scale.year": "سال",
+  "gantt.scale.month": "ماه",
+  "gantt.scale.week": "هفته",
+  "gantt.scale.workingWeek": "هفته کاری",
+  "gantt.scale.day": "روز",
+  "gantt.prev": "دوره قبل",
+  "gantt.next": "دوره بعد",
+  "gantt.today": "امروز",
+  "gantt.period": "دوره",
+
   "groups.title": "گروه‌های کاربری",
   "groups.description": "دسترسی به پروژه‌ها را به اعضای تیم بدهید بدون تغییر مالک پروژه.",
   "groups.create": "ایجاد گروه",

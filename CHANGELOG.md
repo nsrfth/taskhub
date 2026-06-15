@@ -7,6 +7,16 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.76.0] — 2026-06-21
+
+**Gantt — time-scale modes + period navigation.** Per-project Gantt chart toolbar: Year /
+Month / Week / Working-week / Day scales with prev / today / next. Visible window driven by
+`(scaleMode, anchorDate)`; WORKING-WEEK omits off-day columns; YEAR uses 12 month columns.
+Day mode defaults to whole-project fit (legacy). In-memory scale state only. UTC-midnight bar
+math unchanged.
+
+---
+
 ## [1.75.0] — 2026-06-21
 
 **Tasks — collapsible subtasks in list view.** Project task list mode shows a per-row chevron +

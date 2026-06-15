@@ -2,45 +2,44 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchGantt, type GanttSubtaskRow } from '@/features/reports/ganttApi';
+import { formatGanttPeriodLabel } from '@/features/reports/ganttPeriodLabel';
+import {
+  barGeometry,
+  buildGanttAxis,
+  projectBoundsFromRows,
+  shiftAnchor,
+  todayLineX,
+  todayUtcMs,
+  utcDayMs,
+  type GanttAxis,
+  type GanttColumn,
+  type GanttScaleMode,
+} from '@/features/reports/ganttScale';
 import { formatShamsiCalendarDate } from '@/lib/shamsi';
-import { getHolidayName, isOffDay } from '@/lib/calendar';
+import { getWeekStartDay } from '@/lib/calendar';
+import { useT } from '@/lib/i18n';
 
-// v1.42: per-project Gantt report page. Mounted at
-// /projects/:projectId/reports/gantt (router resolves project's teamId
-// from cache or via a lookup).
-//
-// Visual model:
-//   - Header: project summary block (total tasks/subtasks, scheduled vs
-//     unscheduled, project duration).
-//   - Filter row: parent task, assignee, status, date range.
-//   - Chart: each row is a subtask. Bars proportional to (end - start).
-//     Day-level resolution (smallest practical bucket; one day = 24px).
-//   - Bars are colour-coded by status; overdue (end < today, not done)
-//     shows a red border.
-//   - Tooltip via native `title` for v1; full popover deferred.
-//   - Horizontal scroll for long projects (overflow-x: auto wrapper).
-//
-// Performance: rendering is pure SVG, no chart library. Up to ~500 rows
-// renders fine without virtualisation; for bigger projects, we add a
-// `react-window` pass as a follow-up (noted in CHANGELOG).
+// v1.42: per-project Gantt report page. v1.76: time-scale modes +
+// period navigation (year / month / week / working-week / day).
 
-// Width per day in px. Increasing this widens the chart; decreasing it
-// fits more days on screen but starts losing label legibility.
-const DAY_PX = 28;
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 36;
 
-// Strip the time component — every date in the system is anchored to
-// UTC midnight, but parsing through Date() can drift by timezone. Use
-// the UTC accessors so the math stays calendar-day-stable.
-function utcDayMs(iso: string): number {
-  const d = new Date(iso);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-}
+const SCALE_MODES: GanttScaleMode[] = [
+  'year',
+  'month',
+  'week',
+  'workingWeek',
+  'day',
+];
 
-function daysBetween(startMs: number, endMs: number): number {
-  return Math.round((endMs - startMs) / 86_400_000);
-}
+const SCALE_I18N: Record<GanttScaleMode, string> = {
+  year: 'gantt.scale.year',
+  month: 'gantt.scale.month',
+  week: 'gantt.scale.week',
+  workingWeek: 'gantt.scale.workingWeek',
+  day: 'gantt.scale.day',
+};
 
 interface RouteParams extends Record<string, string | undefined> {
   projectId: string;
@@ -48,9 +47,8 @@ interface RouteParams extends Record<string, string | undefined> {
 
 export default function ProjectGanttPage(): JSX.Element {
   const { projectId } = useParams<RouteParams>();
-  // teamId comes from the project lookup below — we route by projectId
-  // only because the SPA doesn't always know teamId from the URL chain.
-  // We resolve it via the cross-team project list (cheap and cached).
+  const t = useT();
+
   const { data: allProjects } = useQuery({
     queryKey: ['projects', 'all'],
     queryFn: async () => {
@@ -68,16 +66,16 @@ export default function ProjectGanttPage(): JSX.Element {
     enabled: !!teamId && !!projectId,
   });
 
-  // Filter state — task / assignee / status / date range.
   const [filterTaskId, setFilterTaskId] = useState<string>('');
   const [filterAssigneeId, setFilterAssigneeId] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterFromIso, setFilterFromIso] = useState<string>('');
   const [filterToIso, setFilterToIso] = useState<string>('');
 
-  // Derived filter dropdown values from the unfiltered rows. Distinct
-  // assignees / tasks / statuses harvested in one pass so the filter
-  // options are always exactly what the chart can show.
+  const [scaleMode, setScaleMode] = useState<GanttScaleMode>('day');
+  const [anchorMs, setAnchorMs] = useState(() => todayUtcMs());
+  const [dayFitProject, setDayFitProject] = useState(true);
+
   const distinctTasks = useMemo(() => {
     if (!data) return [];
     const m = new Map<string, string>();
@@ -99,7 +97,6 @@ export default function ProjectGanttPage(): JSX.Element {
     return Array.from(new Set(data.rows.map((r) => r.parentTaskStatus)));
   }, [data]);
 
-  // The chart needs scheduled rows only. Filters narrow this set further.
   const scheduledRows = useMemo<GanttSubtaskRow[]>(() => {
     if (!data) return [];
     return data.rows
@@ -111,7 +108,6 @@ export default function ProjectGanttPage(): JSX.Element {
       .filter((r) => !filterToIso || utcDayMs(r.startDate!) <= utcDayMs(filterToIso));
   }, [data, filterTaskId, filterAssigneeId, filterStatus, filterFromIso, filterToIso]);
 
-  // Group scheduled rows by parent task so the chart visually clusters them.
   const grouped = useMemo(() => {
     const m = new Map<string, { title: string; status: string; rows: GanttSubtaskRow[] }>();
     for (const r of scheduledRows) {
@@ -122,41 +118,49 @@ export default function ProjectGanttPage(): JSX.Element {
     return Array.from(m, ([taskId, g]) => ({ taskId, ...g }));
   }, [scheduledRows]);
 
-  // Chart axis bounds. We extend the project range by a day on each side
-  // for breathing room. When no rows match, axis collapses to a single
-  // day so the SVG still renders (just empty body).
-  const axis = useMemo(() => {
-    if (scheduledRows.length === 0) {
-      const today = Date.UTC(
-        new Date().getUTCFullYear(),
-        new Date().getUTCMonth(),
-        new Date().getUTCDate(),
-      );
-      return { startMs: today, endMs: today + 86_400_000, days: 1 };
-    }
-    let startMs = Infinity;
-    let endMs = -Infinity;
-    for (const r of scheduledRows) {
-      const s = utcDayMs(r.startDate!);
-      const e = utcDayMs(r.endDate!);
-      if (s < startMs) startMs = s;
-      if (e > endMs) endMs = e;
-    }
-    startMs -= 86_400_000;
-    endMs += 86_400_000;
-    return { startMs, endMs, days: daysBetween(startMs, endMs) + 1 };
-  }, [scheduledRows]);
-
-  const todayMs = Date.UTC(
-    new Date().getUTCFullYear(),
-    new Date().getUTCMonth(),
-    new Date().getUTCDate(),
+  const projectBounds = useMemo(
+    () =>
+      projectBoundsFromRows(
+        scheduledRows.map((r) => ({
+          startDate: r.startDate!,
+          endDate: r.endDate!,
+        })),
+      ),
+    [scheduledRows],
   );
 
-  const chartWidth = axis.days * DAY_PX;
-  // Each task group gets a header row + its subtask rows.
+  const fitBounds = scaleMode === 'day' && dayFitProject ? projectBounds : null;
+  const weekStartDay = getWeekStartDay();
+  const todayMs = todayUtcMs();
+
+  const axis = useMemo(
+    () => buildGanttAxis(scaleMode, anchorMs, weekStartDay, todayMs, fitBounds),
+    [scaleMode, anchorMs, weekStartDay, todayMs, fitBounds],
+  );
+
+  const periodLabel = useMemo(
+    () => formatGanttPeriodLabel(scaleMode, anchorMs, weekStartDay, fitBounds),
+    [scaleMode, anchorMs, weekStartDay, fitBounds],
+  );
+
   const chartHeight =
     HEADER_HEIGHT + grouped.reduce((acc, g) => acc + ROW_HEIGHT + g.rows.length * ROW_HEIGHT, 0);
+
+  function navigate(delta: -1 | 1): void {
+    setDayFitProject(false);
+    setAnchorMs((prev) => shiftAnchor(scaleMode, prev, delta));
+  }
+
+  function goToday(): void {
+    setDayFitProject(false);
+    setAnchorMs(todayUtcMs());
+  }
+
+  function changeScale(mode: GanttScaleMode): void {
+    setScaleMode(mode);
+    if (mode !== 'day') setDayFitProject(false);
+    else setDayFitProject(true);
+  }
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -180,7 +184,6 @@ export default function ProjectGanttPage(): JSX.Element {
 
       {data && (
         <>
-          {/* Summary block — always rendered, even when empty. */}
           <section className="bg-white rounded shadow p-4 mb-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <Summary label="Total tasks" value={data.summary.totalTasks} />
             <Summary label="Total subtasks" value={data.summary.totalSubtasks} />
@@ -198,13 +201,12 @@ export default function ProjectGanttPage(): JSX.Element {
             />
           </section>
 
-          {/* Filter row */}
           <section className="bg-white rounded shadow p-4 mb-4 flex flex-wrap items-center gap-3 text-sm">
             <FilterSelect
               label="Task"
               value={filterTaskId}
               onChange={setFilterTaskId}
-              options={distinctTasks.map((t) => ({ value: t.id, label: t.name }))}
+              options={distinctTasks.map((tk) => ({ value: tk.id, label: tk.name }))}
             />
             <FilterSelect
               label="Assignee"
@@ -253,13 +255,65 @@ export default function ProjectGanttPage(): JSX.Element {
                 setFilterFromIso('');
                 setFilterToIso('');
               }}
-              className="ml-auto text-xs text-slate-500 hover:underline"
+              className="ms-auto text-xs text-slate-500 hover:underline"
             >
               Clear filters
             </button>
           </section>
 
-          {/* Chart body — empty state vs. scrollable SVG */}
+          {scheduledRows.length > 0 && (
+            <section className="bg-white rounded shadow px-4 py-3 mb-2 flex flex-wrap items-center gap-3 text-sm">
+              <div
+                className="inline-flex rounded border border-slate-200 overflow-hidden"
+                role="group"
+                aria-label={t('gantt.scale.label')}
+              >
+                {SCALE_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => changeScale(mode)}
+                    className={`px-3 py-1.5 text-xs border-s border-slate-200 first:border-s-0 ${
+                      scaleMode === mode
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                        : 'bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    {t(SCALE_I18N[mode])}
+                  </button>
+                ))}
+              </div>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                  aria-label={t('gantt.prev')}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={goToday}
+                  className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                >
+                  {t('gantt.today')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(1)}
+                  className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                  aria-label={t('gantt.next')}
+                >
+                  ›
+                </button>
+              </div>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200" dir="auto">
+                {t('gantt.period')}: {periodLabel}
+              </span>
+            </section>
+          )}
+
           <section className="bg-white rounded shadow p-2 overflow-x-auto">
             {scheduledRows.length === 0 ? (
               <p className="text-sm text-slate-500 p-4 italic">
@@ -270,9 +324,9 @@ export default function ProjectGanttPage(): JSX.Element {
               <GanttChart
                 axis={axis}
                 grouped={grouped}
-                chartWidth={chartWidth}
                 chartHeight={chartHeight}
                 todayMs={todayMs}
+                todayLabel={t('gantt.today')}
               />
             )}
           </section>
@@ -330,173 +384,221 @@ function FilterSelect({
   );
 }
 
-// Status → bar fill. Matches the kanban palette spirit (TODO grey,
-// IN_PROGRESS blue, REVIEW amber, DONE green). Subtask doesn't carry
-// its own status today, so we colour by the parent task's status.
 function statusFill(status: string, done: boolean): string {
-  if (done) return '#10b981'; // emerald
+  if (done) return '#10b981';
   switch (status) {
     case 'IN_PROGRESS':
-      return '#3b82f6'; // blue
+      return '#3b82f6';
     case 'REVIEW':
-      return '#f59e0b'; // amber
+      return '#f59e0b';
     case 'DONE':
       return '#10b981';
     default:
-      return '#94a3b8'; // slate (TODO + unknown)
+      return '#94a3b8';
   }
 }
 
 function GanttChart({
   axis,
   grouped,
-  chartWidth,
   chartHeight,
   todayMs,
+  todayLabel,
 }: {
-  axis: { startMs: number; endMs: number; days: number };
+  axis: GanttAxis;
   grouped: Array<{ taskId: string; title: string; status: string; rows: GanttSubtaskRow[] }>;
-  chartWidth: number;
   chartHeight: number;
   todayMs: number;
+  todayLabel: string;
 }): JSX.Element {
-  // Build a list of "day marker" positions for the header. We render one
-  // text label per day at our default zoom; for very long projects this
-  // can crowd, but the simple horizontal scroll covers it. A follow-up
-  // could introduce zoom controls.
-  const dayMarkers: Array<{ x: number; label: string; ms: number; offDay: boolean; holidayName: string | null }> = [];
-  for (let i = 0; i < axis.days; i++) {
-    const ms = axis.startMs + i * 86_400_000;
-    const d = new Date(ms);
-    dayMarkers.push({
-      x: i * DAY_PX,
-      label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}`,
-      ms,
-      offDay: isOffDay(d),
-      holidayName: getHolidayName(d),
-    });
-  }
-
-  // Today indicator if inside the chart's range.
-  const todayInRange = todayMs >= axis.startMs && todayMs <= axis.endMs;
-  const todayX = todayInRange ? daysBetween(axis.startMs, todayMs) * DAY_PX : null;
+  const todayX = todayLineX(axis, todayMs);
 
   let yCursor = HEADER_HEIGHT;
 
   return (
-    <svg
-      width={chartWidth}
-      height={chartHeight}
-      style={{ display: 'block', minWidth: '100%' }}
-      role="img"
-      aria-label="Project Gantt chart"
-    >
-      {/* Header day labels */}
-      <g>
-        {dayMarkers.map((m, i) => (
-          <g key={i}>
-            {m.offDay && (
-              <rect x={m.x} y={0} width={DAY_PX} height={chartHeight} fill="#fef2f2" />
-            )}
-            <line x1={m.x} y1={0} x2={m.x} y2={chartHeight} stroke="#f1f5f9" strokeWidth={1} />
-            <text x={m.x + 2} y={14} fontSize="10" fill={m.offDay ? '#dc2626' : '#64748b'}>
-              {m.holidayName ? <title>{m.holidayName}</title> : null}
-              {m.label}
-            </text>
-          </g>
-        ))}
-      </g>
+    <div dir="ltr" className="min-w-full">
+      <svg
+        width={axis.chartWidth}
+        height={chartHeight}
+        style={{ display: 'block', minWidth: '100%' }}
+        role="img"
+        aria-label="Project Gantt chart"
+      >
+        <HeaderColumns axis={axis} chartHeight={chartHeight} />
 
-      {/* Today marker */}
-      {todayX !== null && (
-        <g>
-          <line x1={todayX} y1={0} x2={todayX} y2={chartHeight} stroke="#ef4444" strokeWidth={1} />
-          <text x={todayX + 2} y={28} fontSize="10" fill="#ef4444">
-            today
-          </text>
-        </g>
-      )}
-
-      {/* Rows */}
-      {grouped.map((g) => {
-        const groupHeaderY = yCursor;
-        const groupHeader = (
-          <g key={`hdr-${g.taskId}`}>
-            <rect
-              x={0}
-              y={groupHeaderY}
-              width={chartWidth}
-              height={ROW_HEIGHT}
-              fill="#f8fafc"
+        {todayX !== null && (
+          <g>
+            <line
+              x1={todayX}
+              y1={0}
+              x2={todayX}
+              y2={chartHeight}
+              stroke="#ef4444"
+              strokeWidth={1}
             />
-            <text x={6} y={groupHeaderY + 18} fontSize="12" fontWeight={600} fill="#334155">
-              {g.title}
+            <text x={todayX + 2} y={28} fontSize="10" fill="#ef4444">
+              {todayLabel}
             </text>
           </g>
-        );
-        yCursor += ROW_HEIGHT;
-        const rowEls = g.rows.map((r) => {
-          const startMs = utcDayMs(r.startDate!);
-          const endMs = utcDayMs(r.endDate!);
-          const x = daysBetween(axis.startMs, startMs) * DAY_PX;
-          // Inclusive day range: a "Jun 1 → Jun 1" subtask shows a 1-day bar.
-          const widthDays = daysBetween(startMs, endMs) + 1;
-          const w = widthDays * DAY_PX - 4;
-          const y = yCursor + 4;
-          const overdue = !r.done && endMs < todayMs;
-          const fill = statusFill(g.status, r.done);
-          const durationLine =
-            r.workingDayCount !== null
-              ? `Duration: ${r.workingDayCount} working day(s) (${widthDays} calendar day(s))`
-              : `Duration: ${widthDays} day(s)`;
-          const tooltip = [
-            r.title,
-            `Start: ${formatShamsiCalendarDate(r.startDate) ?? ''}`,
-            `End: ${formatShamsiCalendarDate(r.endDate) ?? ''}`,
-            durationLine,
-            r.assigneeName ? `Assignee: ${r.assigneeName}` : 'Assignee: —',
-            r.technicianName ? `Technician: ${r.technicianName}` : '',
-            `Status: ${g.status}${r.done ? ' / done' : ''}`,
-            `Parent: ${r.parentTaskTitle}`,
-          ]
-            .filter(Boolean)
-            .join('\n');
-          const el = (
-            <g key={r.id}>
+        )}
+
+        {grouped.map((g) => {
+          const groupHeaderY = yCursor;
+          const groupHeader = (
+            <g key={`hdr-${g.taskId}`}>
               <rect
-                x={x + 2}
-                y={y}
-                width={Math.max(2, w)}
-                height={ROW_HEIGHT - 8}
-                rx={3}
-                ry={3}
-                fill={fill}
-                stroke={overdue ? '#dc2626' : 'transparent'}
-                strokeWidth={overdue ? 2 : 0}
-              >
-                <title>{tooltip}</title>
-              </rect>
-              <text
-                x={x + 6}
-                y={y + (ROW_HEIGHT - 8) / 2 + 4}
-                fontSize="11"
-                fill="#ffffff"
-                style={{ pointerEvents: 'none' }}
-              >
-                {r.title.length > Math.max(4, widthDays * 2) ? '' : r.title}
+                x={0}
+                y={groupHeaderY}
+                width={axis.chartWidth}
+                height={ROW_HEIGHT}
+                fill="#f8fafc"
+              />
+              <text x={6} y={groupHeaderY + 18} fontSize="12" fontWeight={600} fill="#334155">
+                {g.title}
               </text>
             </g>
           );
           yCursor += ROW_HEIGHT;
-          return el;
-        });
-        return (
-          <g key={g.taskId}>
-            {groupHeader}
-            {rowEls}
-          </g>
-        );
-      })}
-    </svg>
+          const rowEls = g.rows.map((r) => {
+            const startMs = utcDayMs(r.startDate!);
+            const endMs = utcDayMs(r.endDate!);
+            const geom = barGeometry(startMs, endMs, axis);
+            const y = yCursor + 4;
+            const overdue = !r.done && endMs < todayMs;
+            const fill = statusFill(g.status, r.done);
+            const widthDays =
+              Math.round((endMs - startMs) / 86_400_000) + 1;
+            const durationLine =
+              r.workingDayCount !== null
+                ? `Duration: ${r.workingDayCount} working day(s) (${widthDays} calendar day(s))`
+                : `Duration: ${widthDays} day(s)`;
+            const tooltip = [
+              r.title,
+              `Start: ${formatShamsiCalendarDate(r.startDate) ?? ''}`,
+              `End: ${formatShamsiCalendarDate(r.endDate) ?? ''}`,
+              durationLine,
+              r.assigneeName ? `Assignee: ${r.assigneeName}` : 'Assignee: —',
+              r.technicianName ? `Technician: ${r.technicianName}` : '',
+              `Status: ${g.status}${r.done ? ' / done' : ''}`,
+              `Parent: ${r.parentTaskTitle}`,
+            ]
+              .filter(Boolean)
+              .join('\n');
+            const el = geom ? (
+              <g key={r.id}>
+                <rect
+                  x={geom.x + 2}
+                  y={y}
+                  width={geom.width}
+                  height={ROW_HEIGHT - 8}
+                  rx={3}
+                  ry={3}
+                  fill={fill}
+                  stroke={overdue ? '#dc2626' : 'transparent'}
+                  strokeWidth={overdue ? 2 : 0}
+                >
+                  <title>{tooltip}</title>
+                </rect>
+                <text
+                  x={geom.x + 6}
+                  y={y + (ROW_HEIGHT - 8) / 2 + 4}
+                  fontSize="11"
+                  fill="#ffffff"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {r.title.length > Math.max(4, Math.floor(geom.width / 8)) ? '' : r.title}
+                </text>
+              </g>
+            ) : (
+              <g key={r.id} />
+            );
+            yCursor += ROW_HEIGHT;
+            return el;
+          });
+          return (
+            <g key={g.taskId}>
+              {groupHeader}
+              {rowEls}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function HeaderColumns({
+  axis,
+  chartHeight,
+}: {
+  axis: GanttAxis;
+  chartHeight: number;
+}): JSX.Element {
+  return (
+    <g>
+      {axis.columns.map((col, i) => (
+        <HeaderColumn key={i} col={col} chartHeight={chartHeight} />
+      ))}
+    </g>
+  );
+}
+
+function HeaderColumn({
+  col,
+  chartHeight,
+}: {
+  col: GanttColumn;
+  chartHeight: number;
+}): JSX.Element {
+  if (col.kind === 'month') {
+    return (
+      <g>
+        {col.isCurrentMonth && (
+          <rect
+            x={col.x}
+            y={0}
+            width={col.width}
+            height={chartHeight}
+            fill="#fff7ed"
+          />
+        )}
+        <line
+          x1={col.x}
+          y1={0}
+          x2={col.x}
+          y2={chartHeight}
+          stroke="#e2e8f0"
+          strokeWidth={col.isCurrentMonth ? 2 : 1}
+        />
+        <text x={col.x + 4} y={14} fontSize="10" fill="#64748b">
+          {col.label}
+        </text>
+      </g>
+    );
+  }
+
+  const d = new Date(col.ms);
+  const label = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  const stroke = col.weekBoundary ? '#cbd5e1' : '#f1f5f9';
+  const strokeWidth = col.weekBoundary ? 2 : 1;
+
+  return (
+    <g>
+      {col.offDay && (
+        <rect x={col.x} y={0} width={col.width} height={chartHeight} fill="#fef2f2" />
+      )}
+      <line
+        x1={col.x}
+        y1={0}
+        x2={col.x}
+        y2={chartHeight}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+      <text x={col.x + 2} y={14} fontSize="10" fill={col.offDay ? '#dc2626' : '#64748b'}>
+        {col.holidayName ? <title>{col.holidayName}</title> : null}
+        {label}
+      </text>
+    </g>
   );
 }

@@ -16,6 +16,17 @@
   "reports.budget.currency": "Currency",
   "reports.budget.projects": "Projects",
 
+  "gantt.scale.label": "Time scale",
+  "gantt.scale.year": "Year",
+  "gantt.scale.month": "Month",
+  "gantt.scale.week": "Week",
+  "gantt.scale.workingWeek": "Working week",
+  "gantt.scale.day": "Day",
+  "gantt.prev": "Previous period",
+  "gantt.next": "Next period",
+  "gantt.today": "Today",
+  "gantt.period": "Period",
+
   "groups.title": "User groups",
   "groups.description": "Grant project access to sets of team members without changing project ownership.",
   "groups.create": "Create group",
