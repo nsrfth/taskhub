@@ -85,7 +85,7 @@ export function buildCurrencyRollups(
     overBudget: boolean;
   }[],
 ): BudgetCurrencyRollup[] {
-  const grouped = new Map<Currency, typeof rows>();
+  const grouped = new Map<Currency, Array<(typeof rows)[number]>>();
   for (const row of rows) {
     const bucket = grouped.get(row.currency) ?? [];
     bucket.push(row);

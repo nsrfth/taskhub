@@ -7,6 +7,16 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.71.1] — 2026-06-09
+
+**Security — fast-jwt CVE patch.** Backend npm `overrides` pin `fast-jwt@6.2.4` under
+`@fastify/jwt@8` to resolve critical JWT advisories (algorithm confusion, cache-key
+collision identity mixup, improper `iss` validation). Dependency patch only — login, refresh
+rotation, API tokens, and updater auth verified unchanged. Backend package version aligned to
+1.71.1 (frontend remains 1.71.0 until next frontend release).
+
+---
+
 ## [1.71.0] — 2026-06-09
 
 **Reports — budget / cost.** New team-scoped budget report: per-project planned vs actual
