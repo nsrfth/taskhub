@@ -115,6 +115,7 @@ export default function TaskDetailPage(): JSX.Element {
   const { user } = useAuth();
   const { teamId, project, projectTeam } = useProjectTeam(projectId);
   const qc = useQueryClient();
+  const t = useT();
 
   const isManager = projectTeam?.myRole === 'MANAGER';
 
@@ -128,14 +129,14 @@ export default function TaskDetailPage(): JSX.Element {
     enabled: !!teamId && !!projectId && !!taskId,
   });
 
-  // v1.19: team members feed the Technician dropdown for managers/admins.
-  // Fetched lazily — only when the viewer can actually change Technician.
-  const canChangeTechnician = isManager || user?.globalRole === 'ADMIN';
+  // v1.19: team members feed the Responsible dropdown for managers/admins.
+  // Fetched lazily — only when the viewer can actually change Responsible.
+  const canChangeResponsible = isManager || user?.globalRole === 'ADMIN';
   const canEditTask = !!projectTeam;
   const { data: teamMembersRaw = [] } = useQuery({
     queryKey: ['teams', teamId, 'assignees'],
     queryFn: () => listTeamMembersForAssignees(teamId!),
-    enabled: !!teamId && (canChangeTechnician || canEditTask),
+    enabled: !!teamId && (canChangeResponsible || canEditTask),
     staleTime: 30_000,
   });
   const teamMembers = visibleTeamMembers(teamMembersRaw);
@@ -259,12 +260,12 @@ export default function TaskDetailPage(): JSX.Element {
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mb-3">
               <span className="uppercase tracking-wide">Status: {task.status}</span>
               <span className="uppercase tracking-wide">Priority: {task.priority}</span>
-              {/* v1.19: Technician — distinct from creator/assignee. Always
+              {/* v1.19: Responsible — distinct from creator/assignee. Always
                   visible to everyone for context; only managers/admins can
                   reassign (the dropdown below). */}
               <span className="uppercase tracking-wide">
-                Technician:{' '}
-                {task.technicianName ?? <span className="italic">unassigned</span>}
+                {t('tasks.col.responsible')}:{' '}
+                {task.responsibleName ?? <span className="italic">unassigned</span>}
               </span>
               {task.startDate && (
                 <span>
@@ -296,17 +297,17 @@ export default function TaskDetailPage(): JSX.Element {
               <p className="text-sm text-slate-400 italic">No description.</p>
             )}
 
-            {/* v1.19: Technician reassignment — managers/admins only. The
+            {/* v1.19: Responsible reassignment — managers/admins only. The
                 backend gates this independently; the dropdown is here only
                 as a discoverability affordance. */}
-            {canChangeTechnician && (
+            {canChangeResponsible && (
               <div className="mt-5 pt-4 border-t">
-                <h3 className="text-xs font-medium text-slate-600 mb-2">Technician</h3>
+                <h3 className="text-xs font-medium text-slate-600 mb-2">{t('tasks.col.responsible')}</h3>
                 <select
-                  value={task.technicianId ?? ''}
+                  value={task.responsibleId ?? ''}
                   onChange={(e) =>
                     updateTaskMut.mutate({
-                      technicianId: e.target.value || null,
+                      responsibleId: e.target.value || null,
                     } as Partial<tasksApi.Task>)
                   }
                   disabled={updateTaskMut.isPending}

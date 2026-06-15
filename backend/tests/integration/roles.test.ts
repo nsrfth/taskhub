@@ -12,7 +12,7 @@ import { bootstrapUser } from '../helpers/bootstrapUser.js';
 //  - system roles can be edited (permissions only) but not deleted
 //  - custom role with members can't be deleted (409)
 //  - PATCH /members/:userId accepts both `role` (legacy) and `roleId`
-//  - permission gates work end-to-end (technician change)
+//  - permission gates work end-to-end (responsible change)
 
 let app: FastifyInstance;
 
@@ -78,7 +78,7 @@ async function ensureSystemRoles(teamId: string) {
   const allPerms = [
     'task.delete',
     'task.modify_dates',
-    'task.change_technician',
+    'task.change_responsible',
     'task.change_assignee',
     // v1.29 added; the migration backfilled this onto system Manager roles.
     'task.manage_dependencies',
@@ -146,13 +146,13 @@ describe('roles CRUD', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         name: 'Senior Manager',
-        description: 'Can change technicians + purge trash',
-        permissions: ['task.change_technician', 'trash.purge'],
+        description: 'Can change responsibles + purge trash',
+        permissions: ['task.change_responsible', 'trash.purge'],
       },
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().name).toBe('Senior Manager');
-    expect(res.json().permissions.sort()).toEqual(['task.change_technician', 'trash.purge']);
+    expect(res.json().permissions.sort()).toEqual(['task.change_responsible', 'trash.purge']);
     expect(res.json().isSystem).toBe(false);
   });
 
@@ -227,7 +227,7 @@ describe('PATCH /members/:userId with roleId', () => {
       method: 'POST',
       url: `/api/teams/${teamId}/roles`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { name: 'Lead', permissions: ['task.change_technician'] },
+      payload: { name: 'Lead', permissions: ['task.change_responsible'] },
     });
     const leadId = created.json().id as string;
 
@@ -256,13 +256,13 @@ describe('PATCH /members/:userId with roleId', () => {
 });
 
 describe('permission gates end-to-end', () => {
-  it('granting task.change_technician to a member via a custom role lets them change technicians', async () => {
+  it('granting task.change_responsible to a member via a custom role lets them change responsibles', async () => {
     const { adminToken, memberToken, memberId, teamId } = await setup();
     await ensureSystemRoles(teamId);
 
     // v1.39: project owned by `member` so they can reach the task PATCH
     // — we want the 403 to come from the requirePermission gate (default
-    // Member role missing task.change_technician), not from the
+    // Member role missing task.change_responsible), not from the
     // visibility cascade. Admin still bypasses on POST.
     const project = await inject({
       method: 'POST',
@@ -279,16 +279,16 @@ describe('permission gates end-to-end', () => {
     });
     const taskId = task.json().id as string;
 
-    // Member CANNOT change technician with default Member role.
+    // Member CANNOT change responsible with default Member role.
     const before = await inject({
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${taskId}`,
       headers: { authorization: `Bearer ${memberToken}` },
-      payload: { technicianId: memberId },
+      payload: { responsibleId: memberId },
     });
     expect(before.statusCode).toBe(403);
 
-    // Give the Member role the task.change_technician permission.
+    // Give the Member role the task.change_responsible permission.
     const memberRole = await prisma.role.findFirst({
       where: { teamId, isSystem: true, name: 'Member' },
     });
@@ -296,18 +296,18 @@ describe('permission gates end-to-end', () => {
       method: 'PUT',
       url: `/api/teams/${teamId}/roles/${memberRole!.id}/permissions`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { permissions: ['task.delete', 'task.modify_dates', 'task.change_technician'] },
+      payload: { permissions: ['task.delete', 'task.modify_dates', 'task.change_responsible'] },
     });
 
-    // Member CAN now change technician.
+    // Member CAN now change responsible.
     const after = await inject({
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${taskId}`,
       headers: { authorization: `Bearer ${memberToken}` },
-      payload: { technicianId: memberId },
+      payload: { responsibleId: memberId },
     });
     expect(after.statusCode).toBe(200);
-    expect(after.json().technicianId).toBe(memberId);
+    expect(after.json().responsibleId).toBe(memberId);
   });
 });
 
@@ -404,7 +404,7 @@ describe('/api/system/permissions catalog', () => {
     // v1.29 added `task.manage_dependencies`; v1.30.8 added
     // `team.edit_details` (migrated off the legacy team-role gate).
     expect(res.json().permissions).toHaveLength(16);
-    expect(res.json().permissions).toContain('task.change_technician');
+    expect(res.json().permissions).toContain('task.change_responsible');
     expect(res.json().permissions).toContain('task.manage_dependencies');
     expect(res.json().permissions).toContain('team.edit_details');
     expect(res.json().groups.Tasks).toContain('task.delete');
@@ -412,3 +412,4 @@ describe('/api/system/permissions catalog', () => {
     expect(res.json().groups.Team).toContain('team.edit_details');
   });
 });
+

@@ -7,6 +7,18 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.77.0] — 2026-06-09
+
+**Tasks — rename Technician → Responsible (DB, API, UI).** Breaking field rename:
+`technicianId`/`technicianName` → `responsibleId`/`responsibleName` on tasks, subtasks, and
+Gantt report rows. Permission `task.change_technician` → `task.change_responsible` with
+RolePermission backfill so existing custom roles retain access. Kanban/board view mode
+`technician` → `responsible`; legacy `?view=technician` and localStorage values map to the new
+mode. Migration `20260615140000_rename_technician_to_responsible` uses Postgres `RENAME COLUMN`
+(data preserved). EN/FA labels updated («مسئول»).
+
+---
+
 ## [1.76.0] — 2026-06-21
 
 **Gantt — time-scale modes + period navigation.** Per-project Gantt chart toolbar: Year /

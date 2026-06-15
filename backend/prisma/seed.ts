@@ -108,7 +108,7 @@ async function main(): Promise<void> {
   const DEFAULT_MANAGER_PERMS = [
     'task.delete',
     'task.modify_dates',
-    'task.change_technician',
+    'task.change_responsible',
     'task.change_assignee',
     'comment.delete_others',
     'project.edit',
@@ -425,9 +425,9 @@ async function main(): Promise<void> {
         teamId: team.id,
         creatorId: admin.id,
         assigneeId: t.assignee ? USERS[t.assignee] : null,
-        // v1.19: technician defaults to creator (matches tasksService.create).
+        // v1.19: responsible defaults to creator (matches tasksService.create).
         // The seed bypasses the service, so set it explicitly here.
-        technicianId: admin.id,
+        responsibleId: admin.id,
         title: t.title,
         description: t.description ?? null,
         status: t.status,

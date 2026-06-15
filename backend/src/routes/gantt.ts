@@ -24,8 +24,8 @@ const ganttSubtaskRow = z.object({
   endDate: z.string().nullable(),
   assigneeId: z.string().nullable(),
   assigneeName: z.string().nullable(),
-  technicianId: z.string().nullable(),
-  technicianName: z.string().nullable(),
+  responsibleId: z.string().nullable(),
+  responsibleName: z.string().nullable(),
   done: z.boolean(),
   workingDayCount: z.number().int().nullable(),
 });

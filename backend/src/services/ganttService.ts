@@ -25,8 +25,8 @@ export interface GanttSubtaskRow {
   endDate: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
-  technicianId: string | null;
-  technicianName: string | null;
+  responsibleId: string | null;
+  responsibleName: string | null;
   done: boolean;
   /** Present when scheduling.workingDaysOnly is enabled — inclusive working-day count. */
   workingDayCount: number | null;
@@ -93,8 +93,8 @@ export class GanttService {
             endDate: true,
             assigneeId: true,
             assignee: { select: { name: true } },
-            technicianId: true,
-            technician: { select: { name: true } },
+            responsibleId: true,
+            responsible: { select: { name: true } },
           },
         },
       },
@@ -125,8 +125,8 @@ export class GanttService {
           endDate: s.endDate ? s.endDate.toISOString() : null,
           assigneeId: s.assigneeId,
           assigneeName: s.assignee?.name ?? null,
-          technicianId: s.technicianId,
-          technicianName: s.technician?.name ?? null,
+          responsibleId: s.responsibleId,
+          responsibleName: s.responsible?.name ?? null,
           done: s.done,
           workingDayCount:
             cal && isScheduled && s.startDate && s.endDate

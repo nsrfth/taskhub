@@ -87,9 +87,9 @@ export interface TaskSubtaskView {
   taskId: string;
   title: string;
   done: boolean;
-  // v1.19: Subtask technician — same semantics as Task.technicianId.
-  technicianId: string | null;
-  technicianName: string | null;
+  // v1.19: Subtask responsible — same semantics as Task.responsibleId.
+  responsibleId: string | null;
+  responsibleName: string | null;
   // v1.42: Subtask assignee — lighter "who's doing this now" field.
   assigneeId: string | null;
   assigneeName: string | null;
@@ -109,9 +109,9 @@ export interface TaskView {
   assigneeId: string | null;
   // v1.19: "Assigned Technician" — the person actually doing the work.
   // Defaults to creator at create-time; only team MANAGERS / global ADMINs
-  // can change it after. technicianName is joined for the UI.
-  technicianId: string | null;
-  technicianName: string | null;
+  // can change it after. responsibleName is joined for the UI.
+  responsibleId: string | null;
+  responsibleName: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -146,17 +146,17 @@ export interface TaskView {
 const TASK_INCLUDE = {
   project: { select: { budgetCurrency: true } },
   labels: { include: { label: true } },
-  // v1.19: pull subtask technician name in the same query so the UI doesn't
+  // v1.19: pull subtask responsible name in the same query so the UI doesn't
   // need to look up users separately. Same for the task itself below.
   // v1.42: also pull subtask assignee name.
   subtasks: {
     orderBy: { position: 'asc' },
     include: {
-      technician: { select: { name: true } },
+      responsible: { select: { name: true } },
       assignee: { select: { name: true } },
     },
   },
-  technician: { select: { name: true } },
+  responsible: { select: { name: true } },
 } as const;
 
 function toView(
@@ -174,8 +174,8 @@ function toView(
     teamId: row.teamId,
     creatorId: row.creatorId,
     assigneeId: row.assigneeId,
-    technicianId: row.technicianId,
-    technicianName: row.technician?.name ?? null,
+    responsibleId: row.responsibleId,
+    responsibleName: row.responsible?.name ?? null,
     title: row.title,
     description: row.description,
     status: row.status,
@@ -197,8 +197,8 @@ function toView(
       taskId: s.taskId,
       title: s.title,
       done: s.done,
-      technicianId: s.technicianId,
-      technicianName: s.technician?.name ?? null,
+      responsibleId: s.responsibleId,
+      responsibleName: s.responsible?.name ?? null,
       // v1.42: subtask assignee joined for the UI.
       assigneeId: s.assigneeId,
       assigneeName: s.assignee?.name ?? null,
@@ -323,9 +323,9 @@ export class TasksService {
           projectId,
           creatorId,
           assigneeId: input.assigneeId ?? null,
-          // v1.19: creator becomes the default technician. Managers/admins
+          // v1.19: creator becomes the default responsible. Managers/admins
           // can reassign post-create via update(); members are gated out.
-          technicianId: creatorId,
+          responsibleId: creatorId,
           title: input.title,
           description: input.description ?? null,
           status,
@@ -452,9 +452,9 @@ export class TasksService {
       status?: TaskStatus;
       priority?: TaskPriority;
       assigneeId?: string | null;
-      // v1.19: changing technicianId requires team MANAGER or global ADMIN.
+      // v1.19: changing responsibleId requires team MANAGER or global ADMIN.
       // Undefined = leave as-is; explicit null = clear (also gated).
-      technicianId?: string | null;
+      responsibleId?: string | null;
       // v1.37: started-on date. Subject to the same v1.18 manager-only
       // gate as the other date fields.
       startDate?: string | null;
@@ -476,22 +476,22 @@ export class TasksService {
       if (!membership) throw Errors.badRequest('Assignee is not a member of this team');
     }
 
-    // v1.19 → v1.23: technician change gate. Now gated by the
-    // `task.change_technician` permission (default = Manager only). Custom
+    // v1.19 → v1.23: responsible change gate. Now gated by the
+    // `task.change_responsible` permission (default = Manager only). Custom
     // roles can grant it independently of the legacy MANAGER bit.
-    if (input.technicianId !== undefined && input.technicianId !== existing.technicianId) {
+    if (input.responsibleId !== undefined && input.responsibleId !== existing.responsibleId) {
       if (
-        !(await userHasPermission(actorId, teamId, actorGlobalRole, 'task.change_technician'))
+        !(await userHasPermission(actorId, teamId, actorGlobalRole, 'task.change_responsible'))
       ) {
         throw Errors.forbidden(
-          'Missing permission: task.change_technician',
+          'Missing permission: task.change_responsible',
         );
       }
-      if (input.technicianId !== null) {
+      if (input.responsibleId !== null) {
         const membership = await prisma.teamMembership.findUnique({
-          where: { userId_teamId: { userId: input.technicianId, teamId } },
+          where: { userId_teamId: { userId: input.responsibleId, teamId } },
         });
-        if (!membership) throw Errors.badRequest('Technician is not a member of this team');
+        if (!membership) throw Errors.badRequest('Responsible is not a member of this team');
       }
     }
 
@@ -630,7 +630,7 @@ export class TasksService {
             ...(input.status !== undefined && { status: input.status, position: nextPosition }),
             ...(input.priority !== undefined && { priority: input.priority }),
             ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
-            ...(input.technicianId !== undefined && { technicianId: input.technicianId }),
+            ...(input.responsibleId !== undefined && { responsibleId: input.responsibleId }),
             ...(input.startDate !== undefined && {
               startDate: input.startDate === null ? null : new Date(input.startDate),
             }),

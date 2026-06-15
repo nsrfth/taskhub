@@ -289,7 +289,7 @@ export class DependenciesService {
   // Called from tasksService.update inside the same transaction that just
   // moved `doneTaskId` to DONE. Looks at every task that depended on it
   // and, for any whose remaining incomplete-blocker count is now zero,
-  // writes a TASK_UNBLOCKED notification to its assignee + technician.
+  // writes a TASK_UNBLOCKED notification to its assignee + responsible.
   async notifyUnblocked(
     tx: Prisma.TransactionClient,
     doneTaskId: string,
@@ -308,7 +308,7 @@ export class DependenciesService {
             projectId: true,
             teamId: true,
             assigneeId: true,
-            technicianId: true,
+            responsibleId: true,
           },
         },
       },
@@ -327,8 +327,8 @@ export class DependenciesService {
         },
       });
       if (remaining > 0) continue;
-      // Notify the dependent's assignee + technician, exclude the actor.
-      const recipients = [dep.task.assigneeId, dep.task.technicianId]
+      // Notify the dependent's assignee + responsible, exclude the actor.
+      const recipients = [dep.task.assigneeId, dep.task.responsibleId]
         .filter((id): id is string => !!id && id !== actorId)
         .filter((id, i, arr) => arr.indexOf(id) === i);
       if (recipients.length === 0) continue;

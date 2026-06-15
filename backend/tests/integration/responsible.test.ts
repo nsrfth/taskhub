@@ -5,10 +5,10 @@ import { loadEnv } from '../../src/config/env.js';
 import { prisma } from '../../src/data/prisma.js';
 import { bootstrapUser } from '../helpers/bootstrapUser.js';
 
-// v1.19: Task.technicianId + Subtask.technicianId.
-//  - create defaults technicianId to creator
-//  - members cannot change technicianId (403)
-//  - team MANAGERS can change technicianId
+// v1.19: Task.responsibleId + Subtask.responsibleId.
+//  - create defaults responsibleId to creator
+//  - members cannot change responsibleId (403)
+//  - team MANAGERS can change responsibleId
 //  - global ADMINs bypass the role check
 //  - change rejected when target is not a team member (400)
 
@@ -92,7 +92,7 @@ async function setup(projectOwner: 'member' | 'mgr' = 'member') {
   return { adminToken, adminId, memberToken, memberId, mgrToken, mgrId, teamId, projectId };
 }
 
-describe('Task.technicianId', () => {
+describe('Task.responsibleId', () => {
   it('defaults to creator on create + joins name', async () => {
     const { memberToken, memberId, teamId, projectId } = await setup();
     const res = await inject({
@@ -102,11 +102,11 @@ describe('Task.technicianId', () => {
       payload: { title: 'T' },
     });
     expect(res.statusCode).toBe(201);
-    expect(res.json().technicianId).toBe(memberId);
-    expect(res.json().technicianName).toBe('Mem');
+    expect(res.json().responsibleId).toBe(memberId);
+    expect(res.json().responsibleName).toBe('Mem');
   });
 
-  it('member CANNOT change technicianId (403)', async () => {
+  it('member CANNOT change responsibleId (403)', async () => {
     const { adminToken, memberToken, mgrId, teamId, projectId } = await setup();
     const created = await inject({
       method: 'POST',
@@ -120,16 +120,16 @@ describe('Task.technicianId', () => {
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${taskId}`,
       headers: { authorization: `Bearer ${memberToken}` },
-      payload: { technicianId: mgrId },
+      payload: { responsibleId: mgrId },
     });
     expect(res.statusCode).toBe(403);
-    // v1.23: error message is now "Missing permission: task.change_technician"
-    // (was "Only team managers or admins can change the assigned Technician"
+    // v1.23: error message is now "Missing permission: task.change_responsible"
+    // (was "Only team managers or admins can change the assigned responsible"
     // pre-v1.23). The status code + the gist of the gate are unchanged.
-    expect(res.json().error.message).toMatch(/task\.change_technician/);
+    expect(res.json().error.message).toMatch(/task\.change_responsible/);
   });
 
-  it('team MANAGER can reassign technicianId', async () => {
+  it('team MANAGER can reassign responsibleId', async () => {
     const { adminToken, mgrToken, memberId, teamId, projectId } = await setup('mgr');
     const created = await inject({
       method: 'POST',
@@ -143,13 +143,13 @@ describe('Task.technicianId', () => {
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${taskId}`,
       headers: { authorization: `Bearer ${mgrToken}` },
-      payload: { technicianId: memberId },
+      payload: { responsibleId: memberId },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().technicianId).toBe(memberId);
+    expect(res.json().responsibleId).toBe(memberId);
   });
 
-  it('rejects technicianId pointing at a non-team-member (400)', async () => {
+  it('rejects responsibleId pointing at a non-team-member (400)', async () => {
     const { adminToken, mgrToken, teamId, projectId } = await setup('mgr');
     // Make a fourth user NOT in the team.
     const outsider = await bootstrapUser(app, { email: 'out@example.com', name: 'Out', password: PASSWORD });
@@ -167,14 +167,14 @@ describe('Task.technicianId', () => {
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${taskId}`,
       headers: { authorization: `Bearer ${mgrToken}` },
-      payload: { technicianId: outsiderId },
+      payload: { responsibleId: outsiderId },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.message).toMatch(/team/i);
   });
 });
 
-describe('Subtask.technicianId', () => {
+describe('Subtask.responsibleId', () => {
   it('defaults to creator on create', async () => {
     const { memberToken, memberId, teamId, projectId, adminToken } = await setup();
     const parent = await inject({
@@ -192,11 +192,11 @@ describe('Subtask.technicianId', () => {
       payload: { title: 'Subtask one' },
     });
     expect(sub.statusCode).toBe(201);
-    expect(sub.json().technicianId).toBe(memberId);
-    expect(sub.json().technicianName).toBe('Mem');
+    expect(sub.json().responsibleId).toBe(memberId);
+    expect(sub.json().responsibleName).toBe('Mem');
   });
 
-  it('member CANNOT change subtask technicianId (403)', async () => {
+  it('member CANNOT change subtask responsibleId (403)', async () => {
     const { adminToken, memberToken, mgrId, teamId, projectId } = await setup();
     const parent = await inject({
       method: 'POST',
@@ -217,7 +217,7 @@ describe('Subtask.technicianId', () => {
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${taskId}/subtasks/${subtaskId}`,
       headers: { authorization: `Bearer ${memberToken}` },
-      payload: { technicianId: mgrId },
+      payload: { responsibleId: mgrId },
     });
     expect(res.statusCode).toBe(403);
   });

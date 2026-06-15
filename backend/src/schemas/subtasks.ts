@@ -20,7 +20,7 @@ export const createSubtaskBody = z
     endDate: z.string().datetime().nullable().optional(),
     // v1.42: optional assignee at create time. Service validates that
     // the user is a member of the parent task's team. Distinct from the
-    // existing v1.19 `technicianId` (which still auto-defaults to creator
+    // existing v1.19 `responsibleId` (which still auto-defaults to creator
     // and is manager-gated to change).
     assigneeId: z.string().nullable().optional(),
   })
@@ -33,9 +33,9 @@ export const updateSubtaskBody = z
   .object({
     title: z.string().min(1).max(200).trim().optional(),
     done: z.boolean().optional(),
-    // v1.19: technician change is gated server-side (manager/admin only).
+    // v1.19: responsible change is gated server-side (manager/admin only).
     // Undefined = leave as-is; null = clear.
-    technicianId: z.string().nullable().optional(),
+    responsibleId: z.string().nullable().optional(),
     // v1.42: assignee — anyone with project access can change. Service
     // validates the user is a team member of the parent task's team.
     assigneeId: z.string().nullable().optional(),
@@ -47,7 +47,7 @@ export const updateSubtaskBody = z
     (v) =>
       v.title !== undefined ||
       v.done !== undefined ||
-      v.technicianId !== undefined ||
+      v.responsibleId !== undefined ||
       v.assigneeId !== undefined ||
       v.startDate !== undefined ||
       v.endDate !== undefined,
@@ -67,8 +67,8 @@ export const subtaskResponse = z.object({
   taskId: z.string(),
   title: z.string(),
   done: z.boolean(),
-  technicianId: z.string().nullable(),
-  technicianName: z.string().nullable(),
+  responsibleId: z.string().nullable(),
+  responsibleName: z.string().nullable(),
   // v1.42: assignee joined for the UI.
   assigneeId: z.string().nullable(),
   assigneeName: z.string().nullable(),

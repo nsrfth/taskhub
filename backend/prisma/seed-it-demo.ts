@@ -181,7 +181,7 @@ const TASK_PROFILES: Array<{
 ];
 
 const DEFAULT_MANAGER_PERMS = [
-  'task.delete', 'task.modify_dates', 'task.change_technician', 'task.change_assignee',
+  'task.delete', 'task.modify_dates', 'task.change_responsible', 'task.change_assignee',
   'comment.delete_others', 'project.edit', 'project.delete', 'project.set_accountable',
   'team.invite_member', 'team.remove_member', 'team.change_role', 'team.manage_roles',
   'webhooks.manage', 'trash.purge',
@@ -346,7 +346,7 @@ async function main(): Promise<void> {
           teamId,
           creatorId: admin.id,
           assigneeId,
-          technicianId: ownerId,
+          responsibleId: ownerId,
           title,
           status: profile.status,
           priority: profile.priority,
@@ -374,7 +374,7 @@ async function main(): Promise<void> {
           teamId,
           creatorId: admin.id,
           assigneeId: admin.id,
-          technicianId: ownerId,
+          responsibleId: ownerId,
           title: `Executive review: ${p.name}`,
           status: TaskStatus.IN_PROGRESS,
           priority: TaskPriority.MEDIUM,

@@ -16,11 +16,11 @@ export interface TaskSubtask {
   taskId: string;
   title: string;
   done: boolean;
-  // v1.19: subtask technician (defaults to creator on create, manager/admin
+  // v1.19: subtask responsible (defaults to creator on create, manager/admin
   // gated to change post-create).
-  technicianId: string | null;
-  technicianName: string | null;
-  // v1.42: subtask assignee — distinct from technician. Anyone with
+  responsibleId: string | null;
+  responsibleName: string | null;
+  // v1.42: subtask assignee — distinct from responsible. Anyone with
   // project access can change; null when unassigned.
   assigneeId: string | null;
   assigneeName: string | null;
@@ -36,11 +36,11 @@ export interface Task {
   teamId: string;
   creatorId: string;
   assigneeId: string | null;
-  // v1.19: "Assigned Technician" — the person actually doing the work.
+  // v1.19: "Responsible" — the person actually doing the work.
   // Distinct from assignee; defaults to creator; only managers/admins can
   // change it post-create.
-  technicianId: string | null;
-  technicianName: string | null;
+  responsibleId: string | null;
+  responsibleName: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -115,7 +115,7 @@ export async function updateTask(
     assigneeId: string | null;
     // v1.19: gated server-side (manager/admin only). The mutation surfaces
     // a 403 inline on the calling page if the role check fails.
-    technicianId: string | null;
+    responsibleId: string | null;
     // v1.37: started-on date. Same v1.18 date-edit gate as siblings.
     startDate: string | null;
     dueDate: string | null;

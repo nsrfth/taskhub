@@ -411,6 +411,7 @@ function GanttChart({
   todayMs: number;
   todayLabel: string;
 }): JSX.Element {
+  const t = useT();
   const todayX = todayLineX(axis, todayMs);
 
   let yCursor = HEADER_HEIGHT;
@@ -478,7 +479,7 @@ function GanttChart({
               `End: ${formatShamsiCalendarDate(r.endDate) ?? ''}`,
               durationLine,
               r.assigneeName ? `Assignee: ${r.assigneeName}` : 'Assignee: —',
-              r.technicianName ? `Technician: ${r.technicianName}` : '',
+              r.responsibleName ? `${t('tasks.col.responsible')}: ${r.responsibleName}` : '',
               `Status: ${g.status}${r.done ? ' / done' : ''}`,
               `Parent: ${r.parentTaskTitle}`,
             ]

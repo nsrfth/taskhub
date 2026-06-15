@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useProjectTeam } from '@/features/projects/useProjectTeam';
 import * as tasksApi from '@/features/tasks/api';
 import { toggleExpandedTaskIds } from '@/features/tasks/taskListCollapse';
+import { parseTaskViewMode, type TaskViewMode } from '@/features/tasks/taskViewMode';
 import * as labelsApi from '@/features/labels/api';
 import { formatShamsiDate, formatShamsiTimestampDate } from '@/lib/shamsi';
 import { LabelChip } from '@/features/labels/LabelChip';
@@ -182,23 +183,19 @@ export default function TasksPage(): JSX.Element {
   // v1.20: alternative view modes. Persisted in localStorage so the user's
   // preference survives page reloads.
   //   - status     — classic kanban (drag-and-drop).
-  //   - technician — read-only per-Technician swimlanes (DnD would attempt a
+  //   - responsible — read-only per-Responsible swimlanes (DnD would attempt a
   //     role-gated reassignment that MEMBERs can't perform).
   //   - list       — v1.33: dense sortable table. Same data; better for users
   //     who want to scan dozens of tasks without flipping between columns.
-  type ViewMode = 'status' | 'technician' | 'list';
+  type ViewMode = TaskViewMode;
   // Honour `?view=` on the URL on first render; subsequent toggles persist
-  // in localStorage.
+  // in localStorage. Legacy `technician` values map to `responsible`.
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const fromUrl = searchParams.get('view');
-    if (fromUrl === 'status' || fromUrl === 'technician' || fromUrl === 'list') {
-      return fromUrl;
-    }
+    const fromUrl = parseTaskViewMode(searchParams.get('view'));
+    if (fromUrl) return fromUrl;
     if (typeof window === 'undefined') return 'status';
-    const stored = window.localStorage.getItem('kanban.viewMode');
-    if (stored === 'status' || stored === 'technician' || stored === 'list') {
-      return stored;
-    }
+    const stored = parseTaskViewMode(window.localStorage.getItem('kanban.viewMode'));
+    if (stored) return stored;
     return 'status';
   });
   useEffect(() => {
@@ -207,16 +204,16 @@ export default function TasksPage(): JSX.Element {
     }
   }, [viewMode]);
 
-  // Group tasks by Technician — columns are deterministic by name (alphabetical),
+  // Group tasks by Responsible — columns are deterministic by name (alphabetical),
   // with "Unassigned" pinned last when present.
-  const groupedByTech = useMemo(() => {
+  const groupedByResponsible = useMemo(() => {
     const buckets = new Map<string, { id: string | null; name: string; tasks: tasksApi.Task[] }>();
     for (const t of filteredTasks) {
-      const key = t.technicianId ?? '__unassigned__';
-      const name = t.technicianName ?? '(unassigned)';
+      const key = t.responsibleId ?? '__unassigned__';
+      const name = t.responsibleName ?? '(unassigned)';
       let entry = buckets.get(key);
       if (!entry) {
-        entry = { id: t.technicianId, name, tasks: [] };
+        entry = { id: t.responsibleId, name, tasks: [] };
         buckets.set(key, entry);
       }
       entry.tasks.push(t);
@@ -336,7 +333,7 @@ export default function TasksPage(): JSX.Element {
             {([
               { key: 'status', label: t('tasks.view.status') },
               { key: 'list', label: t('tasks.view.list') },
-              { key: 'technician', label: t('tasks.view.technician') },
+              { key: 'responsible', label: t('tasks.view.responsible') },
             ] as const).map((v) => (
               <button
                 key={v.key}
@@ -423,13 +420,13 @@ export default function TasksPage(): JSX.Element {
         />
       )}
 
-      {viewMode === 'technician' && (
+      {viewMode === 'responsible' && (
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {groupedByTech.length === 0 && (
+          {groupedByResponsible.length === 0 && (
             <p className="text-sm text-slate-500">No tasks yet.</p>
           )}
-          {groupedByTech.map((g) => (
-            <TechnicianColumn
+          {groupedByResponsible.map((g) => (
+            <ResponsibleColumn
               key={g.id ?? '__unassigned__'}
               name={g.name}
               tasks={g.tasks}
@@ -452,7 +449,7 @@ type SortKey =
   | 'title'
   | 'status'
   | 'priority'
-  | 'technician'
+  | 'responsible'
   | 'dueDate'
   | 'plannedDate'
   | 'completedAt';
@@ -503,8 +500,8 @@ function TaskList({
           return STATUS_RANK[row.status];
         case 'priority':
           return PRIORITY_RANK[row.priority];
-        case 'technician':
-          return row.technicianName?.toLocaleLowerCase() ?? null;
+        case 'responsible':
+          return row.responsibleName?.toLocaleLowerCase() ?? null;
         case 'dueDate':
           return row.dueDate ?? null;
         case 'plannedDate':
@@ -564,11 +561,11 @@ function TaskList({
               {t('tasks.col.priority')}
             </Th>
             <Th
-              onClick={() => onHeader('technician')}
-              active={sort?.key === 'technician'}
+              onClick={() => onHeader('responsible')}
+              active={sort?.key === 'responsible'}
               dir={sort?.dir}
             >
-              {t('tasks.col.technician')}
+              {t('tasks.col.responsible')}
             </Th>
             <Th
               onClick={() => onHeader('dueDate')}
@@ -666,7 +663,7 @@ function TaskList({
                     {PRIORITY_LABEL[row.priority]}
                   </td>
                   <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                    {row.technicianName ?? (
+                    {row.responsibleName ?? (
                       <span className="text-slate-400">{t('tasks.list.unassigned')}</span>
                     )}
                   </td>
@@ -735,7 +732,7 @@ function TaskList({
                       </td>
                       <td className="px-3 py-1.5 text-slate-400 text-xs">—</td>
                       <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300">
-                        {sub.assigneeName ?? sub.technicianName ?? (
+                        {sub.assigneeName ?? sub.responsibleName ?? (
                           <span className="text-slate-400">{t('tasks.list.unassigned')}</span>
                         )}
                       </td>
@@ -807,10 +804,10 @@ function Th({
   );
 }
 
-// v1.20: read-only per-Technician swimlane. Mirrors the Column above visually
-// but with no DnD machinery — reassigning a Technician is role-gated and
+// v1.20: read-only per-Responsible swimlane. Mirrors the Column above visually
+// but with no DnD machinery — reassigning a Responsible is role-gated and
 // happens from the task detail page.
-function TechnicianColumn({
+function ResponsibleColumn({
   name,
   tasks,
   onOpen,

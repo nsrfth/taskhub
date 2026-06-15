@@ -37,10 +37,10 @@ describe('Task list subtasks disclosure', () => {
     expect(tasksPage).toContain('rtl:rotate-180');
   });
 
-  it('leaves kanban and technician views unchanged', () => {
+  it('leaves kanban and responsible views unchanged', () => {
     expect(tasksPage).toContain("viewMode === 'status'");
     expect(tasksPage).toContain('<GroupedBoard');
-    expect(tasksPage).toContain("viewMode === 'technician'");
+    expect(tasksPage).toContain("viewMode === 'responsible'");
 
     const taskListStart = tasksPage.indexOf('function TaskList');
     const taskListEnd = tasksPage.indexOf('function SubtaskChevron');

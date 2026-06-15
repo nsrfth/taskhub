@@ -18,7 +18,7 @@ export const PERMISSIONS = [
   // Task lifecycle.
   'task.delete',
   'task.modify_dates',
-  'task.change_technician',
+  'task.change_responsible',
   'task.change_assignee',
   // v1.29: add / remove dependency edges between tasks. Default = Manager
   // only — curating the dependency graph is a curator's job. Admins bypass.
@@ -76,7 +76,7 @@ export const PERMISSION_GROUPS: Record<string, readonly Permission[]> = {
   Tasks: [
     'task.delete',
     'task.modify_dates',
-    'task.change_technician',
+    'task.change_responsible',
     'task.change_assignee',
     'task.manage_dependencies',
   ],

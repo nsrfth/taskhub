@@ -167,7 +167,7 @@ describe('v1.42 Project Gantt report', () => {
     expect(wireframes.parentTaskTitle).toBe('Design phase');
   });
 
-  it('includes assignee + technician on each row when set', async () => {
+  it('includes assignee + responsible on each row when set', async () => {
     const s = await setup();
     const member = await bootMember('m@example.com');
     await inject({
@@ -199,7 +199,7 @@ describe('v1.42 Project Gantt report', () => {
     const row = res.json().rows[0];
     expect(row.assigneeId).toBe(member.userId);
     expect(row.assigneeName).toBe('m');
-    expect(row.technicianName).toBe('Admin'); // default-to-creator
+    expect(row.responsibleName).toBe('Admin'); // default-to-creator
   });
 
   it('cascades v1.39 visibility — non-owner MEMBER gets 404', async () => {
@@ -235,3 +235,4 @@ describe('v1.42 Project Gantt report', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+

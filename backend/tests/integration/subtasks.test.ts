@@ -439,7 +439,7 @@ describe('v1.41 Subtask optional scheduling window (startDate / endDate)', () =>
   });
 });
 
-// v1.42: subtask assignee. Distinct from technician (RACI / manager-gated).
+// v1.42: subtask assignee. Distinct from responsible (RACI / manager-gated).
 // Anyone with project access can change. Validated to be a team member.
 describe('v1.42 Subtask assignee', () => {
   it('creates a subtask with an assignee (team member) and echoes name', async () => {

@@ -174,7 +174,7 @@ The **Kanban board** (`/projects/<id>/tasks`) is the main work view for a single
 - **Group by** (v1.44): switch columns to **Assignee**, **Progress** (0%–100% ranges), **Due date** (Overdue / Today / This week / …), or **Label**. Your choice is remembered across visits.
 - Drag a card between columns to change status — **only when grouped by Status**.
 - Drag within a column to reorder (status grouping only).
-- Toggle **List** or **by Technician** for alternate layouts on the same data.
+- Toggle **List** or **by Responsible** for alternate layouts on the same data.
 - In **List** view, tasks with subtasks show a chevron and subtask count (collapsed by default); expand to see indented subtask rows.
 - Click a card to open the **Task detail** page.
 

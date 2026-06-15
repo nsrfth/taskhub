@@ -18,9 +18,9 @@ export interface SubtaskView {
   taskId: string;
   title: string;
   done: boolean;
-  technicianId: string | null;
-  technicianName: string | null;
-  // v1.42: assignee — distinct from technician. Anyone with project
+  responsibleId: string | null;
+  responsibleName: string | null;
+  // v1.42: assignee — distinct from responsible. Anyone with project
   // access can change; null when unassigned.
   assigneeId: string | null;
   assigneeName: string | null;
@@ -32,7 +32,7 @@ export interface SubtaskView {
 }
 
 const SUBTASK_INCLUDE = {
-  technician: { select: { name: true } },
+  responsible: { select: { name: true } },
   // v1.42: join assignee in the same query so the UI doesn't need a
   // separate user lookup.
   assignee: { select: { name: true } },
@@ -44,8 +44,8 @@ function toView(row: Prisma.SubtaskGetPayload<{ include: typeof SUBTASK_INCLUDE 
     taskId: row.taskId,
     title: row.title,
     done: row.done,
-    technicianId: row.technicianId,
-    technicianName: row.technician?.name ?? null,
+    responsibleId: row.responsibleId,
+    responsibleName: row.responsible?.name ?? null,
     assigneeId: row.assigneeId,
     assigneeName: row.assignee?.name ?? null,
     startDate: row.startDate ? row.startDate.toISOString() : null,
@@ -128,9 +128,9 @@ export class SubtasksService {
         taskId,
         title: input.title,
         done: input.done ?? false,
-        // v1.19: creator becomes the default technician (same rule as Task).
-        technicianId: creatorId,
-        // v1.42: explicit assignee or null. Unlike technician, we do NOT
+        // v1.19: creator becomes the default responsible (same rule as Task).
+        responsibleId: creatorId,
+        // v1.42: explicit assignee or null. Unlike responsible, we do NOT
         // default to creator — assignee is opt-in (matches Task.assigneeId
         // semantics, which is null unless set).
         assigneeId: input.assigneeId ?? null,
@@ -153,9 +153,9 @@ export class SubtasksService {
     input: {
       title?: string;
       done?: boolean;
-      technicianId?: string | null;
+      responsibleId?: string | null;
       // v1.42: assignee — undefined leaves, null clears, string sets.
-      // Anyone with project access can change (unlike technician, which
+      // Anyone with project access can change (unlike responsible, which
       // is manager-gated).
       assigneeId?: string | null;
       // v1.41: undefined = leave as-is; null = clear; string = set.
@@ -189,18 +189,18 @@ export class SubtasksService {
       await assertAssigneeInTeam(teamId, input.assigneeId);
     }
 
-    // v1.19 → v1.23: technician change gate. Now permission-driven.
-    if (input.technicianId !== undefined && input.technicianId !== existing.technicianId) {
+    // v1.19 → v1.23: responsible change gate. Now permission-driven.
+    if (input.responsibleId !== undefined && input.responsibleId !== existing.responsibleId) {
       if (
-        !(await userHasPermission(actorId, teamId, actorGlobalRole, 'task.change_technician'))
+        !(await userHasPermission(actorId, teamId, actorGlobalRole, 'task.change_responsible'))
       ) {
-        throw Errors.forbidden('Missing permission: task.change_technician');
+        throw Errors.forbidden('Missing permission: task.change_responsible');
       }
-      if (input.technicianId !== null) {
+      if (input.responsibleId !== null) {
         const membership = await prisma.teamMembership.findUnique({
-          where: { userId_teamId: { userId: input.technicianId, teamId } },
+          where: { userId_teamId: { userId: input.responsibleId, teamId } },
         });
-        if (!membership) throw Errors.badRequest('Technician is not a member of this team');
+        if (!membership) throw Errors.badRequest('Responsible is not a member of this team');
       }
     }
 
@@ -210,7 +210,7 @@ export class SubtasksService {
         data: {
           ...(input.title !== undefined && { title: input.title }),
           ...(input.done !== undefined && { done: input.done }),
-          ...(input.technicianId !== undefined && { technicianId: input.technicianId }),
+          ...(input.responsibleId !== undefined && { responsibleId: input.responsibleId }),
           ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
           ...(input.startDate !== undefined && { startDate: mergedStart }),
           ...(input.endDate !== undefined && { endDate: mergedEnd }),

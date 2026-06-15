@@ -15,12 +15,12 @@ const TASK_INCLUDE = {
     },
   },
   assignee: { select: { id: true, name: true } },
-  technician: { select: { name: true } },
+  responsible: { select: { name: true } },
   labels: { include: { label: true } },
   subtasks: {
     orderBy: { position: 'asc' as const },
     include: {
-      technician: { select: { name: true } },
+      responsible: { select: { name: true } },
       assignee: { select: { name: true } },
     },
   },
@@ -37,8 +37,8 @@ export interface MeTaskRow {
   creatorId: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
-  technicianId: string | null;
-  technicianName: string | null;
+  responsibleId: string | null;
+  responsibleName: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -58,8 +58,8 @@ export interface MeTaskRow {
     taskId: string;
     title: string;
     done: boolean;
-    technicianId: string | null;
-    technicianName: string | null;
+    responsibleId: string | null;
+    responsibleName: string | null;
     assigneeId: string | null;
     assigneeName: string | null;
     startDate: string | null;
@@ -79,8 +79,8 @@ function serializeRow(row: TaskRow, blockerCount = 0): MeTaskRow {
     creatorId: row.creatorId,
     assigneeId: row.assigneeId,
     assigneeName: row.assignee?.name ?? null,
-    technicianId: row.technicianId,
-    technicianName: row.technician?.name ?? null,
+    responsibleId: row.responsibleId,
+    responsibleName: row.responsible?.name ?? null,
     title: row.title,
     description: row.description,
     status: row.status,
@@ -104,8 +104,8 @@ function serializeRow(row: TaskRow, blockerCount = 0): MeTaskRow {
       taskId: s.taskId,
       title: s.title,
       done: s.done,
-      technicianId: s.technicianId,
-      technicianName: s.technician?.name ?? null,
+      responsibleId: s.responsibleId,
+      responsibleName: s.responsible?.name ?? null,
       assigneeId: s.assigneeId,
       assigneeName: s.assignee?.name ?? null,
       startDate: s.startDate?.toISOString() ?? null,

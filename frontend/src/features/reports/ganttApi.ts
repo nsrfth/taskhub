@@ -13,8 +13,8 @@ export interface GanttSubtaskRow {
   endDate: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
-  technicianId: string | null;
-  technicianName: string | null;
+  responsibleId: string | null;
+  responsibleName: string | null;
   done: boolean;
   workingDayCount: number | null;
 }

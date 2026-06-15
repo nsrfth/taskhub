@@ -181,7 +181,7 @@ async function main() {
         teamId: team.id,
         projectId: t.projectId,
         creatorId: t.assigneeId,
-        technicianId: t.assigneeId,
+        responsibleId: t.assigneeId,
         assigneeId: t.assigneeId,
         title: t.title,
         status: t.status,

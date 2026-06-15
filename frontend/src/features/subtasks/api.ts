@@ -5,11 +5,11 @@ export interface Subtask {
   taskId: string;
   title: string;
   done: boolean;
-  // v1.19: subtask technician (defaults to creator on create; manager/admin
+  // v1.19: subtask responsible (defaults to creator on create; manager/admin
   // only to change).
-  technicianId: string | null;
-  technicianName: string | null;
-  // v1.42: subtask assignee — distinct from technician. Anyone with
+  responsibleId: string | null;
+  responsibleName: string | null;
+  // v1.42: subtask assignee — distinct from responsible. Anyone with
   // project access can change; null when unassigned.
   assigneeId: string | null;
   assigneeName: string | null;
@@ -46,13 +46,13 @@ export async function updateSubtask(
   projectId: string,
   taskId: string,
   subtaskId: string,
-  // v1.19: technicianId change gated server-side to manager/admin.
+  // v1.19: responsibleId change gated server-side to manager/admin.
   // v1.41: startDate / endDate — undefined leaves them, null clears.
   // v1.42: assigneeId — undefined leaves, null clears, value sets.
   input: {
     title?: string;
     done?: boolean;
-    technicianId?: string | null;
+    responsibleId?: string | null;
     assigneeId?: string | null;
     startDate?: string | null;
     endDate?: string | null;

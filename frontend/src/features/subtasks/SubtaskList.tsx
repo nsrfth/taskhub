@@ -35,7 +35,7 @@ export interface SubtaskItem {
   // v1.41: optional scheduling window. ISO strings; null when unset.
   startDate?: string | null;
   endDate?: string | null;
-  // v1.42: assignee — distinct from technician. Null when unassigned.
+  // v1.42: assignee — distinct from responsible. Null when unassigned.
   assigneeId?: string | null;
   assigneeName?: string | null;
   position: number;

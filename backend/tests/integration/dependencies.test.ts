@@ -285,8 +285,8 @@ describe('Task dependencies', () => {
   });
 
   it('completing the only blocker writes a TASK_UNBLOCKED notification to the dependent', async () => {
-    // Creator-of-task automatically becomes the technician (v1.19). The
-    // unblock fan-out targets assignee + technician; we set both to
+    // Creator-of-task automatically becomes the responsible (v1.19). The
+    // unblock fan-out targets assignee + responsible; we set both to
     // user B and have user A complete the blocker so A != recipient.
     const a = await register('a@example.com');
     const b = await register('b@example.com', 'B');
@@ -301,13 +301,13 @@ describe('Task dependencies', () => {
     const projectId = await createProject(a.token, teamId, 'P');
     const blocker = await createTask(a.token, teamId, projectId, 'Blocker');
     const blocked = await createTask(a.token, teamId, projectId, 'Blocked');
-    // Reassign blocked to B (both assignee + technician — but A is the
-    // creator so technician was A; flip both).
+    // Reassign blocked to B (both assignee + responsible — but A is the
+    // creator so responsible was A; flip both).
     await app.inject({
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${blocked}`,
       headers: { authorization: `Bearer ${a.token}` },
-      payload: { assigneeId: b.userId, technicianId: b.userId },
+      payload: { assigneeId: b.userId, responsibleId: b.userId },
     });
     expect((await addEdge(a.token, teamId, projectId, blocked, blocker)).statusCode).toBe(201);
 
@@ -345,7 +345,7 @@ describe('Task dependencies', () => {
       method: 'PATCH',
       url: `/api/teams/${teamId}/projects/${projectId}/tasks/${blocked}`,
       headers: { authorization: `Bearer ${a.token}` },
-      payload: { assigneeId: b.userId, technicianId: b.userId },
+      payload: { assigneeId: b.userId, responsibleId: b.userId },
     });
     expect((await addEdge(a.token, teamId, projectId, blocked, blocker1)).statusCode).toBe(201);
     expect((await addEdge(a.token, teamId, projectId, blocked, blocker2)).statusCode).toBe(201);
@@ -445,3 +445,4 @@ describe('Task dependencies', () => {
     expect(res.statusCode).toBe(403);
   });
 });
+

@@ -60,7 +60,7 @@ export const updateTaskBody = z
     priority: taskPriorityEnum.optional(),
     assigneeId: z.string().nullable().optional(),
     // v1.19: gated server-side to team MANAGER / global ADMIN.
-    technicianId: z.string().nullable().optional(),
+    responsibleId: z.string().nullable().optional(),
     // v1.37: started-on date. Same shape + governance as the other
     // date fields (subject to the v1.18 manager-only restriction).
     startDate: z.string().datetime().nullable().optional(),
@@ -98,9 +98,9 @@ export const taskSubtaskResponse = z.object({
   taskId: z.string(),
   title: z.string(),
   done: z.boolean(),
-  // v1.19: subtask technician joined for the UI.
-  technicianId: z.string().nullable(),
-  technicianName: z.string().nullable(),
+  // v1.19: subtask responsible joined for the UI.
+  responsibleId: z.string().nullable(),
+  responsibleName: z.string().nullable(),
   // v1.42: subtask assignee joined for the UI.
   assigneeId: z.string().nullable(),
   assigneeName: z.string().nullable(),
@@ -120,8 +120,8 @@ export const taskResponse = z.object({
   assigneeId: z.string().nullable(),
   // v1.19: assigned Technician — distinct from assignee. Defaults to creator
   // on create; changes gated to team MANAGER / global ADMIN.
-  technicianId: z.string().nullable(),
-  technicianName: z.string().nullable(),
+  responsibleId: z.string().nullable(),
+  responsibleName: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   status: taskStatusEnum,
