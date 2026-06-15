@@ -50,3 +50,4 @@ backend/prisma/*.db
 # pre-build / pre-dev).
 frontend/public/USER_MANUAL.md
 frontend/public/USER_MANUAL.fa.md
+DIAGNOSTIC_REPORT.md
