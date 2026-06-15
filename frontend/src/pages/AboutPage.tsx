@@ -113,6 +113,18 @@ export default function AboutPage(): JSX.Element {
           for the full text.
         </Field>
 
+        <Field label="Author">
+          Naser Fathi ·{' '}
+          <a
+            href="https://www.linkedin.com/in/naser-fathi/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            LinkedIn
+          </a>
+        </Field>
+
         <Field label="Documentation">
           <Link to="/help" className="underline">User manual</Link>{' '}
           ·{' '}
