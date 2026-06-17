@@ -1,7 +1,10 @@
-import { Prisma, type GlobalRole } from '@prisma/client';
+import type { GlobalRole } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
-import { assertCanWriteProject } from '../lib/projectAccess.js';
+import {
+  assertCanWriteProject,
+  listEligibleTaskResponsibleCandidates,
+} from '../lib/projectAccess.js';
 import { logActivity } from './activityLogger.js';
 import { notifications } from './notificationsService.js';
 import { WebhookService } from './webhookService.js';
@@ -24,31 +27,42 @@ function extractMentions(body: string): string[] {
   return [...out];
 }
 
-// Same shape Prisma passes into a $transaction callback. Importing the
-// internal type directly avoids the "Parameters<Parameters<…>>[0]" dance
-// (which TypeScript widens to `T | undefined` under strict array indexing).
-type TxClient = Prisma.TransactionClient;
-
-// Resolve `@handles` against a team's members. Returns the userIds of every
-// team member whose email local-part exactly matches one of the handles.
-// Two users in the same team with the same local-part both get notified —
-// rare edge case, easier than disambiguating.
-async function resolveMentionsToUserIds(
-  client: TxClient,
+// v1.84: resolve a comment's mention recipients against the SINGLE eligibility
+// rule shared with the @-mention picker — team members ∪ ACCEPTED group members
+// granted this project (`listEligibleTaskResponsibleCandidates`, the same set
+// the responsible-candidates endpoint serves). Two input sources are unioned:
+//   • explicitIds — exact userIds the picker collected (unambiguous; preferred)
+//   • handles     — @local-part tokens typed by hand, regex-extracted (fallback)
+// Anyone NOT in the eligible set is dropped: a user with no access to the
+// project can never be notified, even via a hand-typed handle. This replaces
+// the old team-membership-only resolver, under which accepted group-grant
+// members were unmentionable, and which matched only the (full) email
+// local-part with no picker — the root cause of mentions silently not firing.
+async function resolveMentionRecipients(
   teamId: string,
+  projectId: string,
   handles: string[],
+  explicitIds: string[],
 ): Promise<string[]> {
-  if (handles.length === 0) return [];
-  const memberships = await client.teamMembership.findMany({
-    where: { teamId },
-    include: { user: { select: { id: true, email: true } } },
-  });
-  const set = new Set<string>();
-  for (const m of memberships) {
-    const local = (m.user.email.split('@')[0] ?? '').toLowerCase();
-    if (local && handles.includes(local)) set.add(m.user.id);
+  if (handles.length === 0 && explicitIds.length === 0) return [];
+  const candidates = await listEligibleTaskResponsibleCandidates(teamId, projectId);
+  const eligibleIds = new Set(candidates.map((c) => c.userId));
+  // local-part → userIds (a local-part can collide across two eligible users;
+  // a hand-typed handle then notifies both — same behaviour as before).
+  const byLocalPart = new Map<string, string[]>();
+  for (const c of candidates) {
+    const local = (c.email.split('@')[0] ?? '').toLowerCase();
+    if (!local) continue;
+    const arr = byLocalPart.get(local);
+    if (arr) arr.push(c.userId);
+    else byLocalPart.set(local, [c.userId]);
   }
-  return [...set];
+  const out = new Set<string>();
+  // Explicit picker selections — keep only the still-eligible ones.
+  for (const id of explicitIds) if (eligibleIds.has(id)) out.add(id);
+  // Hand-typed @handles — resolve via email local-part.
+  for (const h of handles) for (const id of byLocalPart.get(h) ?? []) out.add(id);
+  return [...out];
 }
 
 export interface CommentView {
@@ -73,6 +87,7 @@ export class CommentsService {
     authorId: string,
     authorGlobalRole: GlobalRole,
     body: string,
+    mentionedUserIds: string[] = [],
   ): Promise<CommentView> {
     const taskRow = await prisma.task.findUnique({
       where: { id: taskId },
@@ -109,21 +124,26 @@ export class CommentsService {
       // mentioned user who is also the assignee gets two distinct rows. Two
       // notifications is the more useful UX (badge counts the events, not the
       // commits) and matches expectations from other tools.
-      const handles = extractMentions(body);
-      if (handles.length > 0) {
-        const mentionedUserIds = await resolveMentionsToUserIds(tx, c.task.teamId, handles);
-        if (mentionedUserIds.length > 0) {
-          await notifications.onMention(tx, {
-            taskId,
-            projectId: c.task.projectId,
-            teamId: c.task.teamId,
-            actorId: authorId,
-            commentId: c.id,
-            excerpt: body.slice(0, 120),
-            taskTitle: c.task.title,
-            recipients: mentionedUserIds,
-          });
-        }
+      // v1.84: recipients = picker-selected ids ∪ hand-typed @handles, both
+      // filtered to the project's eligible-candidate set (team ∪ accepted group
+      // members). See resolveMentionRecipients.
+      const recipients = await resolveMentionRecipients(
+        c.task.teamId,
+        c.task.projectId,
+        extractMentions(body),
+        mentionedUserIds,
+      );
+      if (recipients.length > 0) {
+        await notifications.onMention(tx, {
+          taskId,
+          projectId: c.task.projectId,
+          teamId: c.task.teamId,
+          actorId: authorId,
+          commentId: c.id,
+          excerpt: body.slice(0, 120),
+          taskTitle: c.task.title,
+          recipients,
+        });
       }
       return {
         view: {

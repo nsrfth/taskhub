@@ -35,7 +35,13 @@ export class CommentsController {
     if (!req.user) throw Errors.unauthorized();
     // Verify the task lives at exactly this team→project. 404 on mismatch.
     await this.tasks.get(req.params.teamId, req.params.projectId, req.params.taskId);
-    const c = await this.svc.create(req.params.taskId, req.user.sub, req.user.globalRole, req.body.body);
+    const c = await this.svc.create(
+      req.params.taskId,
+      req.user.sub,
+      req.user.globalRole,
+      req.body.body,
+      req.body.mentionedUserIds ?? [],
+    );
     return reply.status(201).send(serialize(c));
   };
 

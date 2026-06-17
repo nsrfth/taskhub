@@ -432,6 +432,9 @@
   "deps.enforcement.block.label": "حالت مسدود",
   "deps.enforcement.block.help": "این وظیفه تا زمانی که مسدودکننده ناتمام دارد نمی‌تواند به «در حال انجام» یا «انجام شده» منتقل شود.",
 
+  "mention.pick": "منشن کردن یک نفر",
+  "mention.noMatches": "فردی یافت نشد",
+
   "search.title": "جستجو",
   "search.placeholder": "جستجو در وظایف، نظرات و پروژه‌ها…",
   "search.hint": "عبارتی را در نوار بالا تایپ کنید و Enter بزنید.",

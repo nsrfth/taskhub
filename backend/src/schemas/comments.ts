@@ -2,6 +2,12 @@ import { z } from 'zod';
 
 export const createCommentBody = z.object({
   body: z.string().min(1).max(10_000).trim(),
+  // v1.84: exact mention targets collected by the @-mention picker. Optional +
+  // additive — plain-text comments (and older clients) omit it and still
+  // resolve via the @local-part regex fallback. Each id is validated against
+  // the project's eligible-candidate set server-side; ineligible ids are
+  // silently dropped (never 400) so stale client state can't break posting.
+  mentionedUserIds: z.array(z.string()).max(100).optional(),
 });
 
 export const updateCommentBody = z.object({

@@ -25,11 +25,14 @@ export async function createComment(
   projectId: string,
   taskId: string,
   body: string,
+  // v1.84: exact mention targets the @-picker collected. Optional + additive —
+  // the server still resolves hand-typed @handles when this is omitted/empty.
+  mentionedUserIds: string[] = [],
 ): Promise<Comment> {
   return (
     await api.post<Comment>(
       `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/comments`,
-      { body },
+      mentionedUserIds.length ? { body, mentionedUserIds } : { body },
     )
   ).data;
 }

@@ -258,6 +258,30 @@ subtask bars (no task-to-task arrows) and the calendar `DependencyLayer` is a
 dormant overlay fed `edges={[]}`. The v1.83 work is backend enforcement + the
 per-edge type picker/labels in `DependenciesSection`; arrow drawing is unshipped.
 
+## Comment @-mentions (v1.29 backend; autocomplete + group-aware v1.84)
+
+`commentsService` extracts `@local-part` handles from a comment body and fans a
+`MENTION` notification out to the matched users — independent of the
+`TASK_COMMENT` row, so a mentioned assignee gets both. v1.84 made two changes:
+
+- **Resolution is group-aware and shares ONE eligibility rule with the picker.**
+  `resolveMentionRecipients(teamId, projectId, handles, explicitIds)` resolves
+  against `listEligibleTaskResponsibleCandidates` (the existing projectAccess
+  helper: team members ∪ **ACCEPTED** group-grant members on this project) —
+  the same set the `responsible-candidates` endpoint serves and the composer's
+  `MentionInput` calls. Previously resolution queried team membership only, so
+  group-granted members were unmentionable.
+- **Two input sources, unioned, both filtered to the eligible set.** The
+  create payload carries optional `mentionedUserIds[]` (exact picker
+  selections); hand-typed `@local-part` tokens are the regex fallback. Anyone
+  not eligible is dropped — a forged id or a hand-typed handle for a user
+  without project access never produces a notification. Ineligible ids are
+  dropped silently (not 400). No schema change: `mentionedUserIds` is transient
+  (used to compute recipients, not stored); chips are re-derived client-side by
+  matching `@local-part` against the candidate list. The pre-v1.84 failure mode
+  was a full-email-local-part match with no picker, so typed handles like
+  `@fateme` never matched `fateme.naraghipour@…` and silently notified no one.
+
 ## Calendar Timeline (v1.47)
 
 The **Timeline** tab on `/planner/calendar` is a client-side Gantt built in

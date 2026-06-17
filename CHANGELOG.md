@@ -7,6 +7,44 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.84.0] — 2026-06-17
+
+**Comments — @-mention autocomplete + group-aware resolution.**
+Typing `@` in a comment now opens an autocomplete of eligible people; picking
+one inserts a mention the backend resolves **exactly**, and the original
+"mentions don't reach anyone" problem is fixed.
+
+**Why it didn't work before (diagnosis):** the backend mention pipeline
+(`extractMentions` → resolve → `MENTION` notification) was structurally fine,
+but resolution matched a typed `@handle` against a user's **entire email
+local-part** (`email.split('@')[0]`, full-string equality) and there was **no
+picker** — so typing `@fateme` never matched `fateme.naraghipour@…` and the
+notification was silently never created. A second gap: resolution queried team
+membership only, so **accepted user-group members with project access could not
+be mentioned at all**.
+
+**Fix (token approach A — explicit ids + regex fallback):**
+- The comment-create payload accepts an optional **`mentionedUserIds[]`** the
+  picker collected (exact, unambiguous). Plain-text comments still resolve
+  hand-typed `@local-part` handles via the existing regex — fully backward
+  compatible, **no schema change / no migration**.
+- Both sources are filtered through the **single shared eligibility rule**
+  `listEligibleTaskResponsibleCandidates` (team members ∪ **ACCEPTED** group
+  members granted this project) — the same set the `responsible-candidates`
+  endpoint already serves, so the **picker and the backend agree** on who can
+  be mentioned. The picker reuses that endpoint (no new endpoint).
+- A user with no access to the project is **dropped** (never notified), even if
+  a `mentionedUserId` is forged or a handle is hand-typed. Ineligible ids are
+  silently dropped (not a 400) so stale client state can't block posting.
+- The independent `MENTION` notification (distinct from `TASK_COMMENT`, actor
+  excluded) is unchanged — a mentioned assignee still gets a distinct row.
+
+**Frontend:** the comment composer gains a keyboard-navigable @-autocomplete
+(↑/↓/Enter/Escape), filterable by name or handle, anchored below the textarea
+so it renders correctly under Persian RTL. Posted comments render mentions as
+name **chips** instead of raw `@text`. New i18n keys `mention.pick`,
+`mention.noMatches` (EN + FA).
+
 ## [1.83.0] — 2026-06-17
 
 **Dependencies — Start-to-Start (SS) & Finish-to-Finish (FF) types.**

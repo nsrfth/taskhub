@@ -432,6 +432,9 @@
   "deps.enforcement.block.label": "BLOCK MODE",
   "deps.enforcement.block.help": "This task can't move to In progress / Done while it has incomplete blockers.",
 
+  "mention.pick": "Mention someone",
+  "mention.noMatches": "No matching people",
+
   "search.title": "Search",
   "search.placeholder": "Search tasks, comments, projects…",
   "search.hint": "Type a query in the top bar and press Enter.",

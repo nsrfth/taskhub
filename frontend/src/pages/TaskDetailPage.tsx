@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -8,6 +8,8 @@ import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import * as tasksApi from '@/features/tasks/api';
 import * as commentsApi from '@/features/comments/api';
+import { MentionInput } from '@/features/comments/MentionInput';
+import { MentionText } from '@/features/comments/MentionText';
 import * as activityApi from '@/features/activity/api';
 import { LabelPicker } from '@/features/labels/LabelPicker';
 import { SubtaskList } from '@/features/subtasks/SubtaskList';
@@ -147,6 +149,19 @@ export default function TaskDetailPage(): JSX.Element {
     enabled: !!teamId && !!projectId && !!taskId,
   });
 
+  // v1.84: eligible @-mention candidates for this project (team ∪ accepted
+  // group members) — reuses the same endpoint the responsible/assignee picker
+  // uses, so the picker and the backend agree on who can be mentioned.
+  const { data: mentionCandidates = [] } = useQuery({
+    queryKey: ['mention-candidates', teamId, projectId],
+    queryFn: () => tasksApi.listResponsibleCandidates(teamId!, projectId!),
+    enabled: !!teamId && !!projectId,
+    staleTime: 60_000,
+  });
+  // userIds the user picked from the dropdown this composing session; filtered
+  // at submit to those whose token is still present in the text.
+  const pickedMentionIds = useRef<Set<string>>(new Set());
+
   const { data: activity = [], isLoading: activityLoading } = useQuery({
     queryKey: ['activity', taskId],
     queryFn: () => activityApi.listActivity(teamId!, projectId!, taskId!),
@@ -183,11 +198,12 @@ export default function TaskDetailPage(): JSX.Element {
   });
 
   const createCommentMut = useMutation({
-    mutationFn: (body: string) =>
-      commentsApi.createComment(teamId!, projectId!, taskId!, body),
+    mutationFn: (args: { body: string; mentionedUserIds: string[] }) =>
+      commentsApi.createComment(teamId!, projectId!, taskId!, args.body, args.mentionedUserIds),
     onSuccess: async () => {
       setNewComment('');
       setCommentError(null);
+      pickedMentionIds.current = new Set();
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['comments', taskId] }),
         qc.invalidateQueries({ queryKey: ['activity', taskId] }),
@@ -234,7 +250,16 @@ export default function TaskDetailPage(): JSX.Element {
 
   function submitComment(e: FormEvent): void {
     e.preventDefault();
-    createCommentMut.mutate(newComment);
+    // Only send picked ids whose `@local-part` token is still in the text (the
+    // user may have deleted a mention after inserting it). Backend re-validates
+    // eligibility regardless; this just avoids notifying on removed mentions.
+    const lower = newComment.toLowerCase();
+    const mentionedUserIds = [...pickedMentionIds.current].filter((id) => {
+      const c = mentionCandidates.find((x) => x.userId === id);
+      const local = c?.email.split('@')[0]?.toLowerCase();
+      return !!local && lower.includes('@' + local);
+    });
+    createCommentMut.mutate({ body: newComment, mentionedUserIds });
   }
 
   return (
@@ -494,19 +519,23 @@ export default function TaskDetailPage(): JSX.Element {
                         </button>
                       )}
                     </div>
-                    <p className="text-sm whitespace-pre-wrap mt-1">{c.body}</p>
+                    <p className="text-sm whitespace-pre-wrap mt-1">
+                      <MentionText body={c.body} candidates={mentionCandidates} />
+                    </p>
                   </li>
                 );
               })}
             </ul>
 
             <form onSubmit={submitComment} className="space-y-2">
-              <textarea
-                placeholder="Write a comment…"
+              <MentionInput
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                className="w-full rounded border-slate-300 px-2 py-1 border text-sm"
+                onChange={setNewComment}
+                candidates={mentionCandidates}
+                onMention={(userId) => pickedMentionIds.current.add(userId)}
+                placeholder="Write a comment…  (@ to mention)"
                 rows={2}
+                className="w-full rounded border-slate-300 px-2 py-1 border text-sm"
               />
               {commentError && <p className="text-xs text-red-600">{commentError}</p>}
               <button
