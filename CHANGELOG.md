@@ -7,6 +7,34 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.85.0] — 2026-06-17
+
+**Projects — selectable owner at creation (was silently ignored).**
+The project **owner** can now be chosen when creating a project. Owner = FULL
+project access (edit + nested task writes), so this is an access grant, not a
+label.
+
+**The bug:** the create path forced the owner to the creator. In the current
+code `createProjectBody` didn't even accept an `ownerId`, and
+`projectsService.create(teamId, ownerId, input)` used its `ownerId` **param**
+(the creator, passed by the controller) for the new row — any owner intent was
+dropped before it reached the DB.
+
+**Fix (wiring + UI, no migration — the `ownerId` column already exists):**
+- `createProjectBody` now accepts optional `ownerId`. `projectsService.create`
+  renames the param to `creatorId` (the default), adds `ownerId?` to its input,
+  and persists **`effectiveOwnerId = input.ownerId ?? creatorId`**. A chosen
+  owner is validated to be a **team member** (`assertOwnerInTeam` → 400
+  otherwise) — ownership, and thus full access, can never be granted to an
+  outside user. `creatorId` stays distinct from the final owner.
+- The create form gains an **Owner** picker, populated from the existing
+  team-members query and **pre-selected to the current user**, so an untouched
+  form yields today's behaviour (owner = creator). i18n `projects.owner`
+  (EN + FA), RTL-safe.
+
+Omitting `ownerId` (or sending `null`) is unchanged → owner = creator.
+No schema change.
+
 ## [1.84.0] — 2026-06-17
 
 **Comments — @-mention autocomplete + group-aware resolution.**

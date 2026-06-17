@@ -56,6 +56,8 @@ export async function createProject(
     name: string;
     description?: string;
     status?: ProjectStatus;
+    // v1.85: selectable owner at creation. Omitted → server defaults to creator.
+    ownerId?: string | null;
     accountableId?: string | null;
     // v1.41: optional budgets at create time. number | string | null.
     plannedBudget?: number | string | null;

@@ -354,6 +354,15 @@ External members are **not** given `TeamMembership`; they reach nested routes on
 
 Mutations require WRITE (`assertCanWriteProject` / `requireProjectWriteAccess`).
 
+Because `ownerId` is rule #2 (owner → WRITE), the **owner is chosen at project
+creation** (v1.85): `projectsService.create(teamId, creatorId, input)` persists
+`input.ownerId ?? creatorId` and validates a chosen owner is a team member
+(`assertOwnerInTeam` → 400) — ownership grants full access, so it can never go to
+a non-member. `creatorId` (the requester) is only the default, kept distinct from
+the final owner. Before v1.85 the create body didn't accept an owner and the row
+always took the creator; reassigning ownership afterwards is still a separate
+manager action from the team roster.
+
 ## Dashboard (v1.46)
 
 The dashboard (`DashboardPage.tsx`) fans out `/reports/summary`, `/done`,

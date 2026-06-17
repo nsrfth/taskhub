@@ -595,6 +595,7 @@
   "projects.ownedByYou": "you",
   "projects.startDate": "Start date",
   "projects.endDate": "End date",
+  "projects.owner": "Owner",
   "projects.accountable": "Accountable",
   "projects.accountable.none": "None (optional)",
   "projects.dateRange.invalid": "End date must be on or after start date",

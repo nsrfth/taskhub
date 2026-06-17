@@ -109,6 +109,19 @@ async function assertAccountableInTeam(
   }
 }
 
+// v1.85: owner = FULL project access, so a chosen owner MUST be a team member.
+// Never grant ownership (and thus full access) to a user outside the team.
+async function assertOwnerInTeam(teamId: string, ownerId: string | null): Promise<void> {
+  if (ownerId === null) return;
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: ownerId, teamId } },
+    select: { userId: true },
+  });
+  if (!membership) {
+    throw Errors.badRequest('Owner must be a member of this team');
+  }
+}
+
 async function assertLabelsBelongToTeam(teamId: string, labelIds: string[]): Promise<void> {
   if (labelIds.length === 0) return;
   const unique = [...new Set(labelIds)];
@@ -177,12 +190,16 @@ function updateTouchesNonNameFields(input: {
 
 export class ProjectsService {
   async create(
+    // `creatorId` is the authenticated requester — the DEFAULT owner, NOT
+    // necessarily the final one. A client-supplied `input.ownerId` overrides it
+    // (validated to a team member); the two stay distinct.
     teamId: string,
-    ownerId: string,
+    creatorId: string,
     input: {
       name: string;
       description?: string;
       status?: ProjectStatus;
+      ownerId?: string | null;
       accountableId?: string | null;
       plannedBudget?: number | string | null;
       budgetCurrency?: Currency;
@@ -191,6 +208,11 @@ export class ProjectsService {
       labelIds?: string[];
     },
   ): Promise<ProjectView> {
+    // v1.85: honor a selectable owner. Effective owner = chosen owner (when
+    // provided) else the creator. A chosen owner must be a team member (owner
+    // grants FULL project access). null/undefined → creator → unchanged today.
+    await assertOwnerInTeam(teamId, input.ownerId ?? null);
+    const effectiveOwnerId = input.ownerId ?? creatorId;
     if (input.accountableId !== undefined) {
       await assertAccountableInTeam(teamId, input.accountableId);
     }
@@ -213,7 +235,7 @@ export class ProjectsService {
     const p = await prisma.project.create({
       data: {
         teamId,
-        ownerId,
+        ownerId: effectiveOwnerId,
         accountableId: input.accountableId ?? null,
         name: input.name,
         description: input.description ?? null,

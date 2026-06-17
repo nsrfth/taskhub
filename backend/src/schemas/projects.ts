@@ -39,6 +39,10 @@ export const createProjectBody = z
     name: z.string().min(1).max(120).trim(),
     description: z.string().max(2000).trim().optional(),
     status: projectStatusEnum.optional(),
+    // v1.85: selectable project OWNER at creation. Owner = FULL project access,
+    // so it's validated to a team member server-side. Omitted / null → the
+    // creator becomes the owner (today's behaviour, non-breaking).
+    ownerId: z.string().nullable().optional(),
     accountableId: z.string().nullable().optional(),
     plannedBudget: budgetSchema,
     budgetCurrency: currencyEnum.optional(),

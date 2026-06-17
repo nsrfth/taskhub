@@ -595,6 +595,7 @@
   "projects.ownedByYou": "شما",
   "projects.startDate": "تاریخ شروع",
   "projects.endDate": "تاریخ پایان",
+  "projects.owner": "مالک",
   "projects.accountable": "مسئول (RACI)",
   "projects.accountable.none": "بدون مسئول (اختیاری)",
   "projects.dateRange.invalid": "تاریخ پایان باید در همان روز یا بعد از تاریخ شروع باشد",
