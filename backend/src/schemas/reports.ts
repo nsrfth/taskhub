@@ -201,6 +201,31 @@ export const budgetReportResponse = z.object({
   rollupByCurrency: z.array(budgetCurrencyRollup),
 });
 
+// v1.81: one-page per-project status report. Read-only aggregate over a
+// single project's tasks + the project's own fields. No actualSpent — the
+// Project.actualSpent column was dropped in v1.73; only plannedBudget remains.
+export const projectStatusResponse = z.object({
+  projectId: z.string(),
+  name: z.string(),
+  status: z.enum(['ACTIVE', 'ON_HOLD', 'ARCHIVED']),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  ownerName: z.string().nullable(),
+  accountableName: z.string().nullable(),
+  plannedBudget: z.string().nullable(),
+  budgetCurrency: z.enum(['IRR', 'EUR', 'USD']),
+  taskCounts: z.object({
+    todo: z.number().int().nonnegative(),
+    inProgress: z.number().int().nonnegative(),
+    review: z.number().int().nonnegative(),
+    done: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+  }),
+  overdueCount: z.number().int().nonnegative(),
+  // done/total*100, rounded; 0 when the project has no tasks (never NaN).
+  percentComplete: z.number().int().min(0).max(100),
+});
+
 export type DoneTasksQuery = z.infer<typeof doneTasksQuery>;
 export type TimelinessQuery = z.infer<typeof timelinessQuery>;
 export type UpcomingTasksQuery = z.infer<typeof upcomingTasksQuery>;

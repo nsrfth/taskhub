@@ -7,6 +7,7 @@ import { authRoutes } from './routes/auth.js';
 import { teamsRoutes } from './routes/teams.js';
 import { projectsCrossTeamRoutes, projectsRoutes } from './routes/projects.js';
 import { ganttRoutes } from './routes/gantt.js';
+import { projectStatusRoutes } from './routes/projectStatus.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { commentsRoutes } from './routes/comments.js';
 import { activityRoutes } from './routes/activity.js';
@@ -181,6 +182,11 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // every subtask grouped by parent task with summary counters.
     await api.register(ganttRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/reports/gantt',
+    });
+    // v1.81: per-project one-page status report. Same per-project nesting +
+    // requireProjectAccess cascade as the Gantt report.
+    await api.register(projectStatusRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/reports/status',
     });
     // v1.30: cross-team full-text search. Top-level mount — the endpoint
     // spans every team the caller is a member of, so it isn't nested

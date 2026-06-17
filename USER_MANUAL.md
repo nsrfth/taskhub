@@ -321,6 +321,18 @@ Click **Reports** in the dashboard header. All sections are team-scoped (current
 
 Completion timestamps in reports use your timezone + time format; planned/due dates stay calendar-neutral.
 
+### Project status report (v1.81)
+
+On the **Projects** page, each project row has a small **chart icon** beside the **Gantt** link. Click it (or open `/projects/:id/reports/status`) for a clean **one-page status overview** of that project — no task list, just the headline numbers:
+
+- a **% complete** progress bar (Done ÷ total tasks; 0% when the project has no tasks),
+- **task counts by status** (To do / In progress / Review / Done / Total),
+- an **overdue** count (non-done tasks past their due date — shown red when above zero),
+- the project's **start/end dates** (in your calendar, Jalali or Gregorian),
+- the **planned budget** + currency, and the **owner** + **accountable** people.
+
+There's a **Print** button for a clean single-page printout, and the page renders correctly in Persian (RTL). Access follows the same rules as the rest of the project — if you can't see the project, the status page returns "not found".
+
 ### Project Gantt chart (v1.42, scales v1.76)
 
 Open a project → **Gantt** (or `/projects/:id/reports/gantt`). The chart lists every **scheduled subtask** (start + end dates) grouped under its parent task. Bars are coloured by parent status; overdue open items get a red border. Off-days (weekends + holidays) are shaded red; hover a red day for the holiday name.

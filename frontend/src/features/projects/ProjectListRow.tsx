@@ -122,13 +122,40 @@ export default function ProjectListRow({
           <span className="text-[11px] uppercase rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
             {project.teamName}
           </span>
-          <Link
-            to={`/projects/${project.id}/reports/gantt`}
-            className="text-xs text-indigo-600 hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Gantt
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/projects/${project.id}/reports/status`}
+              title={t('projects.status.view')}
+              aria-label={t('projects.status.view')}
+              className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 3v18h18" />
+                <path d="M18 17V9" />
+                <path d="M13 17V5" />
+                <path d="M8 17v-3" />
+              </svg>
+            </Link>
+            <Link
+              to={`/projects/${project.id}/reports/gantt`}
+              className="text-xs text-indigo-600 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Gantt
+            </Link>
+          </div>
         </div>
       </div>
       {(hasBudget || canManage) && (

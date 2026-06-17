@@ -7,6 +7,29 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.81.0] — 2026-06-17
+
+**Projects — one-page project status report.**
+Each project row on the Projects page now has a small **chart icon** beside the
+**Gantt** link that opens a clean, print-friendly **one-page status** for that
+project (`/projects/:projectId/reports/status`).
+
+- **Overview only** (no task list): a **% complete** progress bar, **task counts
+  by status** (To do / In progress / Review / Done / Total), an **overdue
+  count** (highlighted red when > 0), the project's **start/end dates** (Jalali
+  per the user's calendar preference), **planned budget** + currency, and the
+  **owner** + **accountable** people (graceful "—" when unset).
+- **Backend:** new read-only aggregate
+  `GET /api/teams/:teamId/projects/:projectId/reports/status` — mirrors the
+  Gantt route's per-project nesting + `requireProjectAccess` cascade, so a
+  caller who can't access the project gets the standard **404** (no leak).
+  Task counts via a single `groupBy(status)`; overdue = non-DONE tasks with
+  `dueDate` before UTC-midnight today; `percentComplete` guards divide-by-zero
+  (0% when the project has no tasks — never NaN). Budget is **planned only** —
+  `Project.actualSpent` was removed in v1.73, so no actual-spend field is shown.
+- **Print button** (`window.print()`); page renders correctly under Persian
+  RTL. i18n EN + FA. No schema change, no migration.
+
 ## [1.80.0] — 2026-06-17
 
 **Labels — global "predefined" labels + per-team user-defined labels.**
