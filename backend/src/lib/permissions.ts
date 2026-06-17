@@ -33,6 +33,13 @@ export const PERMISSIONS = [
   'project.edit',
   'project.delete',
   'project.set_accountable',
+  // v1.79: WRITE access (nested scope) to EVERY project in the team — add /
+  // modify tasks, comments, dependencies, etc. in any team project without
+  // owning it or holding a FULL group grant. Deliberately DISTINCT from
+  // `project.edit` (which stays view/rename-visibility only) so granting
+  // team-wide write is an explicit choice, never a side effect of edit
+  // visibility. Default ON for the Manager system role.
+  'project.write_all',
 
   // v1.50: team user groups — create groups, assign members, grant projects.
   'group.manage',
@@ -81,7 +88,7 @@ export const PERMISSION_GROUPS: Record<string, readonly Permission[]> = {
     'task.manage_dependencies',
   ],
   Comments: ['comment.delete_others'],
-  Projects: ['project.edit', 'project.delete', 'project.set_accountable'],
+  Projects: ['project.edit', 'project.delete', 'project.set_accountable', 'project.write_all'],
   Groups: ['group.manage'],
   CustomFields: ['customfield.manage'],
   Forms: ['form.manage'],

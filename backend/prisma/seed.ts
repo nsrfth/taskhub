@@ -114,6 +114,7 @@ async function main(): Promise<void> {
     'project.edit',
     'project.delete',
     'project.set_accountable',
+    'project.write_all',
     'team.invite_member',
     'team.remove_member',
     'team.change_role',

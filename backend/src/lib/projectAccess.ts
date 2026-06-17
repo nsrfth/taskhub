@@ -22,6 +22,25 @@ async function callerHasProjectEdit(
   return perms.has('*') || perms.has('project.edit');
 }
 
+// v1.79: does the caller's membership in `teamId` grant team-wide project
+// WRITE (`project.write_all`)? Mirrors `callerHasProjectEdit` but checks the
+// distinct write permission. A holder gets WRITE to EVERY project in this team
+// in both view and nested scope — the path that lets a manager add/modify
+// tasks in a team project they don't own.
+async function callerHasWriteAll(
+  teamId: string,
+  callerUserId: string,
+  callerGlobalRole: GlobalRole,
+): Promise<boolean> {
+  if (callerGlobalRole === 'ADMIN') return true;
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: callerUserId, teamId } },
+  });
+  if (!membership) return false;
+  const perms = await listMembershipPermissions(membership, callerGlobalRole);
+  return perms.has('*') || perms.has('project.write_all');
+}
+
 async function groupAccessForProject(
   userId: string,
   projectId: string,
@@ -80,6 +99,7 @@ function maxAccess(a: ProjectAccessLevel, b: ProjectAccessLevel): ProjectAccessL
 /**
  * Unified project-access resolver.
  *   ADMIN / owner → WRITE
+ *   project.write_all → WRITE in BOTH view and nested scope (v1.79)
  *   project.edit manager → READ in view scope only (list/rename visibility; not nested)
  *   ACCEPTED group grant → FULL=WRITE, READONLY=READ
  */
@@ -97,6 +117,12 @@ export async function resolveProjectAccess(
   if (!project || project.teamId !== teamId) return 'NONE';
   if (globalRole === 'ADMIN') return 'WRITE';
   if (project.ownerId === userId) return 'WRITE';
+
+  // v1.79: team-wide write permission. Evaluated only after the teamId match
+  // above, so it can never leak across teams. Grants WRITE in both scopes —
+  // this is what lets a manager add/modify tasks in a team project they don't
+  // own (fixes the "Project not found" 404 on nested writes).
+  if (await callerHasWriteAll(teamId, userId, globalRole)) return 'WRITE';
 
   let access: ProjectAccessLevel = 'NONE';
 
@@ -205,6 +231,9 @@ export async function projectListWhereForCaller(
 ): Promise<Prisma.ProjectWhereInput> {
   if (globalRole === 'ADMIN') return { teamId };
   if (await callerHasProjectEdit(teamId, userId, globalRole)) return { teamId };
+  // v1.79: a project.write_all holder can write to every team project, so it
+  // must also see every team project in the list (independent of project.edit).
+  if (await callerHasWriteAll(teamId, userId, globalRole)) return { teamId };
 
   const groupIds = await groupGrantedProjectIdsInTeam(teamId, userId);
   return {
@@ -227,10 +256,14 @@ export async function projectListAllWhereForCaller(
     where: { userId },
   });
   const memberTeamIds = memberships.map((m) => m.teamId);
+  // Teams where the caller sees every project: project.edit (view visibility)
+  // OR project.write_all (team-wide write, v1.79) both qualify.
   const editTeamIds: string[] = [];
   for (const m of memberships) {
     const perms = await listMembershipPermissions(m, globalRole);
-    if (perms.has('*') || perms.has('project.edit')) editTeamIds.push(m.teamId);
+    if (perms.has('*') || perms.has('project.edit') || perms.has('project.write_all')) {
+      editTeamIds.push(m.teamId);
+    }
   }
 
   const groupIds = await groupGrantedProjectIdsForUser(userId);

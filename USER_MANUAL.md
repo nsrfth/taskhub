@@ -539,7 +539,7 @@ The **Settings** link in the left sidebar opens the Settings shell. Sidebar item
 
 - **Preferences** — everyone (personal calendar + theme + language + **due reminder lead time**). Admins additionally see the Workweek, Holidays, Working-day scheduling, and **Due reminders** sections.
 - **Trash** — everyone (restore or purge soft-deleted projects and tasks).
-- **Roles** — team role templates and permission matrix.
+- **Roles** — team role templates and permission matrix. **`project.write_all`** (v1.79, Projects group, default ON for the Manager role) lets a member add and edit tasks in **every** project in the team without owning it or needing a user-group grant. It is separate from `project.edit` (which only controls view/rename visibility), so granting team-wide write is a deliberate choice. Without it, a non-owner can open a team project but adding a task returns "Project not found".
 - **Labels** — team-scoped label management.
 - **Custom fields** (v1.58) — team-scoped field definitions (Text, Number, Date, Single/Multi select, Checkbox, Person). Requires **`customfield.manage`** (default: team Manager). Define fields under **Settings → Custom fields**; set values on each task from the task detail page.
 - **Security** — everyone (change password, 2FA). Global ADMIN additionally configures the **local password policy** (min length, complexity, lockout). Directory-linked accounts cannot change password here.

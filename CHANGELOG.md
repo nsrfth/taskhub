@@ -7,6 +7,35 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.79.0] — 2026-06-17
+
+**Permissions — `project.write_all`: team-wide manager write access to projects.**
+Fixes a "Project not found" error a team **Manager** hit when adding a task to
+a project they don't own. Since v1.39 project access is owner-scoped: nested
+writes (tasks, comments, dependencies) resolve to WRITE only for a global
+ADMIN, the project owner, or an ACCEPTED **FULL** user-group grant. A manager
+with `project.edit` gets READ in *view* scope only — so on the nested
+task-create path they resolved to NONE, surfaced as the deliberate
+404-not-403 "Project not found" (existence hiding). They could open the
+project but not add to it.
+
+- **New permission `project.write_all`** grants nested **WRITE** to *every*
+  project in the team where the membership holds it — add/modify tasks and
+  other nested writes without owning the project or needing a group grant.
+- **Deliberately distinct from `project.edit`**, whose meaning is unchanged
+  (view/rename visibility only). Granting team-wide write is now an explicit
+  choice, never an implicit side effect of edit visibility.
+- **Default ON for the Manager system role.** New teams get it automatically
+  (`ensureSystemRoles` → `DEFAULT_MANAGER_PERMISSIONS`); a migration backfills
+  every existing team's system Manager role
+  (`20260622120000_project_write_all_permission`, idempotent, Manager-only).
+- **Resolution unchanged otherwise:** ADMIN/owner → WRITE; group FULL → WRITE,
+  READONLY → READ; and a plain MEMBER (no ownership/grant/`write_all`) still
+  gets 404 — the existence-hiding posture is intact. Scoped strictly to the
+  team; never cross-team.
+- Appears in the Settings → Roles permission matrix (Projects group). No data
+  migration beyond the Manager backfill.
+
 ## [1.78.2] — 2026-06-15
 
 **Tasks — bulk-attach labels at create time + replace-set on PATCH.**

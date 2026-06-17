@@ -465,13 +465,18 @@ describe('User Groups v1.51 — cross-team, access levels, invites', () => {
     });
     expect(rename.statusCode).toBe(200);
 
+    // v1.79: the system Manager role now holds `project.write_all`, which
+    // grants nested READ/WRITE to every team project. So a manager can now
+    // list tasks in a project they don't own — previously this was 404
+    // (project.edit gave view-scope visibility only). This is the intended
+    // behavior change; see tests/integration/projectWriteAll.test.ts.
     expect(
       (await inject({
         method: 'GET',
         url: `/api/teams/${team.id}/projects/${proj.id}/tasks`,
         headers: { authorization: `Bearer ${manager.token}` },
       })).statusCode,
-    ).toBe(404);
+    ).toBe(200);
   });
 
   it('12. cascade — delete group removes access; project survives', async () => {
