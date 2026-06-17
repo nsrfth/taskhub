@@ -7,6 +7,7 @@ import {
   listDependencies,
   removeDependency,
   type DependencyEdge,
+  type DependencyType,
 } from './api';
 import { listTasks, type Task } from '@/features/tasks/api';
 import { useT } from '@/lib/i18n';
@@ -39,6 +40,20 @@ const STATUS_LABEL: Record<string, string> = {
   DONE: 'Done',
 };
 
+// v1.83: dependency type picker order + i18n keys.
+const DEP_TYPE_ORDER: DependencyType[] = [
+  'FINISH_TO_START',
+  'START_TO_START',
+  'FINISH_TO_FINISH',
+  'RELATES_TO',
+];
+const DEP_TYPE_I18N: Record<DependencyType, string> = {
+  FINISH_TO_START: 'dependency.type.fs',
+  START_TO_START: 'dependency.type.ss',
+  FINISH_TO_FINISH: 'dependency.type.ff',
+  RELATES_TO: 'dependency.type.relates',
+};
+
 export default function DependenciesSection({ teamId, projectId, taskId }: Props): JSX.Element {
   const t = useT();
   const qc = useQueryClient();
@@ -57,11 +72,12 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
   });
 
   const [picker, setPicker] = useState<string>('');
+  const [pickerType, setPickerType] = useState<DependencyType>('FINISH_TO_START');
   const [error, setError] = useState<string | null>(null);
 
   const addMut = useMutation({
     mutationFn: (dependsOnId: string) =>
-      addDependency(teamId, projectId, taskId, { dependsOnId, type: 'FINISH_TO_START' }),
+      addDependency(teamId, projectId, taskId, { dependsOnId, type: pickerType }),
     onSuccess: async () => {
       setPicker('');
       setError(null);
@@ -132,12 +148,14 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
             empty={t('deps.blockedByEmpty')}
             edges={data.blockedBy}
             onRemove={(id) => removeMut.mutate(id)}
+            t={t}
           />
           <EdgeColumn
             title={t('deps.blocking')}
             empty={t('deps.blockingEmpty')}
             edges={data.blocking}
             onRemove={(id) => removeMut.mutate(id)}
+            t={t}
           />
         </div>
       )}
@@ -162,6 +180,19 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
             </option>
           ))}
         </select>
+        <select
+          value={pickerType}
+          onChange={(e) => setPickerType(e.target.value as DependencyType)}
+          aria-label={t('dependency.type.label')}
+          title={t('dependency.type.label')}
+          className="rounded border-slate-300 dark:border-slate-600 px-2 py-1 border text-sm bg-white dark:bg-slate-700"
+        >
+          {DEP_TYPE_ORDER.map((tp) => (
+            <option key={tp} value={tp}>
+              {t(DEP_TYPE_I18N[tp])}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           disabled={!picker || addMut.isPending}
@@ -180,11 +211,13 @@ function EdgeColumn({
   empty,
   edges,
   onRemove,
+  t,
 }: {
   title: string;
   empty: string;
   edges: DependencyEdge[];
   onRemove: (id: string) => void;
+  t: (k: string) => string;
 }): JSX.Element {
   if (edges.length === 0) {
     return (
@@ -222,6 +255,12 @@ function EdgeColumn({
               </span>
             </Link>
             <span className="flex items-center gap-2 shrink-0">
+              <span
+                className="text-[10px] rounded bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-slate-600 dark:text-slate-300"
+                title={t('dependency.type.label')}
+              >
+                {t(DEP_TYPE_I18N[edge.type])}
+              </span>
               <span className="text-[10px] uppercase tracking-wide text-slate-500">
                 {STATUS_LABEL[edge.task.status] ?? edge.task.status}
               </span>

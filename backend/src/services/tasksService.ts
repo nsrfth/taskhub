@@ -813,11 +813,14 @@ export class TasksService {
             to: input.status!,
             taskTitle: updated.title,
           });
-          // v1.29: fan-out unblock notifications when this transition is
-          // TODO/IN_PROGRESS/REVIEW → DONE. Runs inside the transaction so a
-          // rollback wipes both the status change and the notifications.
-          if (input.status === 'DONE' && existing.status !== 'DONE') {
-            await _deps.notifyUnblocked(tx, taskId, actorId);
+          // v1.29 / v1.83: fan-out unblock notifications. A → DONE frees
+          // FS + FF dependents; A → IN_PROGRESS frees SS dependents. Runs in
+          // the transaction so a rollback wipes both the change + notifications.
+          if (
+            (input.status === 'DONE' || input.status === 'IN_PROGRESS') &&
+            input.status !== existing.status
+          ) {
+            await _deps.notifyUnblocked(tx, taskId, input.status, actorId);
           }
         }
         if (changedNonStatusFields.length > 0) {
@@ -1017,8 +1020,11 @@ export class TasksService {
           to: input.status,
           taskTitle: updated.title,
         });
-        if (input.status === 'DONE' && existing.status !== 'DONE') {
-          await _deps.notifyUnblocked(tx, taskId, actorId);
+        if (
+          (input.status === 'DONE' || input.status === 'IN_PROGRESS') &&
+          input.status !== existing.status
+        ) {
+          await _deps.notifyUnblocked(tx, taskId, input.status, actorId);
         }
       }
       const blockerCount = await tx.taskDependency.count({

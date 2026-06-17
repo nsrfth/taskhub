@@ -96,6 +96,10 @@ enum GroupInviteStatus {
 enum DependencyType {
   FINISH_TO_START
   RELATES_TO
+  // v1.83: scheduling types enforced via status rules (not dates).
+  // SS: B can't START until A has started. FF: B can't FINISH until A has.
+  START_TO_START
+  FINISH_TO_FINISH
 }
 
 enum DirectoryKind {

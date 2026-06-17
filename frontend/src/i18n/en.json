@@ -414,6 +414,11 @@
 
   "deps.title": "Dependencies",
   "deps.loading": "Loading dependencies…",
+  "dependency.type.label": "Dependency type",
+  "dependency.type.fs": "Finish → Start (FS)",
+  "dependency.type.ss": "Start → Start (SS)",
+  "dependency.type.ff": "Finish → Finish (FF)",
+  "dependency.type.relates": "Relates to",
   "deps.blockedBy": "Blocked by",
   "deps.blocking": "Blocking",
   "deps.blockedByEmpty": "Nothing is blocking this task.",

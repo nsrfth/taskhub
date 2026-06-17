@@ -7,6 +7,39 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.83.0] — 2026-06-17
+
+**Dependencies — Start-to-Start (SS) & Finish-to-Finish (FF) types.**
+Task dependencies now support two more **scheduling** types beside the existing
+Finish-to-Start (FS) and the informational Relates-to. Enforcement is
+**status-based, not date-based** (no date scheduling is introduced).
+
+For task **B** that depends on **A**, under enforcement = `block`:
+- **FS (Finish→Start)** — unchanged: B can't move to **IN_PROGRESS or DONE**
+  while A is not DONE.
+- **SS (Start→Start)** — B can't move to **IN_PROGRESS** while A is still TODO
+  (once A is in progress/review/done, B may start). B's *start* gated by A's *start*.
+- **FF (Finish→Finish)** — B can't move to **DONE** while A is not DONE; B may
+  start freely. B's *finish* gated by A's *finish*.
+- **Relates-to** — informational, never blocks.
+
+All types honor the existing `tasks.dependencyEnforcement` instance setting
+(`off`/`warn`/`block`) — SS/FF never hard-block under `off`/`warn`, exactly like
+FS. **Cycle detection already operated on edges regardless of type, so SS/FF
+participate in cycle prevention** (a cycle through an SS/FF edge is rejected with
+409 `DEPENDENCY_CYCLE`). **Unblock notifications** were generalized: A→DONE frees
+FS + FF dependents; A→IN_PROGRESS frees SS dependents.
+
+When adding a dependency you now **pick the type** (FS / SS / FF / Relates-to)
+and each edge shows its type in the task's dependency list. Tenant scoping
+unchanged (cross-team targets 404). Migration `20260625120000_dependency_types_ss_ff`
+adds the two enum values (additive; existing FS/Relates rows unaffected).
+
+> Note: a per-type **Gantt edge rendering** was *not* shipped — the current
+> project Gantt renders subtask bars (no task-to-task edge layer), and the
+> timeline's dependency overlay is a dormant phase-2 stub. Visual edge rendering
+> by type is tracked as separate follow-up work.
+
 ## [1.82.0] — 2026-06-17
 
 **Subtasks — 5-state progress status.**

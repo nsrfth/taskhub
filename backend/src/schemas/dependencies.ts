@@ -3,7 +3,14 @@ import { taskStatusEnum } from './tasks.js';
 
 // v1.29: shapes for /teams/:teamId/projects/:projectId/tasks/:taskId/dependencies.
 
-export const dependencyTypeEnum = z.enum(['FINISH_TO_START', 'RELATES_TO']);
+// v1.83: SS + FF added alongside the original FS / RELATES_TO. type defaults
+// to FINISH_TO_START on create for back-compat.
+export const dependencyTypeEnum = z.enum([
+  'FINISH_TO_START',
+  'RELATES_TO',
+  'START_TO_START',
+  'FINISH_TO_FINISH',
+]);
 
 export const createDependencyBody = z.object({
   // The blocker — i.e. the task the URL task should depend on. Must be in

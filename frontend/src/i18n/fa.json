@@ -414,6 +414,11 @@
 
   "deps.title": "وابستگی‌ها",
   "deps.loading": "در حال بارگذاری…",
+  "dependency.type.label": "نوع وابستگی",
+  "dependency.type.fs": "پایان ← شروع (FS)",
+  "dependency.type.ss": "شروع ← شروع (SS)",
+  "dependency.type.ff": "پایان ← پایان (FF)",
+  "dependency.type.relates": "مرتبط با",
   "deps.blockedBy": "مسدود توسط",
   "deps.blocking": "مسدود کرده",
   "deps.blockedByEmpty": "هیچ وظیفه‌ای این کار را مسدود نکرده است.",

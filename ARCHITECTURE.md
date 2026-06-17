@@ -224,6 +224,40 @@ shells.
 from v1.39 do *not* apply here — assignment visibility is intentional (a user
 must see work assigned to them even on projects they don't own).
 
+## Task dependencies (v1.29; types SS/FF v1.83)
+
+Edges live in `TaskDependency` (`taskId` depends on `dependsOnId`, same project,
+denormalized `teamId`). The `DependencyType` enum is `FINISH_TO_START` (FS),
+`START_TO_START` (SS), `FINISH_TO_FINISH` (FF), `RELATES_TO`. Enforcement is
+**status-based, not date-based**, and is gated by the instance setting
+`tasks.dependencyEnforcement` (`off` | `warn` | `block`). `DependenciesService`
+owns both the graph writes and the status-transition rules:
+
+```
+B depends on A (A = the predecessor/blocker), target status of B:
+  FS  → block IN_PROGRESS or DONE  while A != DONE
+  SS  → block IN_PROGRESS          while A == TODO        (A must have started)
+  FF  → block DONE                 while A != DONE        (start is always free)
+  RELATES_TO → never blocks
+```
+
+`countBlockersFor(taskId, nextStatus)` returns `{fs, ss, ff}` incomplete-blocker
+counts for the requested transition; `tasksService` consults it on every status
+PATCH and returns `403 DEPENDENCY_BLOCKED` in `block` mode (advisory only in
+`warn`/`off`). Cycle detection (`wouldCreateCycle`) is **type-agnostic** — it
+walks the edge graph regardless of type, so an SS or FF edge that closes a loop
+is rejected with `409 DEPENDENCY_CYCLE` just like FS. When a task advances,
+`notifyUnblocked(tx, transitionedTaskId, newStatus, actorId)` fans out
+`TASK_UNBLOCKED` notifications to the freed tasks' assignee + responsible:
+`DONE` frees FS and FF dependents, `IN_PROGRESS` frees SS dependents. The kanban
+blocker **badge** (`countIncompleteBlockers` / `loadIncompleteBlockerCounts`)
+stays FS-only by design — it is a "can't start yet" hint, which only FS expresses.
+
+Gantt/timeline edge **rendering** is still phase-2: `ProjectGanttPage` draws
+subtask bars (no task-to-task arrows) and the calendar `DependencyLayer` is a
+dormant overlay fed `edges={[]}`. The v1.83 work is backend enforcement + the
+per-edge type picker/labels in `DependenciesSection`; arrow drawing is unshipped.
+
 ## Calendar Timeline (v1.47)
 
 The **Timeline** tab on `/planner/calendar` is a client-side Gantt built in

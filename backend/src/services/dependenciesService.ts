@@ -23,8 +23,6 @@ const EVENT_REMOVED = 'task.dependency_removed';
 
 const _webhooks = new WebhookService();
 
-const OPEN_STATUSES: ReadonlySet<TaskStatus> = new Set(['TODO', 'IN_PROGRESS', 'REVIEW']);
-
 // Setting values for tasks.dependencyEnforcement. Mirrors v1.18's
 // tasks.dateEditRestriction pattern: an InstanceSetting key with a constrained
 // enum of string values. Default = off, so the feature is opt-in per instance.
@@ -234,9 +232,16 @@ export class DependenciesService {
   }
 
   // Status-guard helper called from tasksService.update. Returns silently
-  // when the transition is allowed; throws 403 when enforcement=block and
-  // there are incomplete FINISH_TO_START blockers. enforcement=warn never
-  // throws here — the UI shows a soft warning before the request hits us.
+  // when the transition is allowed; throws 403 when enforcement=block and a
+  // per-type status rule is violated. enforcement=warn/off never throws here
+  // — 'warn' shows a soft UI advisory; 'off' is a no-op.
+  //
+  // v1.83 status-rule mapping for task B transitioning to `nextStatus`, per
+  // each outgoing edge "B depends on A":
+  //   FS (FINISH_TO_START):  block IN_PROGRESS|DONE while A is not DONE.
+  //   SS (START_TO_START):   block IN_PROGRESS while A is still TODO.
+  //   FF (FINISH_TO_FINISH): block DONE while A is not DONE.
+  //   RELATES_TO: informational, never blocks.
   async assertStatusTransitionAllowed(
     taskId: string,
     nextStatus: TaskStatus,
@@ -246,14 +251,44 @@ export class DependenciesService {
     if (nextStatus !== 'IN_PROGRESS' && nextStatus !== 'DONE') return;
     const enforcement = await readDependencyEnforcement();
     if (enforcement !== 'block') return;
-    const count = await this.countIncompleteBlockers(taskId);
-    if (count > 0) {
-      throw new AppError(
-        403,
-        'DEPENDENCY_BLOCKED',
-        `Cannot move to ${nextStatus}: ${count} incomplete blocker${count === 1 ? '' : 's'}`,
-      );
+    const { fs, ss, ff } = await this.countBlockersFor(taskId, nextStatus);
+    if (fs + ss + ff === 0) return;
+    const parts: string[] = [];
+    if (fs > 0) parts.push(`${fs} finish-to-start predecessor${fs === 1 ? '' : 's'} not done`);
+    if (ss > 0) parts.push(`${ss} start-to-start predecessor${ss === 1 ? '' : 's'} not started`);
+    if (ff > 0) parts.push(`${ff} finish-to-finish predecessor${ff === 1 ? '' : 's'} not done`);
+    throw new AppError(
+      403,
+      'DEPENDENCY_BLOCKED',
+      `Cannot move to ${nextStatus}: ${parts.join('; ')}`,
+    );
+  }
+
+  // v1.83: per-type blocker counts for a transition of `taskId` to `nextStatus`.
+  //   IN_PROGRESS → FS predecessors not DONE + SS predecessors still TODO.
+  //   DONE        → FS predecessors not DONE + FF predecessors not DONE.
+  // (SS never gates DONE; FF never gates IN_PROGRESS.)
+  async countBlockersFor(
+    taskId: string,
+    nextStatus: TaskStatus,
+  ): Promise<{ fs: number; ss: number; ff: number }> {
+    const notDone = { status: { not: 'DONE' as TaskStatus }, deletedAt: null };
+    const stillTodo = { status: 'TODO' as TaskStatus, deletedAt: null };
+    if (nextStatus === 'IN_PROGRESS') {
+      const [fs, ss] = await Promise.all([
+        prisma.taskDependency.count({ where: { taskId, type: 'FINISH_TO_START', dependsOn: notDone } }),
+        prisma.taskDependency.count({ where: { taskId, type: 'START_TO_START', dependsOn: stillTodo } }),
+      ]);
+      return { fs, ss, ff: 0 };
     }
+    if (nextStatus === 'DONE') {
+      const [fs, ff] = await Promise.all([
+        prisma.taskDependency.count({ where: { taskId, type: 'FINISH_TO_START', dependsOn: notDone } }),
+        prisma.taskDependency.count({ where: { taskId, type: 'FINISH_TO_FINISH', dependsOn: notDone } }),
+      ]);
+      return { fs, ss: 0, ff };
+    }
+    return { fs: 0, ss: 0, ff: 0 };
   }
 
   // Count FINISH_TO_START edges OUT of taskId whose blocker is not DONE
@@ -286,21 +321,27 @@ export class DependenciesService {
     return out;
   }
 
-  // Called from tasksService.update inside the same transaction that just
-  // moved `doneTaskId` to DONE. Looks at every task that depended on it
-  // and, for any whose remaining incomplete-blocker count is now zero,
-  // writes a TASK_UNBLOCKED notification to its assignee + responsible.
+  // Called from tasksService.update inside the transaction that just moved
+  // `transitionedTaskId` to `newStatus`. v1.83 per-type unblocking:
+  //   newStatus DONE        → frees FS + FF dependents (their A-must-finish met)
+  //   newStatus IN_PROGRESS → frees SS dependents (their A-must-start met)
+  // For each dependent now clear of the relevant blockers, writes a
+  // TASK_UNBLOCKED notification to its assignee + responsible (excl. actor).
   async notifyUnblocked(
     tx: Prisma.TransactionClient,
-    doneTaskId: string,
+    transitionedTaskId: string,
+    newStatus: TaskStatus,
     actorId: string,
   ): Promise<void> {
-    // All tasks that listed `doneTaskId` as a FINISH_TO_START blocker.
+    let freedTypes: DependencyType[];
+    if (newStatus === 'DONE') freedTypes = ['FINISH_TO_START', 'FINISH_TO_FINISH'];
+    else if (newStatus === 'IN_PROGRESS') freedTypes = ['START_TO_START'];
+    else return;
+
     const dependents = await tx.taskDependency.findMany({
-      where: { dependsOnId: doneTaskId, type: 'FINISH_TO_START' },
+      where: { dependsOnId: transitionedTaskId, type: { in: freedTypes } },
       select: {
         taskId: true,
-        teamId: true,
         task: {
           select: {
             id: true,
@@ -315,19 +356,30 @@ export class DependenciesService {
     });
     if (dependents.length === 0) return;
 
-    // For each dependent, count its remaining incomplete blockers AFTER
-    // the current transition. Within this tx the donor task is already
-    // DONE, so the count reflects post-commit state.
+    // A dependent may have multiple freeing edges — notify it at most once.
+    const seen = new Set<string>();
     for (const dep of dependents) {
-      const remaining = await tx.taskDependency.count({
-        where: {
-          taskId: dep.taskId,
-          type: 'FINISH_TO_START',
-          dependsOn: { status: { not: 'DONE' }, deletedAt: null },
-        },
-      });
+      if (seen.has(dep.taskId)) continue;
+      seen.add(dep.taskId);
+      // Count the dependent's remaining blockers of the kinds this transition
+      // could clear. Within this tx the donor is already at `newStatus`.
+      const remaining =
+        newStatus === 'DONE'
+          ? await tx.taskDependency.count({
+              where: {
+                taskId: dep.taskId,
+                type: { in: ['FINISH_TO_START', 'FINISH_TO_FINISH'] },
+                dependsOn: { status: { not: 'DONE' }, deletedAt: null },
+              },
+            })
+          : await tx.taskDependency.count({
+              where: {
+                taskId: dep.taskId,
+                type: 'START_TO_START',
+                dependsOn: { status: 'TODO', deletedAt: null },
+              },
+            });
       if (remaining > 0) continue;
-      // Notify the dependent's assignee + responsible, exclude the actor.
       const recipients = [dep.task.assigneeId, dep.task.responsibleId]
         .filter((id): id is string => !!id && id !== actorId)
         .filter((id, i, arr) => arr.indexOf(id) === i);
@@ -342,7 +394,7 @@ export class DependenciesService {
               taskId: dep.task.id,
               taskTitle: dep.task.title,
               projectId: dep.task.projectId,
-              unblockedBy: doneTaskId,
+              unblockedBy: transitionedTaskId,
             } as Prisma.InputJsonValue,
           })),
         });

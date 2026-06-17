@@ -1,6 +1,11 @@
 import { api } from '@/lib/api';
 
-export type DependencyType = 'FINISH_TO_START' | 'RELATES_TO';
+// v1.83: SS (START_TO_START) + FF (FINISH_TO_FINISH) added alongside FS + RELATES_TO.
+export type DependencyType =
+  | 'FINISH_TO_START'
+  | 'RELATES_TO'
+  | 'START_TO_START'
+  | 'FINISH_TO_FINISH';
 export type DependencyEnforcement = 'off' | 'warn' | 'block';
 export type DepTaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
 
