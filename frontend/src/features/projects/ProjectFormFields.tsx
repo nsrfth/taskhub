@@ -136,7 +136,7 @@ export default function ProjectFormFields({
         </label>
       </div>
       {dateError && (
-        <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+        <p className="text-xs text-danger" role="alert">
           {t('projects.dateRange.invalid')}
         </p>
       )}

@@ -138,8 +138,8 @@ function FieldEditor({
     return (
       <li className="text-sm">
         <span className="font-medium text-slate-700">{cf.fieldName}</span>
-        {cf.required && <span className="text-red-500 ml-1">*</span>}
-        <span className="ml-2 text-slate-600">{displayValue(cf, t)}</span>
+        {cf.required && <span className="text-danger ms-1">*</span>}
+        <span className="ms-2 text-slate-600">{displayValue(cf, t)}</span>
       </li>
     );
   }
@@ -148,7 +148,7 @@ function FieldEditor({
     <li className="text-sm space-y-1">
       <label className="font-medium text-slate-700 block">
         {cf.fieldName}
-        {cf.required && <span className="text-red-500 ml-1">*</span>}
+        {cf.required && <span className="text-danger ms-1">*</span>}
       </label>
       <EditableInput
         definition={definition}

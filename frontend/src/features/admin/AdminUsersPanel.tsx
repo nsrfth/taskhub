@@ -33,7 +33,7 @@ function authSourceBadgeClass(source: adminApi.AuthSource): string {
     case 'SCIM':
       return 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200';
     default:
-      return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+      return 'bg-bg-elevated text-text';
   }
 }
 
@@ -323,9 +323,9 @@ export default function AdminUsersPanel(): JSX.Element {
   const detailUser = detailUserId ? users.find((row) => row.id === detailUserId) : null;
 
   return (
-    <section className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6">
+    <section className="bg-surface rounded shadow p-4 mb-6">
       <h2 className="font-medium mb-3">{t('admin.users.title')}</h2>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{t('admin.users.intro')}</p>
+      <p className="text-xs text-text-muted mb-3">{t('admin.users.intro')}</p>
 
       <div className="flex flex-wrap gap-2 mb-3">
         <input
@@ -333,12 +333,12 @@ export default function AdminUsersPanel(): JSX.Element {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder={t('admin.users.search')}
-          className="flex-1 min-w-[12rem] rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+          className="flex-1 min-w-[12rem] rounded border border-border dark:bg-slate-700 px-2 py-1 text-sm"
         />
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value as adminApi.GlobalRole | '')}
-          className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+          className="rounded border border-border dark:bg-slate-700 px-2 py-1 text-sm"
           aria-label={t('admin.users.filter.role')}
         >
           <option value="">{t('admin.users.filter.roleAll')}</option>
@@ -348,7 +348,7 @@ export default function AdminUsersPanel(): JSX.Element {
         <select
           value={authFilter}
           onChange={(e) => setAuthFilter(e.target.value as adminApi.AuthSource | '')}
-          className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+          className="rounded border border-border dark:bg-slate-700 px-2 py-1 text-sm"
           aria-label={t('admin.users.filter.authSource')}
         >
           <option value="">{t('admin.users.filter.authAll')}</option>
@@ -359,7 +359,7 @@ export default function AdminUsersPanel(): JSX.Element {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as adminApi.UserStatusFilter | '')}
-          className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+          className="rounded border border-border dark:bg-slate-700 px-2 py-1 text-sm"
           aria-label={t('admin.users.filter.status')}
         >
           <option value="">{t('admin.users.filter.statusAll')}</option>
@@ -370,7 +370,7 @@ export default function AdminUsersPanel(): JSX.Element {
         <select
           value={directoryFilter}
           onChange={(e) => setDirectoryFilter(e.target.value)}
-          className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm min-w-[8rem]"
+          className="rounded border border-border dark:bg-slate-700 px-2 py-1 text-sm min-w-[8rem]"
           aria-label={t('admin.users.filter.directory')}
         >
           <option value="">{t('admin.users.filter.directoryAll')}</option>
@@ -431,9 +431,9 @@ export default function AdminUsersPanel(): JSX.Element {
               const disabled = isUserDisabled(u);
               const locked = isUserLocked(u);
               return (
-                <tr key={u.id} className="border-t dark:border-slate-700">
+                <tr key={u.id} className="border-t border-border">
                   <td className="py-2 pr-4">{u.name}</td>
-                  <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">{u.email}</td>
+                  <td className="py-2 pr-4 text-text">{u.email}</td>
                   <td className="py-2 pr-4">
                     <span className={`text-xs px-1.5 py-0.5 rounded ${authSourceBadgeClass(u.authSource)}`}>
                       {authSourceLabel(u.authSource)}
@@ -465,7 +465,7 @@ export default function AdminUsersPanel(): JSX.Element {
                         value={u.globalRole}
                         disabled={roleBusy}
                         onChange={(e) => changeUserRole(u, e.target.value as adminApi.GlobalRole)}
-                        className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-xs uppercase disabled:opacity-50"
+                        className="rounded border border-border dark:bg-slate-700 px-2 py-1 text-xs uppercase disabled:opacity-50"
                       >
                         <option value="MEMBER">Member</option>
                         <option value="ADMIN">Admin</option>
@@ -484,14 +484,15 @@ export default function AdminUsersPanel(): JSX.Element {
                       type="button"
                       disabled={lifecyclePending}
                       onClick={() => setDetailUserId(detailUserId === u.id ? null : u.id)}
-                      className="text-xs underline mr-3 disabled:opacity-40"
+                      className="text-xs underline me-3 disabled:opacity-40"
                     >
                       {t('admin.users.action.manage')}
                     </button>
                     <button
+                      type="button"
                       disabled={u.authSource !== 'LOCAL'}
                       onClick={() => openReset(u)}
-                      className="text-xs underline disabled:opacity-40 mr-3"
+                      className="text-xs underline disabled:opacity-40 me-3"
                     >
                       {t('admin.resetPassword.button')}
                     </button>
@@ -504,19 +505,20 @@ export default function AdminUsersPanel(): JSX.Element {
                           setLdapActionErr(null);
                           setLdapTestPassword('');
                         }}
-                        className="text-xs underline mr-3"
+                        className="text-xs underline me-3"
                       >
                         LDAP
                       </button>
                     )}
                     <button
+                      type="button"
                       disabled={isSelf || deleteUserMut.isPending}
                       onClick={() => {
                         if (window.confirm(t('admin.users.confirmDelete').replace('{email}', u.email))) {
                           deleteUserMut.mutate(u.id);
                         }
                       }}
-                      className="text-xs text-red-600 hover:underline disabled:opacity-40"
+                      className="text-xs text-danger hover:underline disabled:opacity-40"
                     >
                       {t('admin.users.delete')}
                     </button>
@@ -529,7 +531,7 @@ export default function AdminUsersPanel(): JSX.Element {
       )}
 
       {totalPages > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-text">
           <span>
             {t('admin.users.pagination.pageOf')
               .replace('{page}', String(currentPage))
@@ -563,7 +565,7 @@ export default function AdminUsersPanel(): JSX.Element {
               max={totalPages}
               value={jumpPage}
               onChange={(e) => setJumpPage(e.target.value)}
-              className="w-14 rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-1 py-0.5"
+              className="w-14 rounded border border-border dark:bg-slate-700 px-1 py-0.5"
             />
             <button type="submit" className="underline" disabled={isFetching}>
               {t('admin.users.pagination.go')}
@@ -573,11 +575,11 @@ export default function AdminUsersPanel(): JSX.Element {
       )}
 
       {detailUser && (
-        <div className="mt-4 rounded border border-slate-200 dark:border-slate-600 p-3 text-sm bg-slate-50/50 dark:bg-slate-900/20">
+        <div className="mt-4 rounded border border-border p-3 text-sm bg-slate-50/50 dark:bg-slate-900/20">
           <p className="font-medium mb-2">
             {t('admin.users.detail.title').replace('{email}', detailUser.email)}
           </p>
-          <div className="grid gap-2 sm:grid-cols-2 mb-3 text-xs text-slate-600 dark:text-slate-300">
+          <div className="grid gap-2 sm:grid-cols-2 mb-3 text-xs text-text">
             <div>
               <span className="text-slate-500">{t('admin.users.profile.name')}: </span>
               {detailUser.name}
@@ -647,7 +649,7 @@ export default function AdminUsersPanel(): JSX.Element {
             {t('admin.users.profile.title').replace('{email}', profileTarget.email)}
           </p>
           {isDirectoryOwned(profileTarget) ? (
-            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+            <div className="space-y-2 text-xs text-text">
               <p title={t('admin.users.directoryManaged').replace('{directory}', directoryLabel(profileTarget))}>
                 {t('admin.users.profile.name')}: {profileTarget.name}
               </p>
@@ -715,7 +717,7 @@ export default function AdminUsersPanel(): JSX.Element {
                 <button type="button" onClick={() => setProfileTarget(null)} className="text-xs underline">
                   {t('admin.users.profile.cancel')}
                 </button>
-                {profileError && <p className="basis-full text-xs text-red-600">{profileError}</p>}
+                {profileError && <p className="basis-full text-xs text-danger" role="alert">{profileError}</p>}
               </div>
             </form>
           )}
@@ -755,8 +757,8 @@ export default function AdminUsersPanel(): JSX.Element {
                 {testLdapMut.isPending ? '…' : t('admin.users.ldapTest')}
               </button>
             </form>
-            {ldapActionMsg && <p className="text-xs text-emerald-700 mt-2">{ldapActionMsg}</p>}
-            {ldapActionErr && <p className="text-xs text-red-600 mt-2">{ldapActionErr}</p>}
+            {ldapActionMsg && <p className="text-xs text-success mt-2" role="alert">{ldapActionMsg}</p>}
+            {ldapActionErr && <p className="text-xs text-danger mt-2" role="alert">{ldapActionErr}</p>}
           </div>
         );
       })()}
@@ -771,7 +773,7 @@ export default function AdminUsersPanel(): JSX.Element {
               {resetResult.generatedPassword ? (
                 <code className="block select-all font-mono">{resetResult.generatedPassword}</code>
               ) : (
-                <p className="text-emerald-700">{t('admin.resetPassword.successCustom')}</p>
+                <p className="text-success">{t('admin.resetPassword.successCustom')}</p>
               )}
               <button type="button" onClick={closeReset} className="text-xs underline mt-2">
                 {t('admin.resetPassword.cancel')}
@@ -798,7 +800,7 @@ export default function AdminUsersPanel(): JSX.Element {
               <button type="button" onClick={closeReset} className="text-xs underline">
                 {t('admin.resetPassword.cancel')}
               </button>
-              {resetError && <p className="basis-full text-xs text-red-600">{resetError}</p>}
+              {resetError && <p className="basis-full text-xs text-danger" role="alert">{resetError}</p>}
             </form>
           )}
         </div>

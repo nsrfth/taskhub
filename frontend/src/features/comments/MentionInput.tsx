@@ -143,7 +143,7 @@ export function MentionInput({
       />
       {open && (
         <div
-          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded border border-slate-200 bg-white shadow-lg"
+          className="absolute start-0 end-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded border border-slate-200 bg-white shadow-lg"
           role="listbox"
         >
           <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-slate-400">

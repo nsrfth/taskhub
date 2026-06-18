@@ -106,7 +106,7 @@ export default function CustomFieldsPage(): JSX.Element {
     return (
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">{t('customfields.title')}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{t('customfields.selectTeam')}</p>
+        <p className="text-sm text-text-muted">{t('customfields.selectTeam')}</p>
       </section>
     );
   }
@@ -115,7 +115,7 @@ export default function CustomFieldsPage(): JSX.Element {
     return (
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">{t('customfields.title')}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{t('customfields.noAccess')}</p>
+        <p className="text-sm text-text-muted">{t('customfields.noAccess')}</p>
       </section>
     );
   }
@@ -124,7 +124,7 @@ export default function CustomFieldsPage(): JSX.Element {
     <section className="space-y-6">
       <header>
         <h2 className="text-lg font-semibold mb-1">{t('customfields.title')}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-text-muted">
           {t('customfields.subtitle').replace('{team}', currentTeam.name)}
         </p>
       </header>
@@ -136,7 +136,7 @@ export default function CustomFieldsPage(): JSX.Element {
       )}
 
       {!isLoading && fields.length > 0 && (
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded">
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 border border-border rounded">
           {fields.map((f) => (
             <FieldRow
               key={f.id}
@@ -164,7 +164,7 @@ export default function CustomFieldsPage(): JSX.Element {
           e.preventDefault();
           createMut.mutate();
         }}
-        className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+        className="border border-border rounded p-4 space-y-3"
       >
         <h3 className="font-medium text-sm">{t('customfields.create')}</h3>
         <div className="flex flex-wrap gap-3">
@@ -235,12 +235,12 @@ function FieldRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="font-medium">{field.name}</span>
-          <span className="ml-2 text-xs text-slate-500">{typeLabel(t, field.type)}</span>
+          <span className="ms-2 text-xs text-slate-500">{typeLabel(t, field.type)}</span>
           {field.required && (
-            <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-1 rounded">{t('customfields.required')}</span>
+            <span className="ms-2 text-xs bg-amber-100 text-warning px-1 rounded">{t('customfields.required')}</span>
           )}
           {!field.active && (
-            <span className="ml-2 text-xs bg-slate-200 text-slate-600 px-1 rounded">{t('customfields.inactive')}</span>
+            <span className="ms-2 text-xs bg-slate-200 text-slate-600 px-1 rounded">{t('customfields.inactive')}</span>
           )}
         </div>
         <div className="flex gap-2 text-xs">
@@ -250,7 +250,7 @@ function FieldRow({
           <button type="button" onClick={onToggleActive} className="text-slate-600 hover:underline">
             {field.active ? t('customfields.active') : t('customfields.inactive')}
           </button>
-          <button type="button" onClick={onDelete} className="text-red-600 hover:underline">
+          <button type="button" onClick={onDelete} className="text-danger hover:underline">
             {t('customfields.delete')}
           </button>
         </div>

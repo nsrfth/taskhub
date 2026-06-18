@@ -177,7 +177,7 @@ export default function ProjectGanttPage(): JSX.Element {
 
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
       {error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-danger" role="alert">
           Could not load the report. The project may not exist or you don't have access.
         </p>
       )}
@@ -287,7 +287,7 @@ export default function ProjectGanttPage(): JSX.Element {
                 <button
                   type="button"
                   onClick={() => navigate(-1)}
-                  className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                  className="rounded border border-border px-2 py-1 text-xs hover:bg-bg"
                   aria-label={t('gantt.prev')}
                 >
                   ‹
@@ -295,20 +295,20 @@ export default function ProjectGanttPage(): JSX.Element {
                 <button
                   type="button"
                   onClick={goToday}
-                  className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                  className="rounded border border-border px-2 py-1 text-xs hover:bg-bg"
                 >
                   {t('gantt.today')}
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate(1)}
-                  className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                  className="rounded border border-border px-2 py-1 text-xs hover:bg-bg"
                   aria-label={t('gantt.next')}
                 >
                   ›
                 </button>
               </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200" dir="auto">
+              <span className="text-sm font-medium text-text" dir="auto">
                 {t('gantt.period')}: {periodLabel}
               </span>
             </section>

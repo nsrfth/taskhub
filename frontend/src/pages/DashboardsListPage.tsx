@@ -36,21 +36,21 @@ export default function DashboardsListPage(): JSX.Element {
 
   if (!currentTeam) {
     return (
-      <div className="p-8 max-w-3xl mx-auto">
+      <div className="p-8">
         <p className="text-sm text-slate-500">{t('dashboard.selectTeam')}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
+    <div className="min-h-screen p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t('dashboard.title')}</h1>
         <button
           type="button"
           onClick={() => createMut.mutate()}
           disabled={createMut.isPending}
-          className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-contrast hover:bg-indigo-700 disabled:opacity-50"
         >
           {t('dashboard.create')}
         </button>
@@ -66,10 +66,10 @@ export default function DashboardsListPage(): JSX.Element {
         {(data?.items ?? []).map((d) => (
           <li
             key={d.id}
-            className="flex items-center justify-between gap-4 p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800"
+            className="flex items-center justify-between gap-4 p-3 rounded-lg border border-border bg-surface"
           >
             <div>
-              <Link to={`/dashboards/${d.id}`} className="font-medium text-indigo-600 dark:text-indigo-400">
+              <Link to={`/dashboards/${d.id}`} className="font-medium text-primary">
                 {d.name}
               </Link>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -80,7 +80,8 @@ export default function DashboardsListPage(): JSX.Element {
             {d.canEdit && (
               <button
                 type="button"
-                className="text-xs text-red-600 hover:underline"
+                disabled={deleteMut.isPending}
+                className="text-xs text-danger hover:underline disabled:opacity-50"
                 onClick={() => {
                   if (window.confirm(t('dashboard.confirmDelete'))) deleteMut.mutate(d.id);
                 }}

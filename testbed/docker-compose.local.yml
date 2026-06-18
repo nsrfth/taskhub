@@ -1,0 +1,147 @@
+services:
+  # === App Database ===
+  db:
+    image: postgres:16-alpine
+    container_name: taskhub-local-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taskhub}
+      POSTGRES_USER: ${POSTGRES_USER:-taskhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+    ports:
+      - "5432:5432"
+    volumes:
+      - app-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskhub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskhub-local
+
+  # === Redis ===
+  redis:
+    image: redis:7-alpine
+    container_name: taskhub-local-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - app-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskhub-local
+
+  # === Backend (Fastify + Prisma, tsx watch auto-reload) ===
+  # network_mode: host so it binds localhost:4000 and reaches db/redis/mailhog
+  # (published on the VM's localhost) without container DNS. The whole repo is
+  # mounted at /repo; node_modules + uploads are named volumes so the host's
+  # Windows-built node_modules never leak Linux-incompatible native binaries.
+  backend:
+    image: node:20
+    container_name: taskhub-local-backend
+    working_dir: /repo/backend
+    command: >
+      bash -c "
+        npm install &&
+        npx prisma generate &&
+        npx prisma migrate deploy &&
+        (npx prisma db seed || echo 'seed skipped') &&
+        exec npm run dev
+      "
+    network_mode: host
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-taskhub}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB:-taskhub}?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 30d
+      COOKIE_SECURE: "false"
+      # Reached from the host via the VM's private IP. localhost kept for in-VM use.
+      CORS_ORIGINS: http://192.168.56.31:5173,http://localhost:5173
+      UPLOAD_DIR: /repo/backend/uploads
+      MASTER_KEY: ${MASTER_KEY}
+      # Route all outbound mail to MailHog (caught, never delivered).
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: TaskHub <no-reply@taskhub.local>
+      PUBLIC_APP_URL: http://192.168.56.31:5173
+      # Generous so the dev seed's many inserts never trip the limiter.
+      AUTH_RATE_LIMIT_MAX: "10000"
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@taskhub.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin}
+      # Optional richer demo dataset: set SEED_IT_DEMO=1 in .env.local.
+      SEED_IT_DEMO: ${SEED_IT_DEMO:-}
+    volumes:
+      - /vagrant:/repo
+      - backend-node-modules:/repo/backend/node_modules
+      - backend-uploads:/repo/backend/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # === Frontend (Vite dev server, HMR) ===
+  # Also host-networked so the Vite proxy target (http://localhost:4000, hard
+  # coded in vite.config.ts) reaches the backend without edits. Whole repo is
+  # mounted so copy-manual.mjs can read USER_MANUAL.md from the repo root.
+  frontend:
+    image: node:20
+    container_name: taskhub-local-frontend
+    working_dir: /repo/frontend
+    command: sh -c "npm install && exec npm run dev -- --host 0.0.0.0 --port 5173"
+    network_mode: host
+    environment:
+      # Show the seeded sample credentials on the login page (testbed only).
+      VITE_TESTBED: "1"
+      # VirtualBox shared folders (vboxsf) don't emit inotify events, so Vite's
+      # file watcher never fires and HMR silently dies. Force chokidar polling so
+      # host edits actually hot-reload inside the VM.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "400"
+    volumes:
+      - /vagrant:/repo
+      - frontend-node-modules:/repo/frontend/node_modules
+    depends_on:
+      - backend
+
+  # === MailHog (dev SMTP — catches all outgoing email) ===
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: taskhub-local-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - taskhub-local
+
+  # === Adminer (DB web UI) ===
+  adminer:
+    image: adminer:latest
+    container_name: taskhub-local-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - taskhub-local
+
+volumes:
+  app-db:
+  app-redis:
+  backend-node-modules:
+  backend-uploads:
+  frontend-node-modules:
+
+networks:
+  taskhub-local:
+    driver: bridge

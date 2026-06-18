@@ -98,7 +98,7 @@ async function main(): Promise<void> {
     if (backfill.created > 0) {
       app.log.info(backfill, 'system manager backfill on existing teams');
     }
-    await app.listen({ host: '0.0.0.0', port: env.PORT });
+    await app.listen({ host: process.env.HOST ?? '0.0.0.0', port: env.PORT });
     // v1.30.4 (S-5): once the listener is up, clear any persisted
     // maintenance flag. This is what makes the restore flow's
     // process.exit safe — the fresh boot lifts the 503 gate. We do it

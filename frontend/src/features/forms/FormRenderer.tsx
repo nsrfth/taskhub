@@ -48,7 +48,7 @@ export default function FormRenderer({
   if (submitted) {
     return (
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900 dark:bg-emerald-950">
-        <p className="text-lg font-medium text-emerald-800 dark:text-emerald-200">{t('forms.submitted')}</p>
+        <p className="text-lg font-medium text-success">{t('forms.submitted')}</p>
       </div>
     );
   }
@@ -71,18 +71,18 @@ export default function FormRenderer({
 
       {sorted.map((field) => (
         <div key={field.id} className="space-y-1">
-          <label htmlFor={field.id} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+          <label htmlFor={field.id} className="block text-sm font-medium text-text">
             {field.label}
-            {field.required && <span className="text-red-500"> *</span>}
+            {field.required && <span className="text-danger"> *</span>}
           </label>
           {field.helpText && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{field.helpText}</p>
+            <p className="text-xs text-text-muted">{field.helpText}</p>
           )}
           {renderInput(field, values[field.id], (v) => setField(field.id, v), members, t)}
         </div>
       ))}
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger" role="alert">{error}</p>}
 
       <button
         type="submit"
@@ -104,7 +104,7 @@ function renderInput(
 ): JSX.Element {
   const id = field.id;
   const common =
-    'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900';
+    'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm';
 
   if (field.target === 'title' || field.target === 'description') {
     const isArea = field.target === 'description';

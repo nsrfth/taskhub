@@ -6,6 +6,7 @@ import {
   getScimCredential,
   revokeScimCredential,
 } from './api';
+import { useT } from '@/lib/i18n';
 
 // Per-directory SCIM credential panel. Rendered inline on the Directories
 // list. The raw token surfaces exactly once via a modal that the admin
@@ -28,6 +29,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['scim-cred', directoryId],
@@ -45,7 +47,7 @@ export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Elem
       setError(null);
       await qc.invalidateQueries({ queryKey: ['scim-cred', directoryId] });
     },
-    onError: (err) => setError(errorMessage(err, 'Could not generate token')),
+    onError: (err) => setError(errorMessage(err, t('directories.scim.generateError'))),
   });
 
   const revokeMut = useMutation({
@@ -55,21 +57,21 @@ export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Elem
 
   return (
     <div className="mt-3 border-t pt-3 text-sm">
-      <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">SCIM 2.0</p>
+      <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">{t('directories.scim.title')}</p>
 
       <p className="text-xs text-slate-500 mb-2">
-        Base URL:{' '}
+        {t('directories.scim.baseUrl')}{' '}
         <code className="text-slate-700 bg-slate-100 rounded px-1">{scimBaseUrl}</code>
       </p>
 
-      {isLoading && <p className="text-xs text-slate-400">Loading…</p>}
+      {isLoading && <p className="text-xs text-slate-400">{t('directories.scim.loading')}</p>}
 
       {!isLoading && !data && (
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Token name (e.g. Okta)"
+            placeholder={t('directories.scim.tokenNamePlaceholder')}
             className="border rounded px-2 py-0.5 text-xs"
           />
           <button
@@ -78,7 +80,7 @@ export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Elem
             disabled={generateMut.isPending}
             className="bg-slate-900 text-white rounded px-2 py-0.5 text-xs"
           >
-            Generate token
+            {t('directories.scim.generateToken')}
           </button>
         </div>
       )}
@@ -87,12 +89,12 @@ export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Elem
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-600">
             <span className="font-medium">{data.name}</span>
-            {data.revokedAt && <span className="ml-1 text-red-600">(revoked)</span>}
-            <span className="ml-2 text-slate-400">
+            {data.revokedAt && <span className="ms-1 text-danger">(revoked)</span>}
+            <span className="ms-2 text-slate-400">
               created {new Date(data.createdAt).toLocaleString()}
             </span>
             {data.lastUsedAt && (
-              <span className="ml-2 text-slate-400">
+              <span className="ms-2 text-slate-400">
                 last used {new Date(data.lastUsedAt).toLocaleString()}
               </span>
             )}
@@ -109,12 +111,13 @@ export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Elem
             {!data.revokedAt && (
               <button
                 type="button"
+                disabled={revokeMut.isPending}
                 onClick={() => {
                   if (window.confirm('Revoke this token? The IdP will lose SCIM access immediately.')) {
                     revokeMut.mutate();
                   }
                 }}
-                className="text-xs text-red-600 hover:underline"
+                className="text-xs text-danger hover:underline disabled:opacity-50"
               >
                 Revoke
               </button>
@@ -123,7 +126,7 @@ export default function ScimPanel({ directoryId, scimBaseUrl }: Props): JSX.Elem
         </div>
       )}
 
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      {error && <p className="text-xs text-danger mt-1" role="alert">{error}</p>}
 
       {/* One-shot reveal modal — the only place the raw token is ever visible. */}
       {shownToken && (

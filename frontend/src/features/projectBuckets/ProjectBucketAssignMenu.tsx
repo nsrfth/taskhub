@@ -19,7 +19,7 @@ export default function ProjectBucketAssignMenu({
 
   return (
     <div
-      className="absolute right-0 top-full z-20 mt-1 w-52 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg p-2 text-sm"
+      className="absolute end-0 top-full z-20 mt-1 w-52 rounded border border-border bg-surface shadow-lg p-2 text-sm"
       onClick={(e) => e.stopPropagation()}
     >
       <p className="text-xs text-slate-500 mb-2 px-1">Personal buckets</p>
@@ -29,7 +29,7 @@ export default function ProjectBucketAssignMenu({
         <ul className="max-h-48 overflow-y-auto">
           {buckets.map((b) => (
             <li key={b.id}>
-              <label className="flex items-center gap-2 px-1 py-1 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
+              <label className="flex items-center gap-2 px-1 py-1 hover:bg-bg rounded cursor-pointer">
                 <input
                   type="checkbox"
                   checked={assignedIds.has(b.id)}

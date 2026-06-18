@@ -42,7 +42,7 @@ function ProjectCard({ project, bucketId, accent, onOpen, bucketMenu, actionsMen
         opacity: isDragging ? 0.5 : 1,
         borderLeftColor: accent,
       }}
-      className="rounded border border-slate-200 dark:border-slate-600 border-l-4 p-2 bg-white dark:bg-slate-800 text-sm"
+      className="rounded border border-border border-l-4 p-2 bg-surface text-sm"
       {...attributes}
     >
       <div className="flex items-start gap-1">
@@ -57,7 +57,7 @@ function ProjectCard({ project, bucketId, accent, onOpen, bucketMenu, actionsMen
         <button
           type="button"
           onClick={() => onOpen(project.id)}
-          className="font-medium text-left hover:underline flex-1 min-w-0 truncate"
+          className="font-medium text-start hover:underline flex-1 min-w-0 truncate"
         >
           {project.name}
         </button>
@@ -105,8 +105,8 @@ function BucketColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 min-w-[240px] max-w-[280px] flex-1 flex flex-col ${
-        isOver ? 'ring-2 ring-indigo-400' : ''
+      className={`bg-bg rounded-lg p-3 min-w-[240px] max-w-[280px] flex-1 flex flex-col ${
+        isOver ? 'ring-2 ring-primary' : ''
       }`}
     >
       <div className="flex items-start gap-2 mb-2">
@@ -139,7 +139,7 @@ function BucketColumn({
           <button
             type="button"
             onClick={onDelete}
-            className="text-xs text-red-600 hover:underline"
+            className="text-xs text-danger hover:underline"
           >
             Del
           </button>

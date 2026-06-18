@@ -50,15 +50,15 @@ export default function FormSubmitPage(): JSX.Element {
         <Link to="/settings/forms" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
           ← {t('forms.title')}
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{form.name}</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-text">{form.name}</h1>
         {form.description && (
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{form.description}</p>
+          <p className="mt-1 text-sm text-text-muted">{form.description}</p>
         )}
       </div>
 
       {submitted && taskId ? (
         <div className="space-y-3">
-          <p className="text-emerald-700 dark:text-emerald-300">{t('forms.submitted')}</p>
+          <p className="text-success">{t('forms.submitted')}</p>
           <Link
             to={`/projects/${form.projectId}/tasks/${taskId}`}
             className="text-sm text-blue-600 hover:underline dark:text-blue-400"

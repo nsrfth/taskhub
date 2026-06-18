@@ -50,7 +50,7 @@ export default function AboutPage(): JSX.Element {
         {showHttpsPwaWarning && (
           <div
             role="note"
-            className="rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 p-4 text-sm space-y-1"
+            className="rounded-md bg-amber-100 text-warning dark:bg-amber-900/40 p-4 text-sm space-y-1"
           >
             <p className="font-medium">{t('about.https.warningTitle')}</p>
             <p>{t('about.https.warningBody')}</p>
@@ -59,7 +59,7 @@ export default function AboutPage(): JSX.Element {
 
         {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
         {error && (
-          <p className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             Could not reach the server.
           </p>
         )}
@@ -79,7 +79,7 @@ export default function AboutPage(): JSX.Element {
                     href={update.releaseUrl ?? '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs hover:bg-emerald-200"
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-success px-2 py-0.5 text-xs hover:bg-emerald-200"
                     title={
                       update.publishedAt
                         ? `Released ${new Date(update.publishedAt).toLocaleDateString()}`
@@ -227,7 +227,7 @@ function UpgradeButton({ latestVersion }: { latestVersion: string }): JSX.Elemen
     return (
       <span
         role="status"
-        className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs"
+        className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-warning px-2 py-0.5 text-xs"
         title="Polling /api/health every 5 s. The SPA will reload automatically when the new backend is up."
       >
         Upgrading… page will reload when done
@@ -254,7 +254,7 @@ function UpgradeButton({ latestVersion }: { latestVersion: string }): JSX.Elemen
         {phase === 'starting' ? 'Starting…' : 'Run upgrade now'}
       </button>
       {errMsg && (
-        <span className="text-xs text-red-600 dark:text-red-400" title={errMsg}>
+        <span role="alert" className="text-xs text-danger" title={errMsg}>
           {errMsg}
         </span>
       )}

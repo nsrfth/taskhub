@@ -29,14 +29,14 @@ export default function GroupInvitesPanel(): JSX.Element | null {
   if (!invites.length) return null;
 
   return (
-    <div className="border-b border-slate-200 dark:border-slate-600 px-3 py-2 bg-amber-50 dark:bg-amber-950/30">
+    <div className="border-b border-border px-3 py-2 bg-amber-50 dark:bg-amber-950/30">
       <p className="text-xs font-medium mb-2">{t('groups.invites.title')}</p>
       <ul className="space-y-2">
         {invites.map((inv) => (
           <li key={inv.id} className="text-xs">
             <p>
               <strong>{inv.groupName}</strong> · {inv.teamName}
-              <span className="text-slate-500 ml-1">
+              <span className="text-slate-500 ms-1">
                 ({inv.accessLevel === 'FULL' ? t('groups.accessLevel.full') : t('groups.accessLevel.readonly')})
               </span>
             </p>
@@ -44,7 +44,7 @@ export default function GroupInvitesPanel(): JSX.Element | null {
               <button
                 type="button"
                 disabled={acceptMut.isPending}
-                className="underline text-green-700"
+                className="underline text-success"
                 onClick={() => acceptMut.mutate(inv.id)}
               >
                 {t('groups.invite.accept')}
@@ -52,7 +52,7 @@ export default function GroupInvitesPanel(): JSX.Element | null {
               <button
                 type="button"
                 disabled={declineMut.isPending}
-                className="underline text-red-700"
+                className="underline text-danger"
                 onClick={() => declineMut.mutate(inv.id)}
               >
                 {t('groups.invite.decline')}

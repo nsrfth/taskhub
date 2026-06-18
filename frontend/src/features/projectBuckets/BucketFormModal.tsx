@@ -44,7 +44,7 @@ export default function BucketFormModal({
             onChange={(e) => setName(e.target.value)}
             maxLength={80}
             required
-            className="mt-1 w-full rounded border px-2 py-1 dark:bg-slate-800"
+            className="mt-1 w-full rounded border px-2 py-1 bg-surface"
           />
         </label>
         <label className="block">
@@ -54,7 +54,7 @@ export default function BucketFormModal({
             onChange={(e) => setDescription(e.target.value)}
             maxLength={500}
             rows={2}
-            className="mt-1 w-full rounded border px-2 py-1 dark:bg-slate-800"
+            className="mt-1 w-full rounded border px-2 py-1 bg-surface"
           />
         </label>
         <div>
@@ -65,7 +65,7 @@ export default function BucketFormModal({
                 key={c}
                 type="button"
                 onClick={() => setColor(c)}
-                className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-slate-900 dark:border-white' : 'border-transparent'}`}
+                className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-border' : 'border-transparent'}`}
                 style={{ backgroundColor: c }}
                 aria-label={c}
               />
@@ -79,7 +79,7 @@ export default function BucketFormModal({
           <button
             type="submit"
             disabled={pending || !name.trim()}
-            className="px-3 py-1 rounded bg-indigo-600 text-white disabled:opacity-50"
+            className="px-3 py-1 rounded bg-primary text-primary-contrast disabled:opacity-50"
           >
             Save
           </button>

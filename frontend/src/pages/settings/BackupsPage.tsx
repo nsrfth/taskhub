@@ -143,7 +143,7 @@ export default function BackupsPage(): JSX.Element {
     <section className="space-y-6">
       <header>
         <h2 className="text-lg font-semibold mb-1">Automatic backups</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-text-muted">
           Schedule periodic Postgres dumps. Files are stored on the backend's
           backups volume (<code>/app/backups</code>) and pruned by the
           retention policy below.
@@ -151,13 +151,13 @@ export default function BackupsPage(): JSX.Element {
       </header>
 
       {isLoading && <p className="text-sm text-slate-400">Loading…</p>}
-      {error && <p className="text-sm text-red-600">{errorMessage(error, 'Could not load backups')}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{errorMessage(error, 'Could not load backups')}</p>}
 
       {data && (
         <>
           <form
             onSubmit={submit}
-            className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-4"
+            className="border border-border rounded p-4 space-y-4"
           >
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -180,9 +180,9 @@ export default function BackupsPage(): JSX.Element {
                   step={1}
                   value={intervalHours}
                   onChange={(e) => setIntervalHours(Number(e.target.value))}
-                  className="rounded border-slate-300 dark:border-slate-600 px-2 py-1 border w-32 bg-white dark:bg-slate-700"
+                  className="rounded border-border px-2 py-1 border w-32 bg-surface"
                 />
-                <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                <span className="block text-[11px] text-text-muted mt-1">
                   Run pg_dump every N hours. 24 = daily. Range 1..720.
                 </span>
               </label>
@@ -198,15 +198,15 @@ export default function BackupsPage(): JSX.Element {
                   step={1}
                   value={retention}
                   onChange={(e) => setRetention(Number(e.target.value))}
-                  className="rounded border-slate-300 dark:border-slate-600 px-2 py-1 border w-32 bg-white dark:bg-slate-700"
+                  className="rounded border-border px-2 py-1 border w-32 bg-surface"
                 />
-                <span className="block text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                <span className="block text-[11px] text-text-muted mt-1">
                   Older dumps are deleted after each successful run. Range 1..365.
                 </span>
               </label>
             </div>
 
-            {configError && <p className="text-xs text-red-600">{configError}</p>}
+            {configError && <p role="alert" className="text-xs text-danger">{configError}</p>}
 
             <div className="flex items-center gap-3">
               <button
@@ -220,11 +220,11 @@ export default function BackupsPage(): JSX.Element {
                 type="button"
                 onClick={() => runMut.mutate()}
                 disabled={runMut.isPending}
-                className="rounded border border-slate-300 dark:border-slate-600 px-3 py-1 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                className="rounded border border-border px-3 py-1 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
               >
                 {runMut.isPending ? 'Running…' : 'Run backup now'}
               </button>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-text-muted">
                 <div>
                   Last:{' '}
                   {data.lastRunAt ? new Date(data.lastRunAt).toLocaleString() : 'never'}
@@ -239,9 +239,9 @@ export default function BackupsPage(): JSX.Element {
             </div>
 
             {runOk && (
-              <p className="text-xs text-emerald-700 dark:text-emerald-400">{runOk}</p>
+              <p className="text-xs text-success">{runOk}</p>
             )}
-            {runError && <p className="text-xs text-red-600">{runError}</p>}
+            {runError && <p role="alert" className="text-xs text-danger">{runError}</p>}
           </form>
 
           <UploadSection
@@ -258,7 +258,7 @@ export default function BackupsPage(): JSX.Element {
                 No backups yet. Run one now or enable the schedule above.
               </p>
             ) : (
-              <ul className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded">
+              <ul className="divide-y divide-slate-200 dark:divide-slate-700 border border-border rounded">
                 {data.items.map((b) => (
                   <BackupRow
                     key={b.filename}
@@ -320,16 +320,16 @@ function BackupRow({
     <li className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
       <div className="flex-1 min-w-0">
         <div className="font-mono text-xs truncate">{backup.filename}</div>
-        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="text-[11px] text-text-muted">
           {new Date(backup.createdAt).toLocaleString()} · {formatBytes(backup.sizeBytes)}
         </div>
-        {err && <div className="text-[11px] text-red-600 mt-1">{err}</div>}
+        {err && <div role="alert" className="text-[11px] text-danger mt-1">{err}</div>}
       </div>
       <button
         type="button"
         onClick={handleDownload}
         disabled={downloading}
-        className="text-xs rounded border border-slate-300 dark:border-slate-600 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+        className="text-xs rounded border border-border px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
       >
         {downloading ? 'Downloading…' : 'Download'}
       </button>
@@ -337,7 +337,7 @@ function BackupRow({
         type="button"
         onClick={onRestore}
         disabled={disabled}
-        className="text-xs rounded border border-amber-400 text-amber-700 dark:border-amber-500 dark:text-amber-300 px-2 py-1 hover:bg-amber-50 dark:hover:bg-amber-900/30 disabled:opacity-50"
+        className="text-xs rounded border border-amber-400 dark:border-amber-500 text-warning px-2 py-1 hover:bg-amber-50 dark:hover:bg-amber-900/30 disabled:opacity-50"
       >
         Restore
       </button>
@@ -345,7 +345,7 @@ function BackupRow({
         type="button"
         onClick={onDelete}
         disabled={disabled}
-        className="text-xs rounded border border-red-300 text-red-700 dark:border-red-500 dark:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
+        className="text-xs rounded border border-red-300 dark:border-red-500 text-danger px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
       >
         Delete
       </button>
@@ -386,10 +386,10 @@ function UploadSection({
   return (
     <form
       onSubmit={submit}
-      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+      className="border border-border rounded p-4 space-y-3"
     >
       <h3 className="font-medium text-sm">Upload a backup</h3>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-text-muted">
         Drop in a <code>.dump</code> file produced by <code>pg_dump --format=custom</code>
         {' '}— typically a download from another TaskHub instance. The file is stored
         alongside scheduler-written dumps and can be restored from the list below.
@@ -400,8 +400,8 @@ function UploadSection({
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         className="block text-sm"
       />
-      {err && <p className="text-xs text-red-600">{err}</p>}
-      {ok && <p className="text-xs text-emerald-700 dark:text-emerald-400">{ok}</p>}
+      {err && <p role="alert" className="text-xs text-danger">{err}</p>}
+      {ok && <p className="text-xs text-success">{ok}</p>}
       <button
         type="submit"
         disabled={pending || !file}

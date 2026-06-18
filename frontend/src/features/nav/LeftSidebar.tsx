@@ -153,10 +153,10 @@ export default function LeftSidebar({ open, onClose }: Props): JSX.Element {
           onClick={onClose}
           className="flex items-center gap-3 px-4 py-3 border-t border-border hover:bg-bg-elevated"
         >
-          <span className="w-9 h-9 rounded-full bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-primary text-primary-contrast text-xs font-semibold flex items-center justify-center">
             {initials(user?.name, user?.email)}
           </span>
-          <span className="min-w-0 flex-1 text-sm text-slate-900 dark:text-slate-100 truncate">
+          <span className="min-w-0 flex-1 text-sm text-text truncate">
             {user?.name || user?.email}
           </span>
         </Link>

@@ -278,7 +278,8 @@ export default function ProjectsPage(): JSX.Element {
             setActionsMenuProjectId(null);
             setAssignProjectId(assignProjectId === project.id ? null : project.id);
           }}
-          className="text-[10px] px-1 rounded border text-slate-500"
+          className="text-[10px] px-1 rounded border text-text-muted"
+          aria-label={t('projects.bucketAssign')}
           title={t('projects.bucketAssign')}
         >
           ☰
@@ -331,7 +332,7 @@ export default function ProjectsPage(): JSX.Element {
     : null;
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h1 className="text-2xl font-semibold">Projects</h1>
         <div className="flex flex-wrap gap-2">
@@ -339,7 +340,7 @@ export default function ProjectsPage(): JSX.Element {
             <button
               type="button"
               onClick={() => setBucketModal({ mode: 'create' })}
-              className="inline-flex items-center gap-1 rounded-md border border-indigo-500 text-indigo-600 dark:text-indigo-400 text-sm font-medium px-3 py-1.5"
+              className="inline-flex items-center gap-1 rounded-md border border-primary text-primary text-sm font-medium px-3 py-1.5"
             >
               + New bucket
             </button>
@@ -348,7 +349,7 @@ export default function ProjectsPage(): JSX.Element {
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-3 py-1.5"
+              className="inline-flex items-center gap-1 rounded-md bg-primary hover:bg-indigo-600 text-primary-contrast text-sm font-medium px-3 py-1.5"
             >
               + New project
             </button>
@@ -365,7 +366,7 @@ export default function ProjectsPage(): JSX.Element {
             className={`px-3 py-1 text-sm rounded ${
               viewMode === mode
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                : 'border border-slate-300 dark:border-slate-600'
+                : 'border border-border'
             }`}
           >
             {mode === 'all' ? 'All projects' : 'Personal buckets'}
@@ -441,7 +442,7 @@ export default function ProjectsPage(): JSX.Element {
         <p className="text-sm text-slate-500">Loading…</p>
       )}
       {isError && (
-        <p className="text-sm text-red-600">Could not load projects. Refresh the page.</p>
+        <p className="text-sm text-danger" role="alert">Could not load projects. Refresh the page.</p>
       )}
 
       {!isLoading && viewMode === 'buckets' && !bucketsLoading && (
@@ -468,7 +469,7 @@ export default function ProjectsPage(): JSX.Element {
       )}
 
       {!isLoading && viewMode === 'all' && (
-        <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
+        <section className="bg-surface rounded shadow p-4">
           <h2 className="text-sm font-medium mb-2">
             All projects ({filteredProjects.length})
           </h2>
@@ -543,15 +544,16 @@ function ProjectFilterBar({
   teams: { id: string; name: string }[];
   showOwnerFilter: boolean;
 }): JSX.Element {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-2 mb-4 text-sm items-end">
       <label className="flex flex-col gap-0.5 flex-1 min-w-[160px]">
-        <span className="text-slate-500 text-xs">Search</span>
+        <span className="text-slate-500 text-xs">{t('projects.filter.searchLabel')}</span>
         <input
           type="search"
           value={filters.search ?? ''}
           onChange={(e) => onChange({ search: e.target.value })}
-          placeholder="Project or bucket name…"
+          placeholder={t('projects.placeholder.search')}
           className="rounded border px-2 py-1 dark:bg-slate-800"
         />
       </label>

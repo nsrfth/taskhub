@@ -69,7 +69,7 @@ export default function ProjectListRow({
   return (
     <li className="py-3">
       <div className="flex items-start justify-between gap-4">
-        <div className="text-left min-w-0 flex-1">
+        <div className="text-start min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <button type="button" onClick={onOpen} className="font-medium truncate hover:underline">
               {project.name}
@@ -89,13 +89,13 @@ export default function ProjectListRow({
             <button
               type="button"
               onClick={onOpen}
-              className="text-sm text-slate-600 dark:text-slate-300 mt-0.5 truncate block hover:underline w-full text-left"
+              className="text-sm text-text mt-0.5 truncate block hover:underline w-full text-start"
             >
               {project.description}
             </button>
           )}
           {bucketNames.length > 0 && (
-            <p className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">
+            <p className="text-[11px] text-primary mt-0.5 truncate">
               {bucketNames.join(' · ')}
             </p>
           )}
@@ -119,7 +119,7 @@ export default function ProjectListRow({
               />
             )}
           </div>
-          <span className="text-[11px] uppercase rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5">
+          <span className="text-[11px] uppercase rounded-full bg-bg-elevated px-2 py-0.5">
             {project.teamName}
           </span>
           <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export default function ProjectListRow({
               to={`/projects/${project.id}/reports/status`}
               title={t('projects.status.view')}
               aria-label={t('projects.status.view')}
-              className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
+              className="text-primary hover:text-primary"
               onClick={(e) => e.stopPropagation()}
             >
               <svg
@@ -150,7 +150,7 @@ export default function ProjectListRow({
             </Link>
             <Link
               to={`/projects/${project.id}/reports/gantt`}
-              className="text-xs text-indigo-600 hover:underline"
+              className="text-xs text-primary hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               Gantt
@@ -159,7 +159,7 @@ export default function ProjectListRow({
         </div>
       </div>
       {(hasBudget || canManage) && (
-        <div className="mt-2 ml-7 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2 flex-wrap">
+        <div className="mt-2 ms-7 text-xs text-text flex items-center gap-2 flex-wrap">
           <span className="font-medium">{t('projects.budget.label')}:</span>
           <span dir="ltr" className="inline-block">
             {t('projects.budget.planned')} <code>{fmt(project.plannedBudget)}</code>

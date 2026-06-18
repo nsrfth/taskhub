@@ -76,7 +76,7 @@ function DatePickerField({
             type="button"
             onClick={onClear}
             disabled={pending}
-            className="text-xs text-red-600 hover:underline disabled:opacity-40"
+            className="text-xs text-danger hover:underline disabled:opacity-40"
           >
             Clear
           </button>
@@ -225,7 +225,7 @@ export default function TaskDetailPage(): JSX.Element {
 
   if (!teamId || !project) {
     return (
-      <div className="min-h-screen p-8 max-w-3xl mx-auto">
+      <div className="min-h-screen p-8">
         <p className="text-sm text-slate-500">
           {projectId ? (
             <>
@@ -263,7 +263,7 @@ export default function TaskDetailPage(): JSX.Element {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8">
       {/* Contextual back-link to the parent board. The global TopNav handles
           dashboard / projects / etc. — this just hops up one level in the
           team → project → task hierarchy. */}
@@ -308,7 +308,7 @@ export default function TaskDetailPage(): JSX.Element {
                 </span>
               )}
               {task.completedAt && (
-                <span className="text-emerald-700">
+                <span className="text-success">
                   Completed <span dir="rtl">{formatShamsiTimestampDate(task.completedAt)}</span>
                 </span>
               )}
@@ -336,7 +336,7 @@ export default function TaskDetailPage(): JSX.Element {
                     } as Partial<tasksApi.Task>)
                   }
                   disabled={updateTaskMut.isPending}
-                  className="text-sm rounded border border-slate-300 dark:border-slate-600 px-2 py-1 max-w-sm"
+                  className="text-sm rounded border border-border px-2 py-1 max-w-sm"
                 >
                   <option value="">— Unassigned —</option>
                   {teamMembers.map((m) => (
@@ -497,23 +497,25 @@ export default function TaskDetailPage(): JSX.Element {
               {comments.map((c) => {
                 const canDelete = c.authorId === user?.id || isManager;
                 return (
-                  <li key={c.id} className="border-l-2 border-slate-200 pl-3">
+                  <li key={c.id} className="border-l-2 border-slate-200 ps-3">
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span>
                         <span className="font-medium text-slate-700">{c.authorName}</span>
-                        <span className="ml-2" dir="rtl" title={formatShamsiTimestamp(c.createdAt) ?? ''}>
+                        <span className="ms-2" dir="rtl" title={formatShamsiTimestamp(c.createdAt) ?? ''}>
                           {formatRelativeTime(c.createdAt)}
                         </span>
                         {c.updatedAt !== c.createdAt && (
-                          <span className="ml-2 italic">(edited)</span>
+                          <span className="ms-2 italic">(edited)</span>
                         )}
                       </span>
                       {canDelete && (
                         <button
+                          type="button"
                           onClick={() => {
                             if (window.confirm('Delete this comment?')) deleteCommentMut.mutate(c.id);
                           }}
-                          className="text-xs text-red-600 hover:underline"
+                          disabled={deleteCommentMut.isPending}
+                          className="text-xs text-danger hover:underline disabled:opacity-50"
                         >
                           Delete
                         </button>
@@ -533,11 +535,11 @@ export default function TaskDetailPage(): JSX.Element {
                 onChange={setNewComment}
                 candidates={mentionCandidates}
                 onMention={(userId) => pickedMentionIds.current.add(userId)}
-                placeholder="Write a comment…  (@ to mention)"
+                placeholder={t('comments.placeholder.write')}
                 rows={2}
                 className="w-full rounded border-slate-300 px-2 py-1 border text-sm"
               />
-              {commentError && <p className="text-xs text-red-600">{commentError}</p>}
+              {commentError && <p className="text-xs text-danger" role="alert">{commentError}</p>}
               <button
                 type="submit"
                 disabled={createCommentMut.isPending || !newComment.trim()}
@@ -631,12 +633,12 @@ function TaskBudgetSection({
           {utilization !== null && (
             <span
               className={
-                ' ml-2 ' +
+                ' ms-2 ' +
                 (utilization > 100
-                  ? 'text-red-600'
+                  ? 'text-danger'
                   : utilization > 80
-                    ? 'text-amber-600'
-                    : 'text-emerald-600')
+                    ? 'text-warning'
+                    : 'text-success')
               }
               title="Actual ÷ Planned"
             >
@@ -647,7 +649,7 @@ function TaskBudgetSection({
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="ml-auto text-xs text-slate-500 hover:underline"
+          className="ms-auto text-xs text-slate-500 hover:underline"
         >
           {plannedBudget || actualSpent ? 'Edit' : 'Add budget'}
         </button>
@@ -681,11 +683,11 @@ function TaskBudgetSection({
         />
       </label>
       {(plannedInvalid || actualInvalid) && (
-        <span className="text-xs text-red-600">
+        <span className="text-xs text-danger">
           Use a non-negative number with up to 2 decimals.
         </span>
       )}
-      <div className="flex gap-2 ml-auto">
+      <div className="flex gap-2 ms-auto">
         <button
           type="button"
           disabled={pending || plannedInvalid || actualInvalid}

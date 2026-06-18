@@ -120,14 +120,14 @@ export default function DashboardPage(): JSX.Element {
   const greetingName = user?.name?.split(/\s+/)[0] ?? user?.email ?? '';
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 space-y-6">
       {/* Greeting + period tabs */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="text-2xl font-semibold text-text">
             {t('dashboard.greeting').replace('{name}', greetingName)}
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-text-muted mt-1">
             {teamsLoading
               ? ''
               : hasTeams
@@ -139,9 +139,9 @@ export default function DashboardPage(): JSX.Element {
       </div>
 
       {!hasTeams && !teamsLoading && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-sm text-slate-600 dark:text-slate-300">
+        <div className="bg-surface border border-border rounded-lg p-6 text-sm text-text">
           {t('dashboard.selectTeamHint')}{' '}
-          <Link to="/teams" className="text-indigo-600 dark:text-indigo-400 underline">
+          <Link to="/teams" className="text-primary underline">
             {t('dashboard.manageTeams')}
           </Link>
         </div>
@@ -217,7 +217,7 @@ export default function DashboardPage(): JSX.Element {
           <Panel
             title={t('dashboard.activity.title')}
             action={
-              <Link to="/reports" className="text-xs text-indigo-500 dark:text-indigo-400">
+              <Link to="/reports" className="text-xs text-primary">
                 {t('dashboard.activity.viewAll')}
               </Link>
             }
@@ -250,7 +250,7 @@ function PeriodTabs({
     { key: 'week', label: t('dashboard.period.week') },
   ];
   return (
-    <div className="inline-flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+    <div className="inline-flex bg-bg-elevated rounded-lg p-1">
       {items.map((it) => (
         <button
           key={it.key}
@@ -259,8 +259,8 @@ function PeriodTabs({
           className={[
             'px-3 py-1 text-xs rounded-md transition-colors',
             value === it.key
-              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
+              ? 'bg-surface text-text shadow-sm'
+              : 'text-text-muted hover:text-text',
           ].join(' ')}
         >
           {it.label}
@@ -293,15 +293,15 @@ function KpiCard({
       className={[
         'rounded-xl p-5 border',
         isPrimary
-          ? 'bg-indigo-500 text-white border-indigo-500'
-          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
+          ? 'bg-primary text-primary-contrast border-primary'
+          : 'bg-surface border-border',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2">
         <p
           className={[
             'text-xs',
-            isPrimary ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400',
+            isPrimary ? 'text-indigo-100' : 'text-text-muted',
           ].join(' ')}
         >
           {label}
@@ -312,10 +312,10 @@ function KpiCard({
           className={[
             'text-3xl font-semibold tabular-nums',
             isPrimary
-              ? 'text-white'
+              ? 'text-primary-contrast'
               : tone === 'danger'
-                ? 'text-red-600 dark:text-red-400'
-                : 'text-slate-900 dark:text-slate-100',
+                ? 'text-danger'
+                : 'text-text',
           ].join(' ')}
         >
           {value ?? '—'}
@@ -334,9 +334,9 @@ function KpiCard({
             isPrimary
               ? 'text-indigo-100'
               : delta > 0
-                ? 'text-emerald-600 dark:text-emerald-400'
+                ? 'text-success'
                 : delta < 0
-                  ? 'text-red-600 dark:text-red-400'
+                  ? 'text-danger'
                   : 'text-slate-500',
           ].join(' ')}
         >
@@ -385,15 +385,15 @@ function Panel({
   return (
     <section
       className={[
-        'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5',
+        'bg-surface border border-border rounded-xl p-5',
         className ?? '',
       ].join(' ')}
     >
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+          <h3 className="text-sm font-semibold text-text">{title}</h3>
           {subtitle && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
+            <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>
           )}
         </div>
         {action}
@@ -431,10 +431,10 @@ function StatusList({
               style={{ background: STATUS_COLORS[k] }}
               aria-hidden
             />
-            <span className="flex-1 text-slate-700 dark:text-slate-300">
+            <span className="flex-1 text-text">
               {t(`dashboard.status.${k}`)}
             </span>
-            <span className="tabular-nums text-slate-900 dark:text-slate-100 font-medium">
+            <span className="tabular-nums text-text font-medium">
               {v}
             </span>
             <span className="tabular-nums text-xs text-slate-400 w-9 text-end">{pct}%</span>
@@ -478,9 +478,9 @@ function BigTrend({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-text-muted">
         <span>
-          <span className="tabular-nums text-slate-900 dark:text-slate-100 font-semibold">
+          <span className="tabular-nums text-text font-semibold">
             {total}
           </span>{' '}
           {t('dashboard.trend.total').replace('{n}', '').trim()}
@@ -488,9 +488,9 @@ function BigTrend({
         <span
           className={
             delta > 0
-              ? 'text-emerald-600 dark:text-emerald-400'
+              ? 'text-success'
               : delta < 0
-                ? 'text-red-600 dark:text-red-400'
+                ? 'text-danger'
                 : ''
           }
         >
@@ -556,14 +556,14 @@ function WorkloadList({ rows }: { rows: WorkloadRow[] }): JSX.Element {
             >
               {(r.assigneeName ?? '?').slice(0, 2)}
             </span>
-            <span className="text-sm text-slate-700 dark:text-slate-200 flex-1 truncate">
+            <span className="text-sm text-text flex-1 truncate">
               {r.assigneeName ?? 'unassigned'}
             </span>
-            <span className="tabular-nums text-sm text-slate-900 dark:text-slate-100 font-medium w-6 text-end">
+            <span className="tabular-nums text-sm text-text font-medium w-6 text-end">
               {r.total}
             </span>
             <div
-              className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex"
+              className="h-2 rounded-full bg-bg-elevated overflow-hidden flex"
               style={{ width: `${Math.max(20, (r.total / max) * 60)}%` }}
               aria-hidden
             >
@@ -607,11 +607,11 @@ function UpcomingList({
           <span className="flex-1 min-w-0">
             <Link
               to={`/projects/${it.projectId}/tasks/${it.taskId}`}
-              className="block text-sm text-slate-800 dark:text-slate-200 truncate hover:underline"
+              className="block text-sm text-text truncate hover:underline"
             >
               {it.taskTitle}
             </Link>
-            <span className="block text-xs text-slate-400 dark:text-slate-500 truncate">
+            <span className="block text-xs text-text-muted truncate">
               {it.projectName}
             </span>
           </span>
@@ -637,7 +637,7 @@ function dueLabel(daysUntil: number, t: (k: string) => string): string {
 
 function ActivityList({
   items,
-  t: _t,
+  t,
 }: {
   items: TeamActivityRow[];
   t: (k: string) => string;
@@ -649,23 +649,23 @@ function ActivityList({
     <ul className="space-y-3">
       {items.map((a) => (
         <li key={a.id} className="flex items-start gap-3">
-          <span className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-semibold flex items-center justify-center shrink-0 mt-0.5">
+          <span className="w-7 h-7 rounded-full bg-bg-elevated text-text-muted text-[10px] font-semibold flex items-center justify-center shrink-0 mt-0.5">
             {(a.actorName || '?').slice(0, 2)}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm text-slate-700 dark:text-slate-200">
+            <span className="block text-sm text-text">
               <span className="font-medium">{a.actorName}</span>{' '}
-              <span className="text-slate-500 dark:text-slate-400">
-                {actionVerb(a.action)}
+              <span className="text-text-muted">
+                {actionVerb(a.action, t)}
               </span>
               {a.taskTitle && (
-                <span className="text-slate-700 dark:text-slate-200">
+                <span className="text-text">
                   {' '}
                   «{a.taskTitle}»
                 </span>
               )}
             </span>
-            <span className="block text-xs text-slate-400 dark:text-slate-500">
+            <span className="block text-xs text-text-muted">
               {relativeTime(a.createdAt)}
             </span>
           </span>
@@ -677,16 +677,17 @@ function ActivityList({
 
 // Map the activity `action` slug to a short human verb. Unknown actions fall
 // back to the raw slug so new event types still render (just less prettily).
-const ACTION_VERBS: Record<string, string> = {
-  'task.created': 'created',
-  'task.updated': 'updated',
-  'task.status_changed': 'moved',
-  'task.assigned': 'assigned',
-  'task.deleted': 'deleted',
-  'comment.created': 'commented on',
-};
-function actionVerb(action: string): string {
-  return ACTION_VERBS[action] ?? action.replace(/[._]/g, ' ');
+const KNOWN_VERBS = new Set([
+  'task.created',
+  'task.updated',
+  'task.status_changed',
+  'task.assigned',
+  'task.deleted',
+  'comment.created',
+]);
+function actionVerb(action: string, t: (k: string) => string): string {
+  if (KNOWN_VERBS.has(action)) return t(`activity.verb.${action}`);
+  return action.replace(/[._]/g, ' ');
 }
 
 // Compact relative time. Avoids pulling in a date library for one widget.
@@ -704,7 +705,7 @@ function relativeTime(iso: string): string {
 
 function EmptyHint({ text }: { text: string }): JSX.Element {
   return (
-    <p className="text-sm text-slate-400 dark:text-slate-500 italic py-6 text-center">
+    <p className="text-sm text-text-muted italic py-6 text-center">
       {text}
     </p>
   );
@@ -713,7 +714,7 @@ function EmptyHint({ text }: { text: string }): JSX.Element {
 function Skeleton({ h }: { h: number }): JSX.Element {
   return (
     <div
-      className="w-full rounded bg-slate-100 dark:bg-slate-700/40 animate-pulse"
+      className="w-full rounded bg-bg-elevated animate-pulse"
       style={{ height: h }}
     />
   );

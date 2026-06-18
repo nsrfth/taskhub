@@ -46,7 +46,7 @@ export default function ProjectBudgetModal({
   return (
     <Modal title={t('projects.action.editBudget')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4 text-sm">
-        <p className="text-slate-600 dark:text-slate-300">
+        <p className="text-text">
           {project.name}
           {' · '}
           <span dir="ltr">
@@ -79,7 +79,7 @@ export default function ProjectBudgetModal({
           <button
             type="submit"
             disabled={pending || !validNumber(planned)}
-            className="px-3 py-1.5 rounded bg-indigo-600 text-white disabled:opacity-50"
+            className="px-3 py-1.5 rounded bg-primary text-primary-contrast disabled:opacity-50"
           >
             {t('projects.edit.save')}
           </button>

@@ -7,6 +7,7 @@ import * as adminApi from '@/features/admin/api';
 import AdminUsersPanel, { useInvalidateAdminUsers } from '@/features/admin/AdminUsersPanel';
 import { formatShamsiTimestampDate } from '@/lib/shamsi';
 import { PasswordPolicyHints, PasswordStrengthIndicator } from '@/features/security/PasswordStrength';
+import { useT } from '@/lib/i18n';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -18,6 +19,7 @@ function errorMessage(err: unknown, fallback: string): string {
 
 export default function AdminPage(): JSX.Element {
   const { user } = useAuth();
+  const t = useT();
   const qc = useQueryClient();
   const invalidateUsers = useInvalidateAdminUsers();
 
@@ -90,10 +92,10 @@ export default function AdminPage(): JSX.Element {
   void teamsPageData;
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <h1 className="text-2xl font-semibold mb-6">Admin</h1>
 
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6">
+      <section className="bg-surface rounded shadow p-4 mb-6">
         <h2 className="font-medium mb-3">New user</h2>
         <form
           onSubmit={(e) => {
@@ -106,27 +108,27 @@ export default function AdminPage(): JSX.Element {
           <input
             type="email"
             required
-            placeholder="user@example.com"
+            placeholder={t('admin.placeholder.email')}
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
-            className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
+            className="rounded border border-border bg-surface text-text px-2 py-1 text-sm"
           />
           <input
             type="text"
             required
-            placeholder="Full name"
+            placeholder={t('admin.placeholder.fullName')}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
+            className="rounded border border-border bg-surface text-text px-2 py-1 text-sm"
           />
           <div className="flex items-center gap-2">
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Password (leave blank to auto-generate)"
+                placeholder={t('admin.placeholder.password')}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm font-mono"
+                className="w-full rounded border border-border bg-surface text-text px-2 py-1 text-sm font-mono"
                 autoComplete="new-password"
               />
               <PasswordStrengthIndicator password={newPassword} />
@@ -135,7 +137,7 @@ export default function AdminPage(): JSX.Element {
               type="button"
               onClick={() => setNewPassword('')}
               title="Clear so the server generates one"
-              className="text-xs rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-slate-600 dark:text-slate-300"
+              className="text-xs rounded border border-border px-2 py-1 text-text"
             >
               Auto
             </button>
@@ -143,7 +145,7 @@ export default function AdminPage(): JSX.Element {
           <select
             value={newRole}
             onChange={(e) => setNewRole(e.target.value as adminApi.GlobalRole)}
-            className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
+            className="rounded border border-border bg-surface text-text px-2 py-1 text-sm"
           >
             <option value="MEMBER">MEMBER (default)</option>
             <option value="ADMIN">ADMIN</option>
@@ -156,26 +158,26 @@ export default function AdminPage(): JSX.Element {
             >
               {createUserMut.isPending ? 'Creating…' : 'Create user'}
             </button>
-            <div className="text-xs text-slate-500 dark:text-slate-400">
+            <div className="text-xs text-text-muted">
               <PasswordPolicyHints />
               <p className="mt-1">Leave blank and the server will generate one — shown ONCE below.</p>
             </div>
           </div>
         </form>
-        {newError && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{newError}</p>}
+        {newError && <p className="text-xs text-danger mt-2" role="alert">{newError}</p>}
         {newCreated && (
           <div className="mt-3 rounded border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 p-3 text-sm">
-            <p className="font-medium text-emerald-900 dark:text-emerald-200">
+            <p className="font-medium text-success">
               User created — copy credentials now
             </p>
             <p className="mt-1">
               Email:{' '}
-              <code className="bg-white dark:bg-slate-800 px-1 rounded">{newCreated.user.email}</code>
+              <code className="bg-surface px-1 rounded">{newCreated.user.email}</code>
             </p>
             <p>
               Password:{' '}
               {newCreated.generatedPassword ? (
-                <code className="bg-white dark:bg-slate-800 px-1 rounded select-all">
+                <code className="bg-surface px-1 rounded select-all">
                   {newCreated.generatedPassword}
                 </code>
               ) : (
@@ -191,35 +193,36 @@ export default function AdminPage(): JSX.Element {
 
       <AdminUsersPanel />
 
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
+      <section className="bg-surface rounded shadow p-4">
         <h2 className="font-medium mb-3">Teams</h2>
         {teamsLoading && <p className="text-sm text-slate-500">Loading…</p>}
         {!teamsLoading && teams.length === 0 && (
           <p className="text-sm text-slate-500">No teams.</p>
         )}
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-500 uppercase">
+          <thead className="text-start text-xs text-slate-500 uppercase">
             <tr>
-              <th className="py-1 pr-4">Name</th>
-              <th className="py-1 pr-4">Slug</th>
-              <th className="py-1 pr-4">Members</th>
-              <th className="py-1 pr-4">Projects</th>
-              <th className="py-1 pr-4">Created</th>
+              <th className="py-1 pe-4">Name</th>
+              <th className="py-1 pe-4">Slug</th>
+              <th className="py-1 pe-4">Members</th>
+              <th className="py-1 pe-4">Projects</th>
+              <th className="py-1 pe-4">Created</th>
               <th className="py-1">Action</th>
             </tr>
           </thead>
           <tbody>
             {teams.map((t) => (
               <tr key={t.id} className="border-t">
-                <td className="py-2 pr-4">{t.name}</td>
-                <td className="py-2 pr-4 font-mono text-xs text-slate-600">{t.slug}</td>
-                <td className="py-2 pr-4 text-slate-500">{t.memberCount}</td>
-                <td className="py-2 pr-4 text-slate-500">{t.projectCount}</td>
-                <td className="py-2 pr-4 text-slate-500 text-xs" dir="rtl">
+                <td className="py-2 pe-4">{t.name}</td>
+                <td className="py-2 pe-4 font-mono text-xs text-slate-600">{t.slug}</td>
+                <td className="py-2 pe-4 text-slate-500">{t.memberCount}</td>
+                <td className="py-2 pe-4 text-slate-500">{t.projectCount}</td>
+                <td className="py-2 pe-4 text-slate-500 text-xs" dir="rtl">
                   {formatShamsiTimestampDate(t.createdAt)}
                 </td>
                 <td className="py-2">
                   <button
+                    type="button"
                     disabled={deleteTeamMut.isPending}
                     onClick={() => {
                       if (
@@ -230,7 +233,7 @@ export default function AdminPage(): JSX.Element {
                         deleteTeamMut.mutate(t.id);
                       }
                     }}
-                    className="text-xs text-red-600 hover:underline disabled:opacity-40"
+                    className="text-xs text-danger hover:underline disabled:opacity-40"
                   >
                     Delete
                   </button>
@@ -241,6 +244,7 @@ export default function AdminPage(): JSX.Element {
         </table>
         {!teamsDone && teams.length > 0 && (
           <button
+            type="button"
             onClick={() => setTeamsCursor(teams[teams.length - 1].id)}
             disabled={teamsLoading}
             className="mt-3 text-xs underline disabled:opacity-50"

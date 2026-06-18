@@ -136,7 +136,7 @@ function ChangePasswordPanel(): JSX.Element {
         autoComplete="new-password"
       />
       <PasswordPolicyHints />
-      {error && <p className="text-red-600 text-xs">{error}</p>}
+      {error && <p role="alert" className="text-danger text-xs">{error}</p>}
       <button
         type="submit"
         disabled={mut.isPending || !current || !next || !confirm}
@@ -275,8 +275,8 @@ function AdminPasswordPolicySection(): JSX.Element {
       >
         {saveMut.isPending ? 'Saving…' : 'Save password policy'}
       </button>
-      {msg && <p className="text-xs text-emerald-600">{msg}</p>}
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {msg && <p className="text-xs text-success">{msg}</p>}
+      {err && <p role="alert" className="text-xs text-danger">{err}</p>}
     </div>
   );
 }
@@ -301,7 +301,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
+        className="mt-1 w-full rounded border border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
       />
     </label>
   );
@@ -360,7 +360,7 @@ function EnrollPanel({ onEnrolled }: { onEnrolled: () => void }): JSX.Element {
       }}
       className="space-y-3 text-sm"
     >
-      <ol className="list-decimal pl-5 text-slate-700 space-y-1">
+      <ol className="list-decimal ps-5 text-slate-700 space-y-1">
         <li>
           Scan the QR code with your authenticator app (Google Authenticator,
           1Password, Bitwarden, Authy, …).
@@ -387,7 +387,7 @@ function EnrollPanel({ onEnrolled }: { onEnrolled: () => void }): JSX.Element {
           className="mt-1 border rounded px-2 py-1 w-32 font-mono"
         />
       </label>
-      {error && <p className="text-red-600 text-xs">{error}</p>}
+      {error && <p role="alert" className="text-danger text-xs">{error}</p>}
       <div className="flex gap-2">
         <button
           type="submit"
@@ -440,7 +440,7 @@ function DisablePanel({ onDisabled }: { onDisabled: () => void }): JSX.Element {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-emerald-700">2FA is enabled on this account.</p>
+      <p className="text-sm text-success">2FA is enabled on this account.</p>
 
       <div>
         <p className="text-xs font-medium text-slate-700 mb-1">Disable</p>
@@ -465,7 +465,7 @@ function DisablePanel({ onDisabled }: { onDisabled: () => void }): JSX.Element {
           <button
             type="submit"
             disabled={disableMut.isPending || !code}
-            className="bg-red-600 text-white rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
+            className="bg-danger text-white rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
           >
             {disableMut.isPending ? 'Disabling…' : 'Disable 2FA'}
           </button>
@@ -488,7 +488,7 @@ function DisablePanel({ onDisabled }: { onDisabled: () => void }): JSX.Element {
         </button>
       </div>
 
-      {error && <p className="text-red-600 text-xs">{error}</p>}
+      {error && <p role="alert" className="text-danger text-xs">{error}</p>}
     </div>
   );
 }
@@ -499,7 +499,7 @@ function RecoveryCodeReveal({ codes, title }: { codes: string[]; title: string }
   const joined = codes.join('\n');
   return (
     <div className="space-y-3">
-      <h4 className="font-medium text-emerald-700">{title}</h4>
+      <h4 className="font-medium text-success">{title}</h4>
       <p className="text-xs text-slate-600">
         Save these recovery codes somewhere safe. Each can be used once if you
         lose access to your authenticator. This is the only time they'll be

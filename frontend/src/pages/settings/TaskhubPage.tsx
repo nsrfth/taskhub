@@ -130,8 +130,8 @@ export default function TaskhubPage(): JSX.Element {
         </p>
       </header>
 
-      {msg && <p className="text-sm text-emerald-700 dark:text-emerald-400">{msg}</p>}
-      {err && <p className="text-sm text-red-600">{err}</p>}
+      {msg && <p className="text-sm text-success">{msg}</p>}
+      {err && <p role="alert" className="text-sm text-danger">{err}</p>}
 
       <form onSubmit={submitServer} className="border rounded p-4 space-y-3">
         <h3 className="font-medium">Server port</h3>
@@ -152,11 +152,11 @@ export default function TaskhubPage(): JSX.Element {
                 max={65535}
                 value={port}
                 onChange={(e) => setPort(e.target.value ? Number(e.target.value) : '')}
-                className="mt-1 block w-32 rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1"
+                className="mt-1 block w-32 rounded border border-border dark:bg-slate-700 px-2 py-1"
               />
             </label>
             {Number(port) > 0 && Number(port) < 1024 && (
-              <p className="text-xs text-amber-700">
+              <p className="text-xs text-warning">
                 Ports below 1024 are privileged — ensure Docker maps them correctly.
               </p>
             )}
@@ -197,7 +197,7 @@ export default function TaskhubPage(): JSX.Element {
         </div>
 
         {sslWarning && (
-          <p className="text-xs text-amber-800 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded p-2">
+          <p className="text-xs text-warning bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded p-2">
             {sslWarning}
           </p>
         )}

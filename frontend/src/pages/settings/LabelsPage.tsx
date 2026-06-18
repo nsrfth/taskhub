@@ -94,7 +94,7 @@ export default function LabelsPage(): JSX.Element {
     return (
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">{t('labels.title')}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{t('labels.selectTeam')}</p>
+        <p className="text-sm text-text-muted">{t('labels.selectTeam')}</p>
       </section>
     );
   }
@@ -106,16 +106,16 @@ export default function LabelsPage(): JSX.Element {
         <div className="space-y-4">
           <header>
             <h2 className="text-lg font-semibold mb-1">{t('labels.predefined.title')}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-text-muted">
               {t('labels.predefined.subtitle')}
             </p>
           </header>
           {predefinedLabels.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+            <p className="text-sm text-text-muted italic">
               {t('labels.predefined.empty')}
             </p>
           ) : (
-            <ul className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded">
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700 border border-border rounded">
               {predefinedLabels.map((l) => (
                 <LabelRow
                   key={l.id}
@@ -145,15 +145,15 @@ export default function LabelsPage(): JSX.Element {
       <div className="space-y-4">
         <header>
           <h2 className="text-lg font-semibold mb-1">{t('labels.title')}</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-text-muted">
             {t('labels.subtitle').replace('{team}', currentTeam.name)}
           </p>
         </header>
 
-        {isLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
+        {isLoading && <p className="text-sm text-text-muted">Loading…</p>}
 
         {!isLoading && teamLabels.length === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400 italic">{t('labels.empty')}</p>
+          <p className="text-sm text-text-muted italic">{t('labels.empty')}</p>
         )}
 
         {!isLoading && teamLabels.length > 0 && (
@@ -239,7 +239,7 @@ function LabelRow({
           onChange={(e) => setName(e.target.value)}
           onBlur={commit}
           onKeyDown={onKey}
-          className="flex-1 rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
+          className="flex-1 rounded border border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
         />
       ) : (
         <button
@@ -248,7 +248,7 @@ function LabelRow({
             setName(label.name);
             setEditing(true);
           }}
-          className="flex-1 text-left hover:underline text-slate-800 dark:text-slate-100"
+          className="flex-1 text-start hover:underline text-text"
           title={t('labels.rename')}
         >
           {label.name}
@@ -258,7 +258,7 @@ function LabelRow({
         type="color"
         value={label.color}
         onChange={(e) => onRecolor(e.target.value)}
-        className="h-7 w-9 cursor-pointer rounded border border-slate-300 dark:border-slate-600"
+        className="h-7 w-9 cursor-pointer rounded border border-border"
         aria-label={t('labels.recolor')}
         title={t('labels.recolor')}
         disabled={busy}
@@ -267,7 +267,7 @@ function LabelRow({
         type="button"
         onClick={onDelete}
         disabled={busy}
-        className="text-xs text-red-600 hover:underline disabled:opacity-50"
+        className="text-xs text-danger hover:underline disabled:opacity-50"
         title={t('labels.delete')}
       >
         {t('labels.delete')}
@@ -302,7 +302,7 @@ function CreateLabelForm({
   return (
     <form
       onSubmit={submit}
-      className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700"
+      className="flex items-center gap-2 pt-2 border-t border-border"
     >
       <input
         type="text"
@@ -310,13 +310,13 @@ function CreateLabelForm({
         onChange={(e) => setName(e.target.value)}
         placeholder={t('labels.newPlaceholder')}
         maxLength={40}
-        className="flex-1 rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
+        className="flex-1 rounded border border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 text-sm"
       />
       <input
         type="color"
         value={color}
         onChange={(e) => setColor(e.target.value)}
-        className="h-8 w-10 cursor-pointer rounded border border-slate-300 dark:border-slate-600"
+        className="h-8 w-10 cursor-pointer rounded border border-border"
         aria-label={t('labels.color')}
       />
       <button

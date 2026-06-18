@@ -34,8 +34,8 @@ const PRIORITY_LABEL: Record<Task['priority'], string> = {
 const PRIORITY_CLASS: Record<Task['priority'], string> = {
   LOW: 'text-slate-500',
   MEDIUM: 'text-slate-700',
-  HIGH: 'text-amber-700',
-  URGENT: 'text-red-700 font-semibold',
+  HIGH: 'text-warning',
+  URGENT: 'text-danger font-semibold',
 };
 
 interface CardProps {
@@ -81,7 +81,7 @@ function BoardCard({
     <li
       ref={draggable ? setNodeRef : undefined}
       style={{ ...style, borderLeft: `4px solid ${accent}` }}
-      className="rounded border border-slate-200 dark:border-slate-600 p-2 text-sm bg-white dark:bg-slate-800"
+      className="rounded border border-border p-2 text-sm bg-surface"
       {...(draggable ? attributes : {})}
     >
       <div className="flex items-start justify-between gap-2">
@@ -97,7 +97,7 @@ function BoardCard({
         <button
           type="button"
           onClick={() => onOpen(task.id)}
-          className="font-medium break-words text-left hover:underline flex-1 min-w-0"
+          className="font-medium break-words text-start hover:underline flex-1 min-w-0"
         >
           {task.title}
         </button>
@@ -105,7 +105,8 @@ function BoardCard({
           <button
             type="button"
             onClick={() => onDelete(task)}
-            className="text-xs text-red-600 hover:underline shrink-0"
+            aria-label="Delete task"
+            className="text-xs text-danger hover:underline shrink-0"
           >
             ✕
           </button>
@@ -117,7 +118,7 @@ function BoardCard({
             <button
               type="button"
               onClick={() => onViewProject(task)}
-              className="hover:underline text-indigo-600 dark:text-indigo-400"
+              className="hover:underline text-primary"
             >
               {showProject}
             </button>
@@ -138,7 +139,7 @@ function BoardCard({
         {task.subtasks.length || '—'}
       </div>
       {task.incompleteBlockerCount > 0 && (
-        <div className="mt-1 text-[11px] text-amber-700">🔒 {task.incompleteBlockerCount}</div>
+        <div className="mt-1 text-[11px] text-warning">🔒 {task.incompleteBlockerCount}</div>
       )}
       <div className="flex items-center justify-between mt-2 gap-2 text-xs flex-wrap">
         <span className={PRIORITY_CLASS[task.priority]}>{PRIORITY_LABEL[task.priority]}</span>
@@ -147,8 +148,9 @@ function BoardCard({
             <button
               type="button"
               onClick={() => onMarkDone(task)}
-              className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600 text-emerald-700 dark:text-emerald-400"
+              className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600 text-success"
               title="Mark complete"
+              aria-label="Mark complete"
             >
               ✓
             </button>
@@ -198,7 +200,7 @@ function BoardColumnShell({
   return (
     <div
       ref={droppable ? setNodeRef : undefined}
-      className={`bg-white dark:bg-slate-800 rounded shadow p-3 min-w-[220px] flex-1 ${
+      className={`bg-surface rounded shadow p-3 min-w-[220px] flex-1 ${
         isOver ? 'ring-2 ring-slate-300' : ''
       }`}
     >

@@ -31,7 +31,7 @@ export default function CurrencySelector({
       onChange={(e) => onChange(e.target.value as BudgetCurrency)}
       className={
         className ||
-        'rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1.5 border text-sm'
+        'rounded border-border bg-surface text-text px-2 py-1.5 border text-sm'
       }
     >
       {BUDGET_CURRENCIES.map((c) => (

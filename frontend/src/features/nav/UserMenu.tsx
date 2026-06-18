@@ -55,7 +55,7 @@ export default function UserMenu(): JSX.Element | null {
       <button
         type="button"
         onClick={() => setOpen((x) => !x)}
-        className="flex items-center gap-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 pl-1 pr-2 py-1"
+        className="flex items-center gap-2 rounded-full hover:bg-bg-elevated ps-1 pe-2 py-1"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
@@ -63,30 +63,30 @@ export default function UserMenu(): JSX.Element | null {
         <span className="w-8 h-8 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center">
           {initials(user.name, user.email)}
         </span>
-        <span className="hidden sm:inline text-sm text-slate-700 dark:text-slate-200">
+        <span className="hidden sm:inline text-sm text-text">
           {user.name || user.email}
         </span>
-        <IconChevronDown size={14} className="text-slate-500" />
+        <IconChevronDown size={14} className="text-text-muted" />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-60 rounded-md shadow-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden z-50"
+          className="absolute end-0 mt-2 w-60 rounded-md shadow-lg bg-surface border border-border overflow-hidden z-50"
         >
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-medium text-text truncate">
               {user.name}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500 mt-1">
+            <p className="text-xs text-text-muted truncate">{user.email}</p>
+            <p className="text-[10px] uppercase tracking-wide text-text-muted mt-1">
               {user.globalRole}
             </p>
           </div>
           <MenuButton icon={<IconSettings size={16} />} label={t('nav.settings')} onClick={() => go('/settings/preferences')} />
           <MenuButton icon={<IconHelp size={16} />} label={t('corner.help')} onClick={() => go('/help')} />
           <MenuButton icon={<IconInfo size={16} />} label={t('corner.about')} onClick={() => go('/about')} />
-          <div className="border-t border-slate-200 dark:border-slate-700" />
+          <div className="border-t border-border" />
           <MenuButton
             icon={<IconSignOut size={16} />}
             label={t('nav.signOut')}

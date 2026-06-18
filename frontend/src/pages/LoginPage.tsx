@@ -14,6 +14,15 @@ type Step =
   | { kind: 'credentials' }
   | { kind: 'twoFactor'; pendingToken: string };
 
+// Testbed-only convenience: when the app is served by the local dev testbed
+// (VITE_TESTBED=1, set only in testbed/docker-compose.local.yml), surface the
+// seeded sample credentials on the login form with a one-click fill. The flag
+// is never set in real deployments, so this stays invisible in production.
+const TESTBED =
+  import.meta.env.VITE_TESTBED === '1' || import.meta.env.VITE_TESTBED === 'true';
+const SAMPLE_EMAIL = import.meta.env.VITE_TESTBED_EMAIL ?? 'admin@taskhub.local';
+const SAMPLE_PASSWORD = import.meta.env.VITE_TESTBED_PASSWORD ?? 'admin';
+
 export default function LoginPage(): JSX.Element {
   const { signIn, signInWith2fa } = useAuth();
   const nav = useNavigate();
@@ -69,7 +78,7 @@ export default function LoginPage(): JSX.Element {
       {step.kind === 'credentials' ? (
         <form
           onSubmit={submitCredentials}
-          className="w-full max-w-sm bg-white dark:bg-slate-800 shadow rounded-lg p-6 space-y-4"
+          className="w-full max-w-sm bg-surface border border-border shadow rounded-lg p-6 space-y-4"
         >
           <h1 className="text-2xl font-semibold">{t('login.title')}</h1>
 
@@ -81,8 +90,8 @@ export default function LoginPage(): JSX.Element {
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@example.com or directory username"
-              className="mt-1 w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-3 py-2 border"
+              placeholder={t('login.placeholder.email')}
+              className="mt-1 w-full rounded border border-border bg-surface text-text px-3 py-2"
             />
           </label>
 
@@ -94,19 +103,42 @@ export default function LoginPage(): JSX.Element {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-3 py-2 border"
+              className="mt-1 w-full rounded border border-border bg-surface text-text px-3 py-2"
             />
           </label>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="text-sm text-danger" role="alert">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded py-2 font-medium disabled:opacity-50"
+            className="w-full bg-primary text-primary-contrast rounded py-2 font-medium disabled:opacity-50"
           >
             {submitting ? t('login.submitting') : t('login.submit')}
           </button>
+
+          {TESTBED && (
+            <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              <div className="font-semibold">{t('login.testbed.title')}</div>
+              <div className="mt-1 font-mono">
+                {SAMPLE_EMAIL} / {SAMPLE_PASSWORD}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail(SAMPLE_EMAIL);
+                  setPassword(SAMPLE_PASSWORD);
+                }}
+                className="mt-1 underline"
+              >
+                {t('login.testbed.use')}
+              </button>
+            </div>
+          )}
 
           {/* v1.30.11 (S-9): public self-registration removed.
               New accounts are admin-provisioned via Settings → Admin →
@@ -115,10 +147,10 @@ export default function LoginPage(): JSX.Element {
       ) : (
         <form
           onSubmit={submitTwoFactor}
-          className="w-full max-w-sm bg-white dark:bg-slate-800 shadow rounded-lg p-6 space-y-4"
+          className="w-full max-w-sm bg-surface border border-border shadow rounded-lg p-6 space-y-4"
         >
           <h1 className="text-2xl font-semibold">{t('login.twoFactorTitle')}</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-text-muted">
             {t('login.twoFactorHelp')}
           </p>
 
@@ -131,17 +163,21 @@ export default function LoginPage(): JSX.Element {
               autoFocus
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="123456 or xxxx-xxxx"
-              className="mt-1 w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-3 py-2 border font-mono"
+              placeholder={t('login.placeholder.twoFactorCode')}
+              className="mt-1 w-full rounded border border-border bg-surface text-text px-3 py-2 font-mono"
             />
           </label>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="text-sm text-danger" role="alert">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={submitting || !code}
-            className="w-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 rounded py-2 font-medium disabled:opacity-50"
+            className="w-full bg-primary text-primary-contrast rounded py-2 font-medium disabled:opacity-50"
           >
             {submitting ? t('login.twoFactorVerifying') : t('login.twoFactorVerify')}
           </button>
@@ -153,7 +189,7 @@ export default function LoginPage(): JSX.Element {
               setCode('');
               setError(null);
             }}
-            className="w-full text-sm text-slate-500 dark:text-slate-400 underline"
+            className="w-full text-sm text-text-muted underline"
           >
             {t('login.twoFactorBack')}
           </button>

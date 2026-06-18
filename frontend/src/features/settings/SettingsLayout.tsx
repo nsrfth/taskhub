@@ -122,7 +122,7 @@ export default function SettingsLayout(): JSX.Element {
   const location = useLocation();
   const t = useT();
 
-  if (loading) return <div className="p-8 text-sm text-slate-500 dark:text-slate-400">Loading…</div>;
+  if (loading) return <div className="p-8 text-sm text-text-muted">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
 
   // Effective roles for sidebar gating. globalRole is always present;
@@ -147,11 +147,11 @@ export default function SettingsLayout(): JSX.Element {
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-8">
       <h1 className="text-2xl font-semibold mb-6">{t('settings.title')}</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
-        <nav className="bg-white dark:bg-slate-800 rounded shadow p-2 h-fit">
+        <nav className="bg-surface rounded shadow p-2 h-fit">
           <ul className="space-y-1">
             {visible.map((item) => (
               <li key={item.to}>
@@ -162,7 +162,7 @@ export default function SettingsLayout(): JSX.Element {
                       'block rounded px-3 py-2 text-sm',
                       isActive
                         ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700',
+                        : 'text-text hover:bg-bg-elevated',
                     ].join(' ')
                   }
                 >
@@ -174,7 +174,7 @@ export default function SettingsLayout(): JSX.Element {
           </ul>
         </nav>
 
-        <main className="bg-white dark:bg-slate-800 rounded shadow p-6">
+        <main className="bg-surface rounded shadow p-6">
           <Outlet />
         </main>
       </div>

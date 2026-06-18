@@ -63,7 +63,7 @@ export default function HelpPage(): JSX.Element {
       )}
 
       {error && (
-        <p className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           Could not load the manual: {error}. Ask your operator to rebuild
           the frontend with <code>npm run sync-manual && npm run build</code>.
         </p>

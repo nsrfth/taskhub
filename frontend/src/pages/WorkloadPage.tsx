@@ -109,20 +109,20 @@ export default function WorkloadPage(): JSX.Element {
 
   if (!currentTeam) {
     return (
-      <div className="p-8 max-w-3xl mx-auto">
+      <div className="p-8">
         <p className="text-sm text-slate-500">{t('workload.selectTeam')}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen p-4 md:p-8 space-y-6">
       <header>
         <h1 className="text-2xl font-bold">{t('workload.title')}</h1>
         <p className="text-sm text-slate-500 mt-1">{t('workload.subtitle')}</p>
       </header>
 
-      <div className="flex flex-wrap gap-4 items-end bg-white dark:bg-slate-800 rounded-lg shadow p-4">
+      <div className="flex flex-wrap gap-4 items-end bg-surface rounded-lg shadow p-4">
         <label className="text-xs block">
           {t('workload.filter.project')}
           <select
@@ -178,7 +178,7 @@ export default function WorkloadPage(): JSX.Element {
 
       {!isLoading && rows.length > 0 && (
         <>
-          <section className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
+          <section className="bg-surface rounded-lg shadow p-4">
             <h2 className="text-sm font-semibold mb-4">{t('workload.chartTitle')}</h2>
             <div dir="ltr">
               <ResponsiveContainer width="100%" height={Math.max(280, rows.length * 36)}>
@@ -201,10 +201,10 @@ export default function WorkloadPage(): JSX.Element {
             </div>
           </section>
 
-          <section className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-x-auto">
+          <section className="bg-surface rounded-lg shadow overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-500 border-b dark:border-slate-700">
+                <tr className="text-start text-slate-500 border-b border-border">
                   <th className="p-3 cursor-pointer" onClick={() => toggleSort('name')}>
                     {t('workload.table.member')}
                   </th>
@@ -229,14 +229,14 @@ export default function WorkloadPage(): JSX.Element {
                     <tr
                       key={r.userId ?? '__unassigned__'}
                       className={[
-                        'border-b border-slate-100 dark:border-slate-700/50',
-                        over ? 'bg-red-50 dark:bg-red-950/30' : '',
+                        'border-b border-border',
+                        over ? 'bg-danger/10' : '',
                       ].join(' ')}
                     >
                       <td className="p-3">
                         {r.name ?? t('workload.unassigned')}
                         {over && (
-                          <span className="ms-2 text-xs text-red-600 dark:text-red-400">
+                          <span className="ms-2 text-xs text-danger">
                             {t('workload.overAllocated')}
                           </span>
                         )}

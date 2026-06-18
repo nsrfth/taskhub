@@ -163,12 +163,12 @@ export default function TaskGrid({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('planner.grid.search')}
-          className="rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm flex-1 min-w-[180px] dark:bg-slate-800"
+          className="rounded border border-border px-2 py-1 text-sm flex-1 min-w-[180px] dark:bg-slate-800"
         />
         <button
           type="button"
           onClick={() => setShowColPicker((v) => !v)}
-          className="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600"
+          className="text-xs px-2 py-1 rounded border border-border"
         >
           {t('planner.grid.columns')}
         </button>
@@ -193,7 +193,7 @@ export default function TaskGrid({
       </div>
 
       {showColPicker && (
-        <div className="flex flex-wrap gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded">
+        <div className="flex flex-wrap gap-2 text-xs p-2 bg-bg rounded">
           {[...DEFAULT_GRID_COLUMNS, 'startDate' as const, 'budget' as const, 'parentTask' as const].map((id) => (
             <label key={id} className="inline-flex items-center gap-1">
               <input
@@ -207,9 +207,9 @@ export default function TaskGrid({
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded shadow overflow-x-auto">
+      <div className="bg-surface rounded shadow overflow-x-auto">
         <table className="w-full text-sm min-w-[800px]">
-          <thead className="bg-slate-50 dark:bg-slate-700/50 text-left text-xs text-slate-500 uppercase">
+          <thead className="bg-bg text-start text-xs text-slate-500 uppercase">
             <tr>
               {cols.map((col) => (
                 <th
@@ -255,7 +255,7 @@ export default function TaskGrid({
               <tr
                 key={row.id}
                 onClick={() => onOpen(row)}
-                className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer"
+                className="border-t border-border hover:bg-bg cursor-pointer"
               >
                 {cols.map((col) => (
                   <td key={col} className="px-3 py-2" onClick={(e) => col === 'status' && e.stopPropagation()}>
@@ -325,7 +325,7 @@ function renderCell(
             e.stopPropagation();
             onViewProject(row);
           }}
-          className="text-indigo-600 dark:text-indigo-400 hover:underline text-left"
+          className="text-primary hover:underline text-start"
         >
           {row.projectName ?? '—'}
         </button>

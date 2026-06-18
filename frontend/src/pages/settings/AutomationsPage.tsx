@@ -126,7 +126,7 @@ export default function AutomationsPage(): JSX.Element {
         {t('automations.subtitle').replace('{team}', currentTeam?.name ?? '')}
       </p>
 
-      <form onSubmit={onCreate} className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6 space-y-3">
+      <form onSubmit={onCreate} className="bg-surface rounded shadow p-4 mb-6 space-y-3">
         <h2 className="font-medium text-sm">{t('automations.create')}</h2>
         <label className="block">
           <span className="text-xs text-slate-500">{t('automations.name')}</span>
@@ -207,7 +207,7 @@ export default function AutomationsPage(): JSX.Element {
           {t('automations.create')}
         </button>
         {createMut.isError && (
-          <p className="text-xs text-red-600">{errorMessage(createMut.error, 'Failed')}</p>
+          <p role="alert" className="text-xs text-danger">{errorMessage(createMut.error, 'Failed')}</p>
         )}
       </form>
 
@@ -216,14 +216,14 @@ export default function AutomationsPage(): JSX.Element {
         <p className="text-sm text-slate-500">{t('automations.empty')}</p>
       )}
 
-      <ul className="divide-y dark:divide-slate-700 bg-white dark:bg-slate-800 rounded shadow">
+      <ul className="divide-y dark:divide-slate-700 bg-surface rounded shadow">
         {rules.map((rule) => (
           <li key={rule.id} className="p-4 flex flex-wrap items-start gap-3">
             <div className="flex-1 min-w-0">
               <button
                 type="button"
                 onClick={() => setSelectedRuleId(rule.id)}
-                className="font-medium hover:underline text-left"
+                className="font-medium hover:underline text-start"
               >
                 {rule.name}
               </button>
@@ -254,7 +254,7 @@ export default function AutomationsPage(): JSX.Element {
                   deleteMut.mutate(rule.id);
                 }
               }}
-              className="text-xs text-red-600 hover:underline"
+              className="text-xs text-danger hover:underline"
             >
               {t('automations.delete')}
             </button>
@@ -263,7 +263,7 @@ export default function AutomationsPage(): JSX.Element {
       </ul>
 
       {selectedRuleId && runsPage && (
-        <section className="mt-6 bg-white dark:bg-slate-800 rounded shadow p-4">
+        <section className="mt-6 bg-surface rounded shadow p-4">
           <h3 className="font-medium text-sm mb-2">{t('automation.runs.title')}</h3>
           {runsPage.items.length === 0 && (
             <p className="text-xs text-slate-500">{t('automation.runs.empty')}</p>

@@ -26,7 +26,7 @@ export default function PublicFormPage(): JSX.Element {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="flex min-h-screen items-center justify-center bg-bg">
         <p className="text-slate-500">{t('common.loading')}</p>
       </div>
     );
@@ -34,19 +34,19 @@ export default function PublicFormPage(): JSX.Element {
 
   if (isError || !form) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <p className="text-slate-600 dark:text-slate-400">{t('forms.notFound')}</p>
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <p className="text-text-muted">{t('forms.notFound')}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950">
-      <div className="mx-auto max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <header className="mb-6 border-b border-slate-100 pb-4 dark:border-slate-800">
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{form.name}</h1>
+    <div className="min-h-screen bg-bg px-4 py-10">
+      <div className="mx-auto max-w-lg rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <header className="mb-6 border-b border-border pb-4">
+          <h1 className="text-xl font-semibold text-text">{form.name}</h1>
           {form.description && (
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{form.description}</p>
+            <p className="mt-1 text-sm text-text-muted">{form.description}</p>
           )}
         </header>
         <FormRenderer

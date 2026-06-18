@@ -13,7 +13,7 @@ export default function PlannerNav(): JSX.Element {
   const t = useT();
   return (
     <nav
-      className="flex flex-wrap gap-1 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2"
+      className="flex flex-wrap gap-1 mb-6 border-b border-border pb-2"
       aria-label="Planner views"
     >
       {TABS.map((tab) => (
@@ -26,7 +26,7 @@ export default function PlannerNav(): JSX.Element {
               'px-3 py-1.5 rounded-t text-sm font-medium transition-colors',
               isActive
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                : 'text-text hover:bg-bg-elevated',
             ].join(' ')
           }
         >

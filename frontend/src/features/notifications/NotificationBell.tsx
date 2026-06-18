@@ -6,11 +6,13 @@ import { getAccessToken, onTokenChange } from '@/lib/api';
 import { formatRelativeTime, formatShamsiTimestamp } from '@/lib/shamsi';
 import { IconBell } from '@/features/nav/icons';
 import GroupInvitesPanel from '@/features/groups/GroupInvitesPanel';
+import { useT } from '@/lib/i18n';
 
 // v1.24: bell now lives INSIDE the TopNav flex container (no longer
 // fixed-position). Renders as a regular icon button next to the user menu.
 // Same dropdown behaviour; same WS feed.
 export default function NotificationBell(): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
@@ -166,49 +168,50 @@ export default function NotificationBell(): JSX.Element {
           if (!open) void refetchList();
         }}
         aria-label="Notifications"
-        className="relative p-2 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+        className="relative p-2 rounded-full text-text-muted hover:bg-bg-elevated"
       >
         <IconBell size={20} />
         {count > 0 && (
-          <span className="absolute top-0.5 right-0.5 bg-red-600 text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
+          <span className="absolute top-0.5 end-0.5 bg-danger text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
             {count > 99 ? '99+' : count}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-lg z-50">
-          <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-700">
-            <span className="text-sm font-medium">Notifications</span>
+        <div className="absolute end-0 mt-2 w-80 max-h-96 overflow-auto bg-surface border border-border rounded shadow-lg z-50">
+          <div className="flex items-center justify-between p-2 border-b border-border">
+            <span className="text-sm font-medium">{t('corner.notifications')}</span>
             <button
+              type="button"
               onClick={() => markAllMut.mutate()}
               disabled={markAllMut.isPending || count === 0}
               className="text-xs underline disabled:opacity-50"
             >
-              Mark all read
+              {t('notifications.markAllRead')}
             </button>
           </div>
 
           <GroupInvitesPanel />
 
           {items.length === 0 && (
-            <p className="text-sm text-slate-500 italic p-3">Nothing here yet.</p>
+            <p className="text-sm text-text-muted italic p-3">{t('notifications.empty')}</p>
           )}
 
           <ul>
             {items.map((n) => (
               <li
                 key={n.id}
-                className={`border-b border-slate-200 dark:border-slate-700 last:border-0 ${n.readAt ? '' : 'bg-blue-50 dark:bg-blue-900/20'}`}
+                className={`border-b border-border last:border-0 ${n.readAt ? '' : 'bg-blue-50 dark:bg-blue-900/20'}`}
               >
                 <button
                   type="button"
                   onClick={() => openNotification(n)}
-                  className="w-full text-left p-2 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  className="w-full text-start p-2 hover:bg-bg-elevated"
                 >
                   <p className="text-sm">{describe(n)}</p>
                   <p
-                    className="text-xs text-slate-400 mt-1"
+                    className="text-xs text-text-muted mt-1"
                     dir="rtl"
                     title={formatShamsiTimestamp(n.createdAt) ?? ''}
                   >

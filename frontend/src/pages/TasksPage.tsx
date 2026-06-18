@@ -39,8 +39,8 @@ const PRIORITY_LABEL: Record<tasksApi.TaskPriority, string> = {
 const PRIORITY_CLASS: Record<tasksApi.TaskPriority, string> = {
   LOW: 'text-slate-500',
   MEDIUM: 'text-slate-700',
-  HIGH: 'text-amber-700',
-  URGENT: 'text-red-700 font-semibold',
+  HIGH: 'text-warning',
+  URGENT: 'text-danger font-semibold',
 };
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -259,7 +259,7 @@ export default function TasksPage(): JSX.Element {
 
   if (!teamId || !project) {
     return (
-      <div className="min-h-screen p-8 max-w-3xl mx-auto">
+      <div className="min-h-screen p-8">
         <p className="text-sm text-slate-500">
           {projectId ? (
             <>
@@ -303,7 +303,7 @@ export default function TasksPage(): JSX.Element {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8">
       <PlannerNav />
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="min-w-0">
@@ -326,15 +326,15 @@ export default function TasksPage(): JSX.Element {
             <input
               type="text"
               required
-              placeholder="New task title"
+              placeholder={t('tasks.placeholder.newTitle')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="flex-1 min-w-[200px] rounded border-slate-300 px-2 py-1 border text-sm dark:bg-slate-800 dark:border-slate-600"
+              className="flex-1 min-w-[200px] rounded border-border px-2 py-1 border text-sm dark:bg-slate-800"
             />
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as tasksApi.TaskPriority)}
-              className="rounded border-slate-300 px-2 py-1 border text-sm dark:bg-slate-800 dark:border-slate-600"
+              className="rounded border-border px-2 py-1 border text-sm dark:bg-slate-800"
             >
               <option value="LOW">Low</option>
               <option value="MEDIUM">Medium</option>
@@ -351,26 +351,26 @@ export default function TasksPage(): JSX.Element {
           </div>
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-text-muted">
                 {t('tasks.new.startDate')}
               </span>
               <ShamsiDatePicker value={startDate} onChange={setStartDate} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-text-muted">
                 {t('tasks.new.dueDate')}
               </span>
               <ShamsiDatePicker value={dueDate} onChange={setDueDate} />
             </label>
             {responsibleCandidates.length > 0 && (
               <label className="flex flex-col gap-1 min-w-[10rem]">
-                <span className="text-xs text-slate-500 dark:text-slate-400">
+                <span className="text-xs text-text-muted">
                   {t('tasks.new.responsible')}
                 </span>
                 <select
                   value={responsibleId}
                   onChange={(e) => setResponsibleId(e.target.value)}
-                  className="rounded border-slate-300 px-2 py-1 border text-sm dark:bg-slate-800 dark:border-slate-600"
+                  className="rounded border-border px-2 py-1 border text-sm dark:bg-slate-800"
                 >
                   <option value="">{t('tasks.new.responsibleDefault')}</option>
                   {responsibleCandidates.map((c) => (
@@ -389,7 +389,7 @@ export default function TasksPage(): JSX.Element {
               rejects cross-team with 400. */}
           {teamId && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-text-muted">
                 {t('tasks.col.labels')}
               </span>
               <LabelMultiSelect
@@ -421,7 +421,7 @@ export default function TasksPage(): JSX.Element {
               ))}
             </select>
           )}
-          <div className="ms-auto inline-flex rounded border border-slate-300 dark:border-slate-600 overflow-hidden text-xs">
+          <div className="ms-auto inline-flex rounded border border-border overflow-hidden text-xs">
             {([
               { key: 'status', label: t('tasks.view.status') },
               { key: 'list', label: t('tasks.view.list') },
@@ -431,7 +431,7 @@ export default function TasksPage(): JSX.Element {
                 key={v.key}
                 type="button"
                 onClick={() => setViewMode(v.key)}
-                className={`px-3 py-1 ${viewMode === v.key ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                className={`px-3 py-1 ${viewMode === v.key ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-surface text-text'}`}
               >
                 {v.label}
               </button>
@@ -439,7 +439,7 @@ export default function TasksPage(): JSX.Element {
           </div>
           </div>
         </form>
-        {createError && <p className="text-xs text-red-600 mt-2">{createError}</p>}
+        {createError && <p className="text-xs text-danger mt-2" role="alert">{createError}</p>}
       </section>
 
       {isLoading && <p className="text-sm text-slate-500">Loading tasks…</p>}
@@ -449,7 +449,7 @@ export default function TasksPage(): JSX.Element {
           semantics across selections. */}
       {teamLabels.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-          <span className="text-slate-500 dark:text-slate-400">
+          <span className="text-text-muted">
             {t('labels.filterBy')}
           </span>
           {teamLabels.map((l) => {
@@ -473,7 +473,7 @@ export default function TasksPage(): JSX.Element {
             <button
               type="button"
               onClick={clearLabels}
-              className="ms-2 underline text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              className="ms-2 underline text-text-muted hover:text-text"
             >
               {t('labels.clearFilter')}
             </button>
@@ -629,16 +629,16 @@ function TaskList({
 
   if (tasks.length === 0) {
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400 italic py-6 text-center">
+      <p className="text-sm text-text-muted italic py-6 text-center">
         {t('tasks.list.empty')}
       </p>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded shadow overflow-x-auto">
+    <div className="bg-surface rounded shadow overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-700/50 text-left text-xs text-slate-500 dark:text-slate-400 uppercase">
+        <thead className="bg-bg text-start text-xs text-text-muted uppercase">
           <tr>
             <Th onClick={() => onHeader('title')} active={sort?.key === 'title'} dir={sort?.dir}>
               {t('tasks.col.title')}
@@ -693,14 +693,14 @@ function TaskList({
             const expanded = expandedTaskIds.has(row.id);
             return (
               <Fragment key={row.id}>
-                <tr className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                <tr className="border-t border-border hover:bg-bg">
                   <td className="px-3 py-2 max-w-[20rem]">
                     <div className="flex items-start gap-1.5 min-w-0">
                       {hasSubtasks ? (
                         <button
                           type="button"
                           onClick={() => toggleSubtasks(row.id)}
-                          className="inline-flex items-center gap-1 shrink-0 mt-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-600 px-0.5"
+                          className="inline-flex items-center gap-1 shrink-0 mt-0.5 rounded hover:bg-bg-elevated px-0.5"
                           aria-expanded={expanded}
                           aria-label={t('tasks.subtasks.toggle')}
                           title={t('tasks.subtasks.count').replace(
@@ -709,7 +709,7 @@ function TaskList({
                           )}
                         >
                           <SubtaskChevron expanded={expanded} />
-                          <span className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                          <span className="text-[10px] tabular-nums text-text-muted">
                             {row.subtasks.length}
                           </span>
                         </button>
@@ -720,13 +720,13 @@ function TaskList({
                         <button
                           type="button"
                           onClick={() => onOpen(row.id)}
-                          className="text-left hover:underline truncate block w-full font-medium"
+                          className="text-start hover:underline truncate block w-full font-medium"
                         >
                           {row.title}
                         </button>
                         {row.incompleteBlockerCount > 0 && (
                           <span
-                            className="inline-flex items-center gap-1 text-[10px] text-amber-700 mt-0.5"
+                            className="inline-flex items-center gap-1 text-[10px] text-warning mt-0.5"
                             title={`Blocked by ${row.incompleteBlockerCount} incomplete task${row.incompleteBlockerCount === 1 ? '' : 's'}`}
                           >
                             <span aria-hidden>🔒</span>
@@ -755,12 +755,12 @@ function TaskList({
                   <td className={`px-3 py-2 ${PRIORITY_CLASS[row.priority]}`}>
                     {PRIORITY_LABEL[row.priority]}
                   </td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                  <td className="px-3 py-2 text-text">
                     {row.responsibleName ?? (
                       <span className="text-slate-400">{t('tasks.list.unassigned')}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300" dir="rtl">
+                  <td className="px-3 py-2 text-xs text-text" dir="rtl">
                     {row.dueDate ? formatShamsiDate(row.dueDate) : ''}
                   </td>
                   <td
@@ -770,7 +770,7 @@ function TaskList({
                     {row.plannedDate ? formatShamsiDate(row.plannedDate) : ''}
                   </td>
                   <td
-                    className="px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300 hidden xl:table-cell"
+                    className="px-3 py-2 text-xs text-success hidden xl:table-cell"
                     dir="rtl"
                   >
                     {row.completedAt ? formatShamsiTimestampDate(row.completedAt) : ''}
@@ -788,7 +788,7 @@ function TaskList({
                     <button
                       type="button"
                       onClick={() => onDelete(row)}
-                      className="text-xs text-red-600 hover:underline"
+                      className="text-xs text-danger hover:underline"
                       aria-label="Delete task"
                     >
                       ✕
@@ -799,14 +799,14 @@ function TaskList({
                   row.subtasks.map((sub) => (
                     <tr
                       key={sub.id}
-                      className="border-t border-slate-50 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-800/60"
+                      className="border-t border-border bg-bg"
                     >
                       <td className="px-3 py-1.5 max-w-[20rem] ps-8">
                         <button
                           type="button"
                           onClick={() => onOpen(row.id)}
-                          className={`text-left hover:underline truncate block w-full text-xs ${
-                            sub.done ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'
+                          className={`text-start hover:underline truncate block w-full text-xs ${
+                            sub.done ? 'text-slate-400 line-through' : 'text-text'
                           }`}
                         >
                           {sub.title}
@@ -824,12 +824,12 @@ function TaskList({
                         </span>
                       </td>
                       <td className="px-3 py-1.5 text-slate-400 text-xs">—</td>
-                      <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300">
+                      <td className="px-3 py-1.5 text-xs text-text">
                         {sub.assigneeName ?? sub.responsibleName ?? (
                           <span className="text-slate-400">{t('tasks.list.unassigned')}</span>
                         )}
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300" dir="rtl">
+                      <td className="px-3 py-1.5 text-xs text-text" dir="rtl">
                         {sub.endDate ? formatShamsiDate(sub.endDate) : ''}
                       </td>
                       <td
@@ -884,7 +884,7 @@ function Th({
       <button
         type="button"
         onClick={onClick}
-        className="inline-flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200"
+        className="inline-flex items-center gap-1 hover:text-text"
       >
         {children}
         {active && (
@@ -920,10 +920,10 @@ function ResponsibleColumn({
           <li
             key={t.id}
             onClick={() => onOpen(t.id)}
-            className="bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 cursor-pointer rounded p-2 text-sm"
+            className="bg-bg hover:bg-bg-elevated cursor-pointer rounded p-2 text-sm"
           >
             <p className="font-medium truncate">{t.title}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-text-muted mt-1">
               {t.status} · {t.priority}
             </p>
           </li>

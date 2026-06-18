@@ -51,7 +51,7 @@ export default function MyTasksCalendar({ limit = 200 }: Props): JSX.Element {
         >
           ←
         </button>
-        <span className="text-sm text-slate-600 dark:text-slate-300">
+        <span className="text-sm text-text">
           Week of {formatShamsiDate(start.toISOString()) ?? start.toUTCString().slice(0, 10)}
         </span>
         <button
@@ -74,11 +74,11 @@ export default function MyTasksCalendar({ limit = 200 }: Props): JSX.Element {
               key={key}
               className={[
                 'rounded shadow p-2 min-h-[100px]',
-                offDay ? 'bg-red-50 dark:bg-red-950/30' : 'bg-white dark:bg-slate-800',
+                offDay ? 'bg-red-50 dark:bg-red-950/30' : 'bg-surface',
               ].join(' ')}
               title={holidayName ?? undefined}
             >
-              <div className={`text-xs font-medium mb-2 ${offDay ? 'text-red-600' : 'text-slate-500'}`}>
+              <div className={`text-xs font-medium mb-2 ${offDay ? 'text-danger' : 'text-slate-500'}`}>
                 {formatShamsiDate(d.toISOString()) ?? d.getUTCDate()}
                 {holidayName && (
                   <span className="block text-[10px] truncate">{holidayName}</span>
@@ -89,7 +89,7 @@ export default function MyTasksCalendar({ limit = 200 }: Props): JSX.Element {
                   <li key={t.id}>
                     <Link
                       to={`/projects/${t.projectId}/tasks/${t.id}`}
-                      className="block text-xs truncate hover:underline text-indigo-700 dark:text-indigo-300"
+                      className="block text-xs truncate hover:underline text-primary"
                       title={t.title}
                     >
                       {t.title}

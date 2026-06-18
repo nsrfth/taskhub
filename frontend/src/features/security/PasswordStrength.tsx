@@ -6,10 +6,10 @@ import {
 } from './passwordPolicyApi';
 
 const STRENGTH_CLASS: Record<string, string> = {
-  weak: 'text-red-600',
-  fair: 'text-amber-600',
+  weak: 'text-danger',
+  fair: 'text-warning',
   good: 'text-blue-600',
-  strong: 'text-emerald-600',
+  strong: 'text-success',
 };
 
 export function PasswordRequirements({
@@ -63,7 +63,7 @@ export function PasswordPolicyHints(): JSX.Element | null {
   if (!data) return null;
   return (
     <div className="mt-2">
-      <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+      <p className="text-xs font-medium text-text mb-1">
         Password requirements
       </p>
       <PasswordRequirements policy={data.policy} />

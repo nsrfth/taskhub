@@ -88,7 +88,7 @@ export default function HolidayImportPanel({
         </button>
       </label>
 
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
 
       {preview && (
         <div className="space-y-3 text-sm">
@@ -101,7 +101,7 @@ export default function HolidayImportPanel({
               <ul className="max-h-32 overflow-y-auto space-y-0.5 text-xs border border-border rounded p-2">
                 {preview.added.slice(0, 20).map((row) => (
                   <li key={row.date} className="flex gap-2">
-                    <span className="text-red-600 font-medium shrink-0" dir="ltr">
+                    <span className="text-danger font-medium shrink-0" dir="ltr">
                       {formatShamsiCalendarDate(row.date) ?? row.date.slice(0, 10)}
                     </span>
                     <span>{row.name}</span>

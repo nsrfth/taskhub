@@ -130,20 +130,20 @@ export default function SearchPage(): JSX.Element {
     tasksBucket.items.length + commentsBucket.items.length + projectsBucket.items.length;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-8">
       <h1 className="text-2xl font-semibold mb-2">{t('search.title')}</h1>
       {q ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+        <p className="text-sm text-text-muted mb-6">
           {t('search.resultsFor').replace('{q}', q)}
         </p>
       ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+        <p className="text-sm text-text-muted mb-6">
           {t('search.hint')}
         </p>
       )}
 
       {q && isLoading && <p className="text-sm text-slate-400">{t('search.loading')}</p>}
-      {error && <p className="text-sm text-red-600">{t('search.error')}</p>}
+      {error && <p className="text-sm text-danger" role="alert">{t('search.error')}</p>}
 
       {q && !isLoading && !error && totalHits === 0 && (
         <p className="text-sm text-slate-500 italic">{t('search.noResults')}</p>
@@ -201,7 +201,7 @@ function Section<T extends { id: string }>({
         {bucket.items.map((item) => (
           <li
             key={item.id}
-            className="bg-white dark:bg-slate-800 rounded shadow px-4 py-3"
+            className="bg-surface rounded shadow px-4 py-3"
           >
             {renderItem(item)}
           </li>
@@ -211,7 +211,7 @@ function Section<T extends { id: string }>({
         <button
           type="button"
           onClick={onLoadMore}
-          className="mt-2 text-xs underline text-slate-600 dark:text-slate-300"
+          className="mt-2 text-xs underline text-text"
         >
           {loadMoreLabel}
         </button>
@@ -231,7 +231,7 @@ function Excerpt({ html }: { html: string | null }): JSX.Element | null {
   if (!html) return null;
   return (
     <p
-      className="text-sm text-slate-600 dark:text-slate-300 mt-1"
+      className="text-sm text-text mt-1"
       // sanitiseExcerpt strips everything except <b>/</b> from ts_headline
       // output; the surrounding text was already HTML-escaped by Postgres.
       dangerouslySetInnerHTML={{ __html: sanitiseExcerpt(html) }}

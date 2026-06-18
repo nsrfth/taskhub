@@ -49,7 +49,7 @@ export default function PlannerChartsPanel({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
+      <section className="bg-surface rounded shadow p-4">
         <h2 className="text-sm font-semibold mb-4">Task Status Distribution</h2>
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
@@ -87,7 +87,7 @@ export default function PlannerChartsPanel({
         </ul>
       </section>
 
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4">
+      <section className="bg-surface rounded shadow p-4">
         <h2 className="text-sm font-semibold mb-4">Tasks per Status</h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={statusBars} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -99,7 +99,7 @@ export default function PlannerChartsPanel({
         </ResponsiveContainer>
       </section>
 
-      <section className="bg-white dark:bg-slate-800 rounded shadow p-4 lg:col-span-2 xl:col-span-1">
+      <section className="bg-surface rounded shadow p-4 lg:col-span-2 xl:col-span-1">
         <h2 className="text-sm font-semibold mb-4">Tasks per Team Member</h2>
         <ResponsiveContainer width="100%" height={Math.max(220, memberBars.length * 28)}>
           <BarChart

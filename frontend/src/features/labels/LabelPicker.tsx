@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as labelsApi from './api';
 import { LabelChip } from './LabelChip';
+import { useT } from '@/lib/i18n';
 
 interface LabelPickerProps {
   teamId: string;
@@ -25,6 +26,7 @@ export function LabelPicker({
   attached,
   onChange,
 }: LabelPickerProps): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const { data: allLabels = [] } = useQuery({
     queryKey: ['labels', teamId],
@@ -68,7 +70,7 @@ export function LabelPicker({
       // Auto-attach the new label so the typical flow is one click instead of two.
       attachMut.mutate(newLabel.id);
     },
-    onError: () => setCreateError('Could not create label (name may already exist)'),
+    onError: () => setCreateError(t('labels.picker.createError')),
   });
 
   function onCreate(e: FormEvent): void {
@@ -80,7 +82,7 @@ export function LabelPicker({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
         {attached.length === 0 && (
-          <span className="text-xs text-slate-400 italic">No labels.</span>
+          <span className="text-xs text-slate-400 italic">{t('labels.picker.empty')}</span>
         )}
         {attached.map((l) => (
           <LabelChip
@@ -94,13 +96,14 @@ export function LabelPicker({
 
       {unattachedPredefined.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-slate-500">Predefined:</span>
+          <span className="text-xs text-slate-500">{t('labels.picker.predefined')}</span>
           {unattachedPredefined.map((l) => (
             <button
               key={l.id}
               type="button"
+              disabled={attachMut.isPending}
               onClick={() => attachMut.mutate(l.id)}
-              className="opacity-60 hover:opacity-100 transition-opacity"
+              className="opacity-60 hover:opacity-100 transition-opacity disabled:opacity-50"
             >
               <LabelChip label={l} size="md" />
             </button>
@@ -110,13 +113,14 @@ export function LabelPicker({
 
       {unattachedTeam.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-slate-500">Add:</span>
+          <span className="text-xs text-slate-500">{t('labels.picker.add')}</span>
           {unattachedTeam.map((l) => (
             <button
               key={l.id}
               type="button"
+              disabled={attachMut.isPending}
               onClick={() => attachMut.mutate(l.id)}
-              className="opacity-60 hover:opacity-100 transition-opacity"
+              className="opacity-60 hover:opacity-100 transition-opacity disabled:opacity-50"
             >
               <LabelChip label={l} size="md" />
             </button>
@@ -130,7 +134,7 @@ export function LabelPicker({
           onClick={() => setShowCreate(true)}
           className="text-xs underline text-slate-600"
         >
-          + New label
+          {t('labels.picker.newLabel')}
         </button>
       )}
       {showCreate && (
@@ -138,7 +142,7 @@ export function LabelPicker({
           <input
             type="text"
             required
-            placeholder="Label name"
+            placeholder={t('labels.newPlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="rounded border-slate-300 px-2 py-1 border text-sm"
@@ -155,7 +159,7 @@ export function LabelPicker({
             disabled={createMut.isPending || !name.trim()}
             className="bg-slate-900 text-white rounded px-2 py-1 text-xs font-medium disabled:opacity-50"
           >
-            Create
+            {t('labels.picker.create')}
           </button>
           <button
             type="button"
@@ -166,9 +170,9 @@ export function LabelPicker({
             }}
             className="text-xs underline"
           >
-            Cancel
+            {t('labels.picker.cancel')}
           </button>
-          {createError && <span className="text-xs text-red-600">{createError}</span>}
+          {createError && <span className="text-xs text-danger" role="alert">{createError}</span>}
         </form>
       )}
     </div>

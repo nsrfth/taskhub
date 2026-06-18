@@ -167,14 +167,14 @@ export default function FormEditorPage(): JSX.Element {
           {t('forms.title')}
         </Link>
         <span className="text-slate-400">/</span>
-        <span className="text-slate-600 dark:text-slate-300">{working.name}</span>
+        <span className="text-text">{working.name}</span>
       </div>
 
-      <div className="space-y-4 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+      <div className="space-y-4 rounded-lg border border-border p-4">
         <label className="block space-y-1">
           <span className="text-sm font-medium">{t('forms.name')}</span>
           <input
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm dark:bg-slate-900"
             value={working.name}
             onChange={(e) => patch({ name: e.target.value })}
           />
@@ -184,7 +184,7 @@ export default function FormEditorPage(): JSX.Element {
           <span className="text-sm font-medium">{t('forms.description')}</span>
           <textarea
             rows={2}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm dark:bg-slate-900"
             value={working.description}
             onChange={(e) => patch({ description: e.target.value })}
           />
@@ -193,7 +193,7 @@ export default function FormEditorPage(): JSX.Element {
         <label className="block space-y-1">
           <span className="text-sm font-medium">{t('forms.project')}</span>
           <select
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm dark:bg-slate-900"
             value={working.projectId}
             onChange={(e) => patch({ projectId: e.target.value })}
           >
@@ -224,7 +224,7 @@ export default function FormEditorPage(): JSX.Element {
             {t('forms.mode.public')}
           </label>
           {working.mode === 'PUBLIC' && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-warning dark:border-amber-900 dark:bg-amber-950">
               {t('forms.publicWarning')}
             </p>
           )}
@@ -240,7 +240,7 @@ export default function FormEditorPage(): JSX.Element {
         </label>
 
         {working.mode === 'PUBLIC' && publicUrl && (
-          <div className="space-y-2 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-900">
+          <div className="space-y-2 rounded-md bg-bg p-3 text-sm">
             <p className="font-medium">{t('forms.publicUrl')}</p>
             <code className="block break-all text-xs" dir="ltr">
               {publicUrl}
@@ -262,7 +262,7 @@ export default function FormEditorPage(): JSX.Element {
         {working.fields.map((field, index) => (
           <div
             key={index}
-            className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+            className="space-y-2 rounded-lg border border-border p-3"
           >
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => moveField(index, -1)} disabled={index === 0}>
@@ -275,18 +275,18 @@ export default function FormEditorPage(): JSX.Element {
               >
                 ↓
               </button>
-              <button type="button" onClick={() => removeField(index)} className="text-red-600">
+              <button type="button" onClick={() => removeField(index)} className="text-danger">
                 {t('common.delete')}
               </button>
             </div>
             <input
-              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className="w-full rounded-md border border-border px-2 py-1 text-sm dark:bg-slate-900"
               value={field.label}
               onChange={(e) => updateField(index, { label: e.target.value })}
               placeholder={t('forms.field.label')}
             />
             <select
-              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className="w-full rounded-md border border-border px-2 py-1 text-sm dark:bg-slate-900"
               value={field.target === 'customField' ? 'customField' : field.target}
               onChange={(e) => {
                 const target = e.target.value as IntakeFormFieldTarget;
@@ -305,7 +305,7 @@ export default function FormEditorPage(): JSX.Element {
             </select>
             {field.target === 'customField' && (
               <select
-                className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+                className="w-full rounded-md border border-border px-2 py-1 text-sm dark:bg-slate-900"
                 value={field.customFieldId ?? ''}
                 onChange={(e) => updateField(index, { customFieldId: e.target.value })}
               >
@@ -319,7 +319,7 @@ export default function FormEditorPage(): JSX.Element {
               </select>
             )}
             <input
-              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className="w-full rounded-md border border-border px-2 py-1 text-sm dark:bg-slate-900"
               value={field.helpText ?? ''}
               onChange={(e) => updateField(index, { helpText: e.target.value || null })}
               placeholder={t('forms.field.helpText')}
@@ -350,7 +350,7 @@ export default function FormEditorPage(): JSX.Element {
         </button>
         <Link
           to={`/forms/${formId}`}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm dark:border-slate-600"
+          className="rounded-md border border-border px-4 py-2 text-sm"
         >
           {t('forms.previewSubmit')}
         </Link>
@@ -359,7 +359,7 @@ export default function FormEditorPage(): JSX.Element {
           onClick={() => {
             if (window.confirm(t('forms.confirmDelete'))) deleteMut.mutate();
           }}
-          className="text-sm text-red-600"
+          className="text-sm text-danger"
         >
           {t('common.delete')}
         </button>

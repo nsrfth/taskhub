@@ -20,7 +20,7 @@ export default function PlannerBoardPage(): JSX.Element {
           <li key={p.id}>
             <Link
               to={`/projects/${p.id}/tasks`}
-              className="flex items-center justify-between bg-white dark:bg-slate-800 rounded shadow px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700"
+              className="flex items-center justify-between bg-surface rounded shadow px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700"
             >
               <span className="font-medium">{p.name}</span>
               <span className="text-xs text-slate-500">{p.teamName}</span>

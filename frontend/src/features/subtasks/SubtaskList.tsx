@@ -226,9 +226,9 @@ export function SubtaskList({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-medium text-slate-600 dark:text-slate-400">Subtasks</h3>
+        <h3 className="text-xs font-medium text-text">Subtasks</h3>
         {total > 0 && (
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-text-muted">
             {done} / {total} done
           </span>
         )}
@@ -260,7 +260,7 @@ export function SubtaskList({
                 assigneePending={updateAssigneeMut.isPending}
               />
             ))}
-            {total === 0 && <li className="text-xs text-slate-400 italic">No subtasks.</li>}
+            {total === 0 && <li className="text-xs text-slate-400 italic">{t('subtasks.empty')}</li>}
           </ul>
         </SortableContext>
       </DndContext>
@@ -268,10 +268,10 @@ export function SubtaskList({
       <form onSubmit={onAdd} className="flex items-center gap-2">
         <input
           type="text"
-          placeholder="Add a subtask…"
+          placeholder={t('subtasks.placeholder.add')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="flex-1 rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
+          className="flex-1 rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
         />
         <button
           type="submit"
@@ -366,7 +366,7 @@ function SortableRow({
             value={subtask.status}
             onChange={(e) => onSetStatus(e.target.value as SubtaskStatus)}
             disabled={statusPending}
-            className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5"
+            className="text-xs rounded border border-border dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5"
             aria-label={`${t('subtask.status.label')}: ${subtask.title}`}
             title={t('subtask.status.label')}
           >
@@ -378,7 +378,7 @@ function SortableRow({
           </select>
         ) : (
           <span
-            className="text-xs text-slate-500 dark:text-slate-400"
+            className="text-xs text-text-muted"
             title={t('subtask.status.label')}
           >
             {t(STATUS_I18N[subtask.status])}
@@ -387,15 +387,15 @@ function SortableRow({
         <span
           className={
             subtask.status === 'DONE'
-              ? 'line-through text-slate-400 dark:text-slate-500 flex-1'
-              : 'flex-1 text-slate-800 dark:text-slate-100'
+              ? 'line-through text-text-muted flex-1'
+              : 'flex-1 text-text'
           }
         >
           {subtask.title}
         </span>
         {formattedRange && !editing && (
           <span
-            className="text-xs text-slate-500 dark:text-slate-400 truncate"
+            className="text-xs text-text-muted truncate"
             title="Scheduled window"
           >
             {formattedRange}
@@ -409,7 +409,7 @@ function SortableRow({
             value={subtask.assigneeId ?? ''}
             onChange={(e) => onAssign(e.target.value || null)}
             disabled={assigneePending}
-            className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5 max-w-[10rem]"
+            className="text-xs rounded border border-border dark:bg-slate-700 dark:text-slate-100 px-1 py-0.5 max-w-[10rem]"
             title={subtask.assigneeName ? `Assigned to ${subtask.assigneeName}` : 'Assign'}
             aria-label={`Assignee for subtask ${subtask.title}`}
           >
@@ -427,7 +427,7 @@ function SortableRow({
           className={
             'text-xs px-1 rounded ' +
             (editing
-              ? 'bg-slate-200 dark:bg-slate-700'
+              ? 'bg-bg-elevated'
               : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200')
           }
           aria-label={
@@ -442,7 +442,7 @@ function SortableRow({
         <button
           type="button"
           onClick={onDelete}
-          className="text-xs text-red-600 hover:underline opacity-60 hover:opacity-100"
+          className="text-xs text-danger hover:underline opacity-60 hover:opacity-100"
           aria-label={`Delete subtask ${subtask.title}`}
         >
           ×
@@ -451,19 +451,19 @@ function SortableRow({
       {editing && (
         <div className="ml-7 mt-1 mb-2 flex flex-wrap items-center gap-2 text-xs">
           <label className="flex items-center gap-1">
-            <span className="text-slate-500 dark:text-slate-400">Start</span>
+            <span className="text-text-muted">Start</span>
             <ShamsiDatePicker value={start} onChange={setStart} />
           </label>
           <label className="flex items-center gap-1">
-            <span className="text-slate-500 dark:text-slate-400">End</span>
+            <span className="text-text-muted">End</span>
             <ShamsiDatePicker value={end} onChange={setEnd} />
           </label>
           {rangeInvalid && (
-            <span className="text-red-600 dark:text-red-400">
+            <span role="alert" className="text-danger">
               End must be on or after Start.
             </span>
           )}
-          <div className="flex gap-1 ml-auto">
+          <div className="flex gap-1 ms-auto">
             <button
               type="button"
               disabled={datesPending || rangeInvalid}
@@ -485,7 +485,7 @@ function SortableRow({
                 onSaveDates(null, null);
                 setEditing(false);
               }}
-              className="text-slate-500 dark:text-slate-400 hover:underline"
+              className="text-text-muted hover:underline"
             >
               Clear
             </button>
@@ -496,7 +496,7 @@ function SortableRow({
                 setEnd(subtask.endDate ?? null);
                 setEditing(false);
               }}
-              className="text-slate-500 dark:text-slate-400 hover:underline"
+              className="text-text-muted hover:underline"
             >
               Cancel
             </button>

@@ -51,8 +51,8 @@ export default function FormsListPage(): JSX.Element {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{t('forms.title')}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{t('forms.listDesc')}</p>
+          <h1 className="text-xl font-semibold text-text">{t('forms.title')}</h1>
+          <p className="text-sm text-text-muted">{t('forms.listDesc')}</p>
         </div>
         {canManage && (
           <button
@@ -71,11 +71,11 @@ export default function FormsListPage(): JSX.Element {
       ) : forms.length === 0 ? (
         <p className="text-slate-500">{t('forms.empty')}</p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+        <ul className="divide-y divide-slate-200 rounded-lg border border-border dark:divide-slate-700">
           {forms.map((f) => (
             <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
               <div>
-                <p className="font-medium text-slate-900 dark:text-slate-100">{f.name}</p>
+                <p className="font-medium text-text">{f.name}</p>
                 <p className="text-xs text-slate-500">
                   {f.mode === 'PUBLIC' ? t('forms.mode.public') : t('forms.mode.team')}
                   {!f.enabled && ` · ${t('forms.disabled')}`}
@@ -93,7 +93,7 @@ export default function FormsListPage(): JSX.Element {
                 {canManage && (
                   <Link
                     to={`/settings/forms/${f.id}`}
-                    className="text-sm text-slate-600 hover:underline dark:text-slate-300"
+                    className="text-sm text-text hover:underline"
                   >
                     {t('forms.edit')}
                   </Link>

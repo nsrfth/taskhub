@@ -109,14 +109,14 @@ export default function CreateProjectForm({
     <form onSubmit={onSubmit} className="space-y-3">
       {teams.length > 1 && (
         <label className="block">
-          <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Team</span>
+          <span className="block text-xs text-text-muted mb-1">Team</span>
           <select
             value={effectiveFormTeamId}
             onChange={(e) => {
               setFormTeamId(e.target.value);
               patch({ accountableId: null });
             }}
-            className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1.5 border text-sm"
+            className="w-full rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1.5 border text-sm"
           >
             {teams.map((tm) => (
               <option key={tm.id} value={tm.id}>
@@ -135,14 +135,14 @@ export default function CreateProjectForm({
         dateError={dateError}
       />
 
-      {createError && <p className="text-xs text-red-600 dark:text-red-400">{createError}</p>}
+      {createError && <p role="alert" className="text-xs text-danger">{createError}</p>}
 
       <div className="flex flex-wrap justify-end gap-2 pt-1">
         <button
           type="button"
           onClick={onCancel}
           disabled={createMut.isPending}
-          className="text-sm rounded border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+          className="text-sm rounded border border-border px-3 py-1.5 text-text hover:bg-bg disabled:opacity-50"
         >
           Cancel
         </button>

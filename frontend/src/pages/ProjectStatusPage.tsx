@@ -54,7 +54,7 @@ export default function ProjectStatusPage(): JSX.Element {
           <button
             type="button"
             onClick={() => window.print()}
-            className="text-sm rounded border border-slate-300 dark:border-slate-600 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700"
+            className="text-sm rounded border border-border px-3 py-1.5 hover:bg-bg"
           >
             🖨 {t('projects.status.print')}
           </button>
@@ -63,12 +63,12 @@ export default function ProjectStatusPage(): JSX.Element {
 
       {isLoading && <p className="text-sm text-slate-500">{t('common.loading')}</p>}
       {error && (
-        <p className="text-sm text-red-600">{t('projects.status.loadError')}</p>
+        <p className="text-sm text-danger" role="alert">{t('projects.status.loadError')}</p>
       )}
 
       {data && (
-        <section className="bg-white dark:bg-slate-800 rounded shadow p-6 print:shadow-none print:bg-white space-y-6">
-          <header className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-700 pb-4">
+        <section className="bg-surface rounded shadow p-6 print:shadow-none print:bg-white space-y-6">
+          <header className="flex items-start justify-between gap-3 border-b border-border pb-4">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wide text-slate-400">{t('projects.status.title')}</p>
               <h1 className="text-2xl font-semibold truncate">{data.name}</h1>
@@ -83,12 +83,12 @@ export default function ProjectStatusPage(): JSX.Element {
           {/* Progress */}
           <div>
             <div className="flex items-baseline justify-between mb-1">
-              <span className="text-sm text-slate-600 dark:text-slate-300">{t('projects.status.percentComplete')}</span>
+              <span className="text-sm text-text">{t('projects.status.percentComplete')}</span>
               <span className="text-2xl font-bold tabular-nums">{data.percentComplete}%</span>
             </div>
-            <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+            <div className="h-3 w-full rounded-full bg-bg-elevated overflow-hidden">
               <div
-                className="h-full bg-emerald-500 rounded-full transition-all"
+                className="h-full bg-success rounded-full transition-all"
                 style={{ width: `${data.percentComplete}%` }}
               />
             </div>
@@ -99,7 +99,7 @@ export default function ProjectStatusPage(): JSX.Element {
 
           {/* Task counts by status */}
           <div>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{t('projects.status.byStatus')}</p>
+            <p className="text-sm font-medium text-text mb-2">{t('projects.status.byStatus')}</p>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <Tile label={t('projects.status.todo')} value={data.taskCounts.todo} />
               <Tile label={t('projects.status.inProgress')} value={data.taskCounts.inProgress} />
@@ -148,8 +148,8 @@ function Tile({ label, value, emphasis = false }: { label: string; value: number
     <div
       className={`rounded border px-3 py-2 text-center ${
         emphasis
-          ? 'border-slate-300 dark:border-slate-500 bg-slate-50 dark:bg-slate-700/50'
-          : 'border-slate-200 dark:border-slate-700'
+          ? 'border-border bg-bg'
+          : 'border-border'
       }`}
     >
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
@@ -162,7 +162,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div>
       <div className="text-xs uppercase tracking-wide text-slate-400 mb-0.5">{label}</div>
-      <div className="text-slate-800 dark:text-slate-100">{children}</div>
+      <div className="text-text">{children}</div>
     </div>
   );
 }

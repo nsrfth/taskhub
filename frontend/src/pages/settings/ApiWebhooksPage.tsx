@@ -18,6 +18,7 @@ import {
   updateWebhook,
 } from '@/features/webhooks/api';
 import { formatShamsiTimestamp } from '@/lib/shamsi';
+import { useT } from '@/lib/i18n';
 
 // Settings → API & Webhooks. Two sections: per-user API tokens (everyone
 // can manage their own), and team-scoped webhooks (managers of the
@@ -57,6 +58,7 @@ export default function ApiWebhooksPage(): JSX.Element {
 
 // ── API tokens ────────────────────────────────────────────────────────────
 function ApiTokensSection(): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['api-tokens'], queryFn: listTokens });
 
@@ -106,7 +108,7 @@ function ApiTokensSection(): JSX.Element {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="border rounded px-2 py-1 text-sm"
-            placeholder="CI bot"
+            placeholder={t('apiwebhooks.placeholder.tokenName')}
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -115,7 +117,7 @@ function ApiTokensSection(): JSX.Element {
             value={scopes}
             onChange={(e) => setScopes(e.target.value)}
             className="border rounded px-2 py-1 text-sm font-mono"
-            placeholder="* or tasks:read,tasks:write"
+            placeholder={t('apiwebhooks.placeholder.scopes')}
           />
         </label>
         <button
@@ -127,7 +129,7 @@ function ApiTokensSection(): JSX.Element {
         </button>
       </form>
 
-      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger mb-2">{error}</p>}
 
       <ul className="divide-y border rounded">
         {(data?.items ?? []).map((t) => <TokenRow key={t.id} t={t} onRevoke={() => revokeMut.mutate(t.id)} />)}
@@ -159,7 +161,7 @@ function TokenRow({ t, onRevoke }: { t: ApiToken; onRevoke: () => void }): JSX.E
           {t.scopes.join(', ')}
           {t.expiresAt && <> · expires <span dir="rtl">{formatShamsiTimestamp(t.expiresAt)}</span></>}
           {t.lastUsedAt && <> · last used <span dir="rtl">{formatShamsiTimestamp(t.lastUsedAt)}</span></>}
-          {t.revokedAt && <span className="ml-1 text-red-600">(revoked)</span>}
+          {t.revokedAt && <span className="ms-1 text-danger">(revoked)</span>}
         </p>
       </div>
       {!t.revokedAt && (
@@ -168,7 +170,7 @@ function TokenRow({ t, onRevoke }: { t: ApiToken; onRevoke: () => void }): JSX.E
           onClick={() => {
             if (window.confirm(`Revoke "${t.name}"? Anything using it will stop working.`)) onRevoke();
           }}
-          className="text-xs text-red-600 hover:underline flex-shrink-0"
+          className="text-xs text-danger hover:underline flex-shrink-0"
         >
           Revoke
         </button>
@@ -259,10 +261,10 @@ function WebhooksSection({ teamId, teamName }: { teamId: string; teamName: strin
         )}
       </div>
 
-      {isError && <p className="text-xs text-red-600">Could not load webhooks.</p>}
+      {isError && <p role="alert" className="text-xs text-danger">Could not load webhooks.</p>}
 
       {showForm && <WebhookForm onSubmit={(v) => createMut.mutate(v)} onCancel={() => setShowForm(false)} pending={createMut.isPending} />}
-      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger mb-2">{error}</p>}
 
       <ul className="divide-y border rounded mt-3">
         {(data?.items ?? []).map((w) => (
@@ -271,29 +273,31 @@ function WebhooksSection({ teamId, teamName }: { teamId: string; teamName: strin
               <div className="min-w-0">
                 <p className="font-medium truncate">
                   {w.name}{' '}
-                  <span className={`text-xs ${w.active ? 'text-emerald-700' : 'text-slate-400'}`}>
+                  <span className={`text-xs ${w.active ? 'text-success' : 'text-slate-400'}`}>
                     ({w.active ? 'active' : 'paused'})
                   </span>
                 </p>
                 <p className="text-xs text-slate-500 truncate">{w.url}</p>
                 <p className="text-xs text-slate-500">events: {w.events.join(', ')}</p>
                 {test[w.id] && (
-                  <p className={`text-xs mt-1 ${test[w.id]!.ok ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <p className={`text-xs mt-1 ${test[w.id]!.ok ? 'text-success' : 'text-danger'}`}>
                     {test[w.id]!.ok ? '✓ ' : '✗ '}
                     {test[w.id]!.msg}
                   </p>
                 )}
               </div>
               <div className="flex gap-2 flex-shrink-0 text-xs">
-                <button onClick={() => testMut.mutate(w.id)} disabled={testMut.isPending} className="underline">Test</button>
-                <button onClick={() => toggleMut.mutate({ id: w.id, active: !w.active })} className="underline">
+                <button type="button" onClick={() => testMut.mutate(w.id)} disabled={testMut.isPending} className="underline disabled:opacity-50">Test</button>
+                <button type="button" onClick={() => toggleMut.mutate({ id: w.id, active: !w.active })} disabled={toggleMut.isPending} className="underline disabled:opacity-50">
                   {w.active ? 'Pause' : 'Resume'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     if (window.confirm(`Delete webhook "${w.name}"?`)) deleteMut.mutate(w.id);
                   }}
-                  className="text-red-600 hover:underline"
+                  disabled={deleteMut.isPending}
+                  className="text-danger hover:underline disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -398,9 +402,9 @@ function DeliveriesPanel({ teamId, webhookId }: { teamId: string; webhookId: str
           {(data?.items ?? []).map((d) => (
             <li key={d.id} className="flex items-center gap-2">
               <span className={`inline-block w-16 ${
-                d.status === 'DELIVERED' ? 'text-emerald-700'
-                : d.status === 'FAILED' ? 'text-red-700'
-                : 'text-amber-700'
+                d.status === 'DELIVERED' ? 'text-success'
+                : d.status === 'FAILED' ? 'text-danger'
+                : 'text-warning'
               }`}>{d.status}</span>
               <span className="font-mono">{d.eventType}</span>
               <span className="text-slate-500">
@@ -408,7 +412,7 @@ function DeliveriesPanel({ teamId, webhookId }: { teamId: string; webhookId: str
                 {d.httpStatus && ` · HTTP ${d.httpStatus}`}
                 {d.errorMessage && ` · ${d.errorMessage}`}
               </span>
-              <span className="text-slate-400 ml-auto" dir="rtl">{formatShamsiTimestamp(d.createdAt)}</span>
+              <span className="text-slate-400 ms-auto" dir="rtl">{formatShamsiTimestamp(d.createdAt)}</span>
             </li>
           ))}
           {(data?.items ?? []).length === 0 && (

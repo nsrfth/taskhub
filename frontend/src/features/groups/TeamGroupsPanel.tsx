@@ -88,7 +88,7 @@ export default function TeamGroupsPanel({ teamId }: { teamId: string }): JSX.Ele
   return (
     <section className="mt-6 pt-6 border-t">
       <h3 className="font-medium mb-2">{t('groups.title')}</h3>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{t('groups.description')}</p>
+      <p className="text-xs text-text-muted mb-3">{t('groups.description')}</p>
 
       <form
         className="flex flex-wrap gap-2 mb-4"
@@ -103,14 +103,14 @@ export default function TeamGroupsPanel({ teamId }: { teamId: string }): JSX.Ele
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder={t('groups.namePlaceholder')}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-700 flex-1 min-w-[10rem]"
+          className="rounded border px-2 py-1 text-sm bg-surface flex-1 min-w-[10rem]"
         />
         <input
           type="text"
           value={newDesc}
           onChange={(e) => setNewDesc(e.target.value)}
           placeholder={t('groups.descPlaceholder')}
-          className="rounded border px-2 py-1 text-sm dark:bg-slate-700 flex-1 min-w-[10rem]"
+          className="rounded border px-2 py-1 text-sm bg-surface flex-1 min-w-[10rem]"
         />
         <button
           type="submit"
@@ -120,7 +120,7 @@ export default function TeamGroupsPanel({ teamId }: { teamId: string }): JSX.Ele
           {t('groups.create')}
         </button>
       </form>
-      {createError && <p className="text-xs text-red-600 mb-2">{createError}</p>}
+      {createError && <p role="alert" className="text-xs text-danger mb-2">{createError}</p>}
 
       {isLoading && <p className="text-sm text-slate-500">{t('groups.loading')}</p>}
       {!isLoading && groups.length === 0 && (
@@ -134,8 +134,8 @@ export default function TeamGroupsPanel({ teamId }: { teamId: string }): JSX.Ele
               <button
                 type="button"
                 onClick={() => setSelectedId(g.id)}
-                className={`w-full text-left rounded px-2 py-1 ${
-                  selectedId === g.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                className={`w-full text-start rounded px-2 py-1 ${
+                  selectedId === g.id ? 'bg-slate-900 text-white' : 'hover:bg-bg-elevated'
                 }`}
               >
                 {g.name}
@@ -214,7 +214,7 @@ function GroupEditor({
   const teamPickList = teamMembers.filter((m) => !memberIds.has(m.userId));
 
   return (
-    <div className="border rounded p-3 text-sm space-y-3 dark:border-slate-600">
+    <div className="border rounded p-3 text-sm space-y-3 border-border">
       <div className="flex justify-between items-start gap-2">
         <div>
           <p className="font-medium">{detail.name}</p>
@@ -226,7 +226,7 @@ function GroupEditor({
           type="button"
           onClick={onDelete}
           disabled={deletePending}
-          className="text-xs text-red-600 hover:underline disabled:opacity-50"
+          className="text-xs text-danger hover:underline disabled:opacity-50"
         >
           {t('groups.delete')}
         </button>
@@ -250,7 +250,7 @@ function GroupEditor({
               )}
               <select
                 value={m.accessLevel}
-                className="rounded border px-1 py-0.5 text-xs dark:bg-slate-700"
+                className="rounded border px-1 py-0.5 text-xs bg-surface"
                 onChange={(e) => {
                   void groupsApi
                     .updateGroupMemberAccess(
@@ -267,7 +267,7 @@ function GroupEditor({
               </select>
               <button
                 type="button"
-                className="text-red-600 underline"
+                className="text-danger underline"
                 onClick={() => {
                   void groupsApi.removeGroupMember(teamId, detail.id, m.userId).then(onInvalidate);
                 }}
@@ -286,7 +286,7 @@ function GroupEditor({
                 <button
                   key={m.userId}
                   type="button"
-                  className="text-xs border rounded px-2 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="text-xs border rounded px-2 py-0.5 hover:bg-bg-elevated"
                   onClick={() => {
                     void groupsApi
                       .addGroupMember(teamId, detail.id, m.userId, addAccess)
@@ -307,12 +307,12 @@ function GroupEditor({
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder={t('groups.searchUsersPlaceholder')}
-            className="w-full rounded border px-2 py-1 text-xs dark:bg-slate-700 mb-1"
+            className="w-full rounded border px-2 py-1 text-xs bg-surface mb-1"
           />
           <select
             value={addAccess}
             onChange={(e) => setAddAccess(e.target.value as groupsApi.GroupAccessLevel)}
-            className="rounded border px-1 py-0.5 text-xs dark:bg-slate-700 mb-1"
+            className="rounded border px-1 py-0.5 text-xs bg-surface mb-1"
           >
             <option value="FULL">{t('groups.accessLevel.full')}</option>
             <option value="READONLY">{t('groups.accessLevel.readonly')}</option>
@@ -324,7 +324,7 @@ function GroupEditor({
                 <li key={u.id}>
                   <button
                     type="button"
-                    className="text-xs w-full text-left hover:underline"
+                    className="text-xs w-full text-start hover:underline"
                     onClick={() => {
                       void groupsApi
                         .addGroupMember(teamId, detail.id, u.id, addAccess)

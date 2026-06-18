@@ -89,7 +89,7 @@ export default function ReportsPage(): JSX.Element {
 
   if (!currentTeam) {
     return (
-      <div className="min-h-screen p-8 max-w-3xl mx-auto">
+      <div className="min-h-screen p-8">
         <p className="text-sm text-slate-500">
           Select or{' '}
           <Link to="/teams" className="underline">
@@ -102,7 +102,7 @@ export default function ReportsPage(): JSX.Element {
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Reports</h1>
         <p className="text-sm text-slate-500">
@@ -123,7 +123,7 @@ export default function ReportsPage(): JSX.Element {
           </div>
           <div className="bg-white rounded shadow p-3">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Done (7d)</p>
-            <p className="text-2xl font-semibold tabular-nums text-emerald-700">
+            <p className="text-2xl font-semibold tabular-nums text-success">
               {summary.doneLast7Days}
             </p>
           </div>
@@ -131,7 +131,7 @@ export default function ReportsPage(): JSX.Element {
             <p className="text-xs text-slate-500 uppercase tracking-wide">Overdue</p>
             <p
               className={`text-2xl font-semibold tabular-nums ${
-                summary.overdueCount > 0 ? 'text-red-700' : 'text-slate-700'
+                summary.overdueCount > 0 ? 'text-danger' : 'text-text'
               }`}
             >
               {summary.overdueCount}
@@ -142,10 +142,11 @@ export default function ReportsPage(): JSX.Element {
 
       <section className="bg-white rounded shadow p-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          <h2 className="font-medium mr-3">Tasks completed</h2>
+          <h2 className="font-medium me-3">Tasks completed</h2>
           {WINDOWS.map((w) => (
             <button
               key={w.days}
+              type="button"
               onClick={() => setDays(w.days)}
               className={`text-xs rounded px-2 py-1 border ${
                 w.days === days ? 'bg-slate-900 text-white' : 'border-slate-300'
@@ -155,7 +156,7 @@ export default function ReportsPage(): JSX.Element {
             </button>
           ))}
           {data && (
-            <span className="ml-auto text-sm text-slate-500">
+            <span className="ms-auto text-sm text-slate-500">
               {data.items.length} task{data.items.length === 1 ? '' : 's'}
             </span>
           )}
@@ -187,7 +188,7 @@ export default function ReportsPage(): JSX.Element {
                       <button
                         type="button"
                         onClick={() => nav(`/projects/${r.projectId}/tasks/${r.taskId}`)}
-                        className="text-left font-medium hover:underline truncate min-w-0 flex-1"
+                        className="text-start font-medium hover:underline truncate min-w-0 flex-1"
                       >
                         {r.taskTitle}
                       </button>
@@ -226,7 +227,7 @@ export default function ReportsPage(): JSX.Element {
       {/* Timeliness — planned-vs-actual delivery quality over the same window. */}
       <section className="bg-white rounded shadow p-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <h2 className="font-medium mr-3">Timeliness</h2>
+          <h2 className="font-medium me-3">Timeliness</h2>
           <span className="text-xs text-slate-500">
             (same window as "Tasks completed")
           </span>
@@ -235,7 +236,7 @@ export default function ReportsPage(): JSX.Element {
             onClick={() =>
               downloadReportCsv(currentTeam.id, 'timeliness', `timeliness-${days}d`, { days })
             }
-            className="ml-auto text-xs rounded px-2 py-1 border border-slate-300 hover:bg-slate-100"
+            className="ms-auto text-xs rounded px-2 py-1 border border-slate-300 hover:bg-slate-100"
             title="Download as CSV"
           >
             Export CSV
@@ -254,10 +255,10 @@ export default function ReportsPage(): JSX.Element {
               <p
                 className={`text-2xl font-semibold tabular-nums ${
                   timeliness.onTimeRate >= 0.8
-                    ? 'text-emerald-700'
+                    ? 'text-success'
                     : timeliness.onTimeRate >= 0.5
-                      ? 'text-amber-700'
-                      : 'text-red-700'
+                      ? 'text-warning'
+                      : 'text-danger'
                 }`}
               >
                 {Math.round(timeliness.onTimeRate * 100)}%
@@ -271,10 +272,10 @@ export default function ReportsPage(): JSX.Element {
               <p
                 className={`text-2xl font-semibold tabular-nums ${
                   timeliness.avgVarianceDays > 0
-                    ? 'text-red-700'
+                    ? 'text-danger'
                     : timeliness.avgVarianceDays < 0
-                      ? 'text-emerald-700'
-                      : 'text-slate-700'
+                      ? 'text-success'
+                      : 'text-text'
                 }`}
               >
                 {timeliness.avgVarianceDays > 0 ? '+' : ''}
@@ -292,7 +293,7 @@ export default function ReportsPage(): JSX.Element {
               <p className="text-xs text-slate-500 uppercase tracking-wide">Behind plan</p>
               <p
                 className={`text-2xl font-semibold tabular-nums ${
-                  timeliness.behindPlanCount > 0 ? 'text-red-700' : 'text-slate-700'
+                  timeliness.behindPlanCount > 0 ? 'text-danger' : 'text-text'
                 }`}
               >
                 {timeliness.behindPlanCount}
@@ -301,7 +302,7 @@ export default function ReportsPage(): JSX.Element {
             </div>
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide">Window</p>
-              <p className="text-2xl font-semibold tabular-nums text-slate-700">
+              <p className="text-2xl font-semibold tabular-nums text-text">
                 {timeliness.windowDays}d
               </p>
               <p className="text-[11px] text-slate-400">trailing</p>
@@ -329,31 +330,31 @@ export default function ReportsPage(): JSX.Element {
         )}
         {workload && workload.items.length > 0 && (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-slate-500 uppercase">
+            <thead className="text-start text-xs text-slate-500 uppercase">
               <tr>
-                <th className="py-1 pr-4">Assignee</th>
-                <th className="py-1 pr-4 text-right">To do</th>
-                <th className="py-1 pr-4 text-right">In progress</th>
-                <th className="py-1 pr-4 text-right">Review</th>
-                <th className="py-1 text-right">Total</th>
+                <th className="py-1 pe-4">Assignee</th>
+                <th className="py-1 pe-4 text-end">To do</th>
+                <th className="py-1 pe-4 text-end">In progress</th>
+                <th className="py-1 pe-4 text-end">Review</th>
+                <th className="py-1 text-end">Total</th>
               </tr>
             </thead>
             <tbody>
               {workload.items.map((w) => (
                 <tr key={w.assigneeId ?? 'unassigned'} className="border-t">
-                  <td className="py-2 pr-4">
+                  <td className="py-2 pe-4">
                     {w.assigneeName ?? <span className="italic text-slate-500">unassigned</span>}
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums text-slate-600">
+                  <td className="py-2 pe-4 text-end tabular-nums text-slate-600">
                     {w.byStatus.TODO}
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums text-slate-600">
+                  <td className="py-2 pe-4 text-end tabular-nums text-slate-600">
                     {w.byStatus.IN_PROGRESS}
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums text-slate-600">
+                  <td className="py-2 pe-4 text-end tabular-nums text-slate-600">
                     {w.byStatus.REVIEW}
                   </td>
-                  <td className="py-2 text-right tabular-nums font-medium">{w.total}</td>
+                  <td className="py-2 text-end tabular-nums font-medium">{w.total}</td>
                 </tr>
               ))}
             </tbody>
@@ -382,19 +383,19 @@ export default function ReportsPage(): JSX.Element {
           <>
             <div className="overflow-x-auto mb-6">
               <table className="w-full text-sm min-w-[480px]">
-                <thead className="text-left text-xs text-slate-500 uppercase">
+                <thead className="text-start text-xs text-slate-500 uppercase">
                   <tr>
-                    <th className="py-1 pr-4">{t('reports.budget.projects')}</th>
-                    <th className="py-1 pr-4">{t('reports.budget.currency')}</th>
-                    <th className="py-1 text-right">{t('reports.budget.planned')}</th>
+                    <th className="py-1 pe-4">{t('reports.budget.projects')}</th>
+                    <th className="py-1 pe-4">{t('reports.budget.currency')}</th>
+                    <th className="py-1 text-end">{t('reports.budget.planned')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {budget.projects.map((row) => (
                     <tr key={row.projectId} className="border-t">
-                      <td className="py-2 pr-4 font-medium">{row.projectName}</td>
-                      <td className="py-2 pr-4">{row.currency}</td>
-                      <td className="py-2 text-right tabular-nums" dir="ltr">
+                      <td className="py-2 pe-4 font-medium">{row.projectName}</td>
+                      <td className="py-2 pe-4">{row.currency}</td>
+                      <td className="py-2 text-end tabular-nums" dir="ltr">
                         {row.hasBudget ? (
                           fmtMoney(row.plannedBudget, row.currency)
                         ) : (
@@ -459,7 +460,7 @@ export default function ReportsPage(): JSX.Element {
         </div>
         {!overdue && <p className="text-sm text-slate-500">Loading…</p>}
         {overdue && overdue.items.length === 0 && (
-          <p className="text-sm text-emerald-700 italic">Nothing overdue. 👌</p>
+          <p className="text-sm text-success italic">Nothing overdue. 👌</p>
         )}
         {overdue && overdue.items.length > 0 && (
           <ul className="divide-y">
@@ -469,11 +470,11 @@ export default function ReportsPage(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => nav(`/projects/${r.projectId}/tasks/${r.taskId}`)}
-                    className="text-left font-medium hover:underline truncate min-w-0 flex-1"
+                    className="text-start font-medium hover:underline truncate min-w-0 flex-1"
                   >
                     {r.taskTitle}
                   </button>
-                  <span className="text-xs text-red-700 whitespace-nowrap">
+                  <span className="text-xs text-danger whitespace-nowrap">
                     {r.daysOverdue} day{r.daysOverdue === 1 ? '' : 's'} late
                   </span>
                 </div>

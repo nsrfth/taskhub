@@ -191,8 +191,8 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
     return (
       <div
         key={row.id}
-        className={`flex items-center gap-1 border-b border-slate-100 dark:border-slate-700 text-sm truncate ${
-          row.kind === 'project' ? 'bg-slate-50 dark:bg-slate-800/80 font-semibold' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+        className={`flex items-center gap-1 border-b border-border text-sm truncate ${
+          row.kind === 'project' ? 'bg-bg font-semibold' : 'hover:bg-bg'
         }`}
         style={{ height: ROW_HEIGHT, paddingLeft }}
       >
@@ -220,7 +220,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
         />
         <button
           type="button"
-          className="flex-1 text-left truncate text-slate-800 dark:text-slate-100"
+          className="flex-1 text-start truncate text-text"
           onClick={() => {
             if (row.kind === 'project') {
               nav(`/projects/${row.projectId}/tasks`);
@@ -233,7 +233,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
           {row.label}
         </button>
         {row.kind !== 'project' && !row.barStart && (
-          <span className="text-[10px] text-slate-400 shrink-0 pr-2">{t('planner.calendar.timelineUnscheduled')}</span>
+          <span className="text-[10px] text-slate-400 shrink-0 pe-2">{t('planner.calendar.timelineUnscheduled')}</span>
         )}
       </div>
     );
@@ -244,7 +244,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm bg-surface border border-border rounded-lg p-3">
         <div className="flex border rounded overflow-hidden">
           {(['day', 'week', 'month'] as TimelineZoom[]).map((z) => (
             <button
@@ -254,7 +254,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
               className={`px-3 py-1 capitalize ${
                 zoom === z
                   ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                  : 'bg-white dark:bg-slate-800 hover:bg-slate-100'
+                  : 'bg-surface hover:bg-bg-elevated'
               }`}
             >
               {t(`planner.calendar.timelineZoom.${z}`)}
@@ -365,7 +365,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
                 search: '',
               })
             }
-            className="text-xs text-slate-500 hover:underline ml-auto"
+            className="text-xs text-slate-500 hover:underline ms-auto"
           >
             {t('planner.calendar.timelineClearFilters')}
           </button>
@@ -374,15 +374,15 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
       </div>
 
       {/* Chart shell */}
-      <div className="border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 overflow-hidden">
+      <div className="border border-border rounded-lg bg-surface overflow-hidden">
         {chartRows.length === 0 ? (
           <p className="text-sm text-slate-500 p-6 italic">{t('planner.calendar.timelineEmpty')}</p>
         ) : (
           <div className="flex flex-col" style={{ maxHeight: 'min(70vh, 720px)' }}>
             {/* Sticky header row */}
-            <div className="flex shrink-0 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex shrink-0 border-b border-border">
               <div
-                className="shrink-0 border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 flex items-center text-xs font-semibold text-slate-600"
+                className="shrink-0 border-r border-border bg-bg px-3 flex items-center text-xs font-semibold text-slate-600"
                 style={{ width: SIDEBAR_WIDTH, height: HEADER_HEIGHT }}
               >
                 {t('planner.calendar.timelineTasks')}
@@ -432,7 +432,7 @@ export default function AsanaTimelineView({ selectedTeam, teams }: Props): JSX.E
               className="flex flex-1 overflow-auto"
               onScroll={onBodyScroll}
             >
-              <div className="shrink-0 border-r border-slate-200 dark:border-slate-700" style={{ width: SIDEBAR_WIDTH }}>
+              <div className="shrink-0 border-r border-border" style={{ width: SIDEBAR_WIDTH }}>
                 <div style={{ height: totalBodyHeight, paddingTop: visibleRange.start * ROW_HEIGHT }}>
                   {visibleRows.map((row) => renderSidebarRow(row))}
                 </div>

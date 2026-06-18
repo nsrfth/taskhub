@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { useTeams } from '@/features/teams/TeamsContext';
 import * as rolesApi from '@/features/roles/api';
+import { useT } from '@/lib/i18n';
 
 // v1.23: per-team custom-role CRUD + permission matrix. Lists every role in
 // the current team; a click expands an editor with the permission matrix.
@@ -20,6 +21,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export default function RolesPage(): JSX.Element {
+  const t = useT();
   const { currentTeam } = useTeams();
   const qc = useQueryClient();
   const teamId = currentTeam?.id ?? null;
@@ -93,7 +95,7 @@ export default function RolesPage(): JSX.Element {
       </div>
 
       {createOpen && catalog && (
-        <section className="bg-white dark:bg-slate-800 rounded shadow p-4 mb-6">
+        <section className="bg-surface rounded shadow p-4 mb-6">
           <h2 className="text-sm font-medium mb-3">New role</h2>
           <form
             onSubmit={(e: FormEvent) => {
@@ -105,24 +107,24 @@ export default function RolesPage(): JSX.Element {
             <input
               type="text"
               required
-              placeholder="Role name (e.g. Director, Tech Lead)"
+              placeholder={t('roles.placeholder.name')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
+              className="w-full rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
             />
             <textarea
-              placeholder="Description (optional)"
+              placeholder={t('roles.placeholder.description')}
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
               rows={2}
-              className="w-full rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
+              className="w-full rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
             />
             <PermissionMatrix
               catalog={catalog}
               selected={newPermissions}
               onChange={setNewPermissions}
             />
-            {createError && <p className="text-xs text-red-600 dark:text-red-400">{createError}</p>}
+            {createError && <p role="alert" className="text-xs text-danger">{createError}</p>}
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -137,7 +139,7 @@ export default function RolesPage(): JSX.Element {
                   setCreateOpen(false);
                   setCreateError(null);
                 }}
-                className="text-sm rounded border border-slate-300 dark:border-slate-600 px-3 py-1.5"
+                className="text-sm rounded border border-border px-3 py-1.5"
               >
                 Cancel
               </button>
@@ -166,6 +168,7 @@ function RoleCard({
   catalog: rolesApi.PermissionCatalog | null;
   teamId: string;
 }): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [draftPerms, setDraftPerms] = useState<Set<string>>(() => new Set(role.permissions));
@@ -211,23 +214,23 @@ function RoleCard({
     draftName !== role.name || (draftDescription || null) !== role.description;
 
   return (
-    <section className="bg-white dark:bg-slate-800 rounded shadow">
+    <section className="bg-surface rounded shadow">
       <button
         type="button"
         onClick={() => setExpanded((x) => !x)}
-        className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700"
+        className="w-full text-start px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="font-medium truncate">{role.name}</h3>
             {role.isSystem && (
-              <span className="text-[10px] uppercase tracking-wide bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded px-1.5 py-0.5">
+              <span className="text-[10px] uppercase tracking-wide bg-slate-200 dark:bg-slate-700 text-text rounded px-1.5 py-0.5">
                 System
               </span>
             )}
           </div>
           {role.description && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            <p className="text-xs text-text-muted mt-0.5 truncate">
               {role.description}
             </p>
           )}
@@ -239,7 +242,7 @@ function RoleCard({
       </button>
 
       {expanded && catalog && (
-        <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-4">
+        <div className="border-t border-border p-4 space-y-4">
           {/* Name + description edit */}
           <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-2">
             <input
@@ -247,15 +250,15 @@ function RoleCard({
               disabled={role.isSystem}
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
-              className="rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm disabled:opacity-60"
+              className="rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm disabled:opacity-60"
               title={role.isSystem ? 'System role names cannot be changed' : ''}
             />
             <input
               type="text"
-              placeholder="Description"
+              placeholder={t('roles.placeholder.descriptionShort')}
               value={draftDescription}
               onChange={(e) => setDraftDescription(e.target.value)}
-              className="rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
+              className="rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1 border text-sm"
             />
           </div>
           {metaDirty && (
@@ -272,7 +275,7 @@ function RoleCard({
           {/* Permission matrix */}
           <PermissionMatrix catalog={catalog} selected={draftPerms} onChange={setDraftPerms} />
 
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-2 pt-2 border-t border-border">
             <button
               type="button"
               onClick={() => savePermsMut.mutate()}
@@ -285,7 +288,7 @@ function RoleCard({
               type="button"
               onClick={() => setDraftPerms(new Set(role.permissions))}
               disabled={!permsDirty}
-              className="text-sm rounded border border-slate-300 dark:border-slate-600 px-3 py-1 disabled:opacity-50"
+              className="text-sm rounded border border-border px-3 py-1 disabled:opacity-50"
             >
               Discard
             </button>
@@ -296,7 +299,7 @@ function RoleCard({
                   if (window.confirm(`Delete role "${role.name}"?`)) deleteMut.mutate();
                 }}
                 disabled={deleteMut.isPending || role.membershipCount > 0}
-                className="ml-auto text-sm text-red-600 dark:text-red-400 disabled:opacity-50"
+                className="ms-auto text-sm text-danger disabled:opacity-50"
                 title={
                   role.membershipCount > 0
                     ? 'Reassign all members before deleting'
@@ -308,7 +311,7 @@ function RoleCard({
             )}
           </div>
 
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         </div>
       )}
     </section>
@@ -333,8 +336,8 @@ function PermissionMatrix({
   return (
     <div className="space-y-3">
       {Object.entries(catalog.groups).map(([group, perms]) => (
-        <fieldset key={group} className="border border-slate-200 dark:border-slate-700 rounded p-3">
-          <legend className="px-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <fieldset key={group} className="border border-border rounded p-3">
+          <legend className="px-1 text-xs uppercase tracking-wide text-text-muted">
             {group}
           </legend>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-1">

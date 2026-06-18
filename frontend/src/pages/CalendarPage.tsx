@@ -205,7 +205,7 @@ export default function CalendarPage(): JSX.Element {
   // selection always points at a team the user is still in.
   if (teams.length === 0) {
     return (
-      <div className="min-h-screen p-8 max-w-3xl mx-auto">
+      <div className="min-h-screen p-8">
         <p className="text-sm text-slate-500">
           You aren't in any team yet.{' '}
           <Link to="/teams" className="underline">Create one</Link>.
@@ -268,6 +268,7 @@ export default function CalendarPage(): JSX.Element {
           {(['work-week', 'week', 'month', 'timeline'] as ViewMode[]).map((v) => (
             <button
               key={v}
+              type="button"
               onClick={() => setView(v)}
               className={`px-3 py-1 ${view === v ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             >
@@ -284,16 +285,16 @@ export default function CalendarPage(): JSX.Element {
         <div className="flex items-center gap-1 text-sm">
           {view !== 'timeline' && (
             <>
-              <button onClick={() => shift(-1)} className="px-2 py-1 border rounded hover:bg-slate-100">‹</button>
-              <button onClick={() => setCursor(utcDay(new Date()))} className="px-3 py-1 border rounded hover:bg-slate-100">
+              <button type="button" onClick={() => shift(-1)} className="px-2 py-1 border rounded hover:bg-slate-100">‹</button>
+              <button type="button" onClick={() => setCursor(utcDay(new Date()))} className="px-3 py-1 border rounded hover:bg-slate-100">
                 Today
               </button>
-              <button onClick={() => shift(1)} className="px-2 py-1 border rounded hover:bg-slate-100">›</button>
+              <button type="button" onClick={() => shift(1)} className="px-2 py-1 border rounded hover:bg-slate-100">›</button>
             </>
           )}
         </div>
-        {view !== 'timeline' && <div className="text-sm text-slate-700 ml-2">{cursorMonthLabel}</div>}
-        <div className="ml-auto flex items-center gap-2 text-sm">
+        {view !== 'timeline' && <div className="text-sm text-slate-700 ms-2">{cursorMonthLabel}</div>}
+        <div className="ms-auto flex items-center gap-2 text-sm">
           {view !== 'timeline' && (
             <>
               <label className="text-xs text-slate-500">Date field</label>
@@ -338,7 +339,7 @@ export default function CalendarPage(): JSX.Element {
           {weekdayHeaderLabels.map((label, idx) => (
             <div
               key={weekdayColumns[idx]}
-              className={`bg-white text-center py-1 ${off.includes(weekdayColumns[idx]!) ? 'text-red-600 font-medium' : ''}`}
+              className={`bg-white text-center py-1 ${off.includes(weekdayColumns[idx]!) ? 'text-danger font-medium' : ''}`}
             >
               {label}
             </div>
@@ -369,7 +370,7 @@ export default function CalendarPage(): JSX.Element {
               title={holidayName ?? undefined}
             >
               <div className="flex items-center justify-between text-xs">
-                <span className={`${offDay ? 'text-red-600' : 'text-slate-600'} ${isToday ? 'font-bold' : ''}`}>
+                <span className={`${offDay ? 'text-danger' : 'text-slate-600'} ${isToday ? 'font-bold' : ''}`}>
                   {monthMode ? day.getUTCDate() : `${DAY_NAMES_FULL[day.getUTCDay()]} · ${shortLabel(day, false)}`}
                 </span>
                 {tasks.length > 0 && (
@@ -382,7 +383,7 @@ export default function CalendarPage(): JSX.Element {
                     <button
                       type="button"
                       onClick={() => nav(`/projects/${t.projectId}/tasks/${t.id}`)}
-                      className="w-full text-left text-[11px] truncate rounded px-1 py-0.5 hover:opacity-80"
+                      className="w-full text-start text-[11px] truncate rounded px-1 py-0.5 hover:opacity-80"
                       style={{
                         background: t.teamColor ?? '#cbd5e1',
                         color: '#fff',
@@ -394,7 +395,7 @@ export default function CalendarPage(): JSX.Element {
                   </li>
                 ))}
                 {monthMode && tasks.length > 3 && (
-                  <li className="text-[10px] text-slate-400 pl-1">+{tasks.length - 3} more</li>
+                  <li className="text-[10px] text-slate-400 ps-1">+{tasks.length - 3} more</li>
                 )}
               </ul>
             </div>

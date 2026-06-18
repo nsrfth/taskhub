@@ -167,7 +167,7 @@ export default function HolidaysSection(): JSX.Element {
         <span>{t('holidays.recurring')}</span>
       </label>
 
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
 
       <div className="flex gap-2">
         <button
@@ -195,7 +195,7 @@ export default function HolidaysSection(): JSX.Element {
                 key={h.id}
                 className="flex flex-wrap items-center gap-2 border-b border-border py-1"
               >
-                <span className="text-red-600 font-medium">
+                <span className="text-danger font-medium">
                   {formatShamsiCalendarDate(h.date) ?? h.date.slice(0, 10)}
                 </span>
                 <span className="text-text">{h.name}</span>

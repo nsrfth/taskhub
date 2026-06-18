@@ -1,0 +1,45 @@
+Vagrant.configure("2") do |config|
+  # The bento/ubuntu-24.04 box pins kernel 6.8.0-86, whose headers have been
+  # purged from Ubuntu's apt pool (the .debs 404). The vagrant-vbguest plugin
+  # would try to rebuild Guest Additions against those missing headers and fail
+  # the whole `up`. The box already ships working GA, so skip the auto-rebuild.
+  if Vagrant.has_plugin?("vagrant-vbguest")
+    config.vbguest.auto_update = false
+  end
+
+  # This host has UEFI-locked Hyper-V/VBS, so VirtualBox runs in slow emulation
+  # and boot crawls (the kernel's raid6 self-test alone takes minutes). Give SSH
+  # a generous window before declaring a boot failure.
+  config.vm.boot_timeout = 1200
+
+  config.vm.define "taskhub", primary: true do |node|
+    node.vm.box = "bento/ubuntu-24.04"
+    node.vm.hostname = "taskhub-local"
+
+    # Private (host-only) network. ALL services are reached from the host via
+    # this fixed IP — e.g. http://192.168.56.31:5173 — so nothing binds to the
+    # host's localhost and there is zero port collision with other local apps.
+    # No forwarded_port mappings on purpose.
+    node.vm.network "private_network", ip: "192.168.56.31"
+
+    # Synced folder — project root at /vagrant for live editing.
+    # The frontend's copy-manual.mjs reads USER_MANUAL.md from the repo root,
+    # so the whole repo (not just frontend/) must be visible inside the VM.
+    node.vm.synced_folder "..", "/vagrant"
+
+    node.vm.provider "virtualbox" do |vb|
+      vb.name = "taskhub-local"
+      vb.memory = 4096
+      vb.cpus = 4
+      vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]
+      # Use the host's DNS resolver instead of VirtualBox's built-in NAT DNS
+      # proxy, which intermittently fails to resolve hosts (e.g. get.docker.com).
+      vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
+    end
+
+    # Provisioning
+    node.vm.provision "common", type: "shell", path: "provision/common.sh"
+    node.vm.provision "taskhub", type: "shell", path: "provision/taskhub.sh"
+  end
+end

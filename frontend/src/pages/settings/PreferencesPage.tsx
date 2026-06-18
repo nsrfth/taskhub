@@ -124,7 +124,7 @@ export default function PreferencesPage(): JSX.Element {
     <section className="space-y-6">
       <header>
         <h2 className="text-lg font-semibold mb-1">{t('preferences.title')}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-text-muted">
           {t('preferences.subtitle')}
         </p>
       </header>
@@ -133,7 +133,7 @@ export default function PreferencesPage(): JSX.Element {
         {/* Calendar */}
         <fieldset>
           <legend className="font-medium">{t('preferences.calendar')}</legend>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 mb-2">
+          <p className="text-sm text-text-muted mt-1 mb-2">
             {t('preferences.calendarSubtitle')}
           </p>
           <div className="space-y-2">
@@ -163,7 +163,7 @@ export default function PreferencesPage(): JSX.Element {
         </fieldset>
 
         {/* Language */}
-        <fieldset className="border-t border-slate-200 dark:border-slate-700 pt-4">
+        <fieldset className="border-t border-border pt-4">
           <legend className="font-medium">{t('preferences.language')}</legend>
           <div className="space-y-2 mt-2">
             <Radio
@@ -186,7 +186,7 @@ export default function PreferencesPage(): JSX.Element {
         {/* Timezone + time format + dual calendar (v1.63) */}
         <fieldset className="border-t border-border pt-4">
           <legend className="font-medium">{t('prefs.timezone')}</legend>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 mb-2">
+          <p className="text-sm text-text-muted mt-1 mb-2">
             {t('prefs.timezone.subtitle')}
           </p>
           <TimeZonePicker value={timeZone} onChange={setLocalTimeZone} />
@@ -214,7 +214,7 @@ export default function PreferencesPage(): JSX.Element {
 
         <fieldset className="border-t border-border pt-4">
           <legend className="font-medium">{t('prefs.dualCalendar')}</legend>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 mb-2">
+          <p className="text-sm text-text-muted mt-1 mb-2">
             {t('prefs.dualCalendar.subtitle')}
           </p>
           <label className="flex items-start gap-2 text-sm">
@@ -224,13 +224,13 @@ export default function PreferencesPage(): JSX.Element {
               onChange={(e) => setLocalDualCalendar(e.target.checked)}
               className="mt-1"
             />
-            <span className="text-slate-700 dark:text-slate-200">{t('prefs.dualCalendar.enable')}</span>
+            <span className="text-text">{t('prefs.dualCalendar.enable')}</span>
           </label>
         </fieldset>
 
         <fieldset>
           <legend className="font-medium">{t('reminders.leadHours')}</legend>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 mb-2">
+          <p className="text-sm text-text-muted mt-1 mb-2">
             {t('reminders.leadHoursSubtitle')}
           </p>
           <label className="flex flex-wrap items-center gap-2 text-sm">
@@ -244,15 +244,15 @@ export default function PreferencesPage(): JSX.Element {
                 const n = Number.parseInt(e.target.value, 10);
                 if (!Number.isNaN(n)) setLocalReminderLeadHours(Math.min(168, Math.max(1, n)));
               }}
-              className="w-20 border border-border rounded px-2 py-1 bg-surface text-slate-900 dark:text-slate-100"
+              className="w-20 border border-border rounded px-2 py-1 bg-surface text-text"
               dir="ltr"
             />
             <span className="text-slate-700 dark:text-slate-200">{t('reminders.leadHoursUnit')}</span>
           </label>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('reminders.leadHoursHint')}</p>
+          <p className="text-xs text-text-muted mt-1">{t('reminders.leadHoursHint')}</p>
         </fieldset>
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p role="alert" className="text-xs text-danger">{error}</p>}
 
         <div className="flex gap-2 pt-1">
           <button
@@ -263,7 +263,7 @@ export default function PreferencesPage(): JSX.Element {
             {saveMut.isPending ? t('preferences.saving') : t('preferences.save')}
           </button>
           {dirty && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 self-center">
+            <p className="text-xs text-text-muted self-center">
               {t('preferences.willReload')}
             </p>
           )}
@@ -327,10 +327,10 @@ function SchedulingSection(): JSX.Element {
   return (
     <form
       onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate(); }}
-      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+      className="border border-border rounded p-4 space-y-3"
     >
       <h3 className="font-medium">{t('scheduling.title')}</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">{t('scheduling.subtitle')}</p>
+      <p className="text-sm text-text-muted">{t('scheduling.subtitle')}</p>
       {isLoading && <p className="text-xs text-slate-400">Loading…</p>}
       <label className="flex items-start gap-2 text-sm">
         <input
@@ -339,9 +339,9 @@ function SchedulingSection(): JSX.Element {
           onChange={(e) => setRollOffday(e.target.checked)}
           className="mt-1"
         />
-        <span className="text-slate-700 dark:text-slate-200">
+        <span className="text-text">
           <span className="font-medium">{t('scheduling.rollOffday')}</span>
-          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <span className="block text-xs text-text-muted mt-0.5">
             {t('scheduling.rollOffdayHint')}
           </span>
         </span>
@@ -353,14 +353,14 @@ function SchedulingSection(): JSX.Element {
           onChange={(e) => setWorkingDaysOnly(e.target.checked)}
           className="mt-1"
         />
-        <span className="text-slate-700 dark:text-slate-200">
+        <span className="text-text">
           <span className="font-medium">{t('scheduling.workingDaysOnly')}</span>
-          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <span className="block text-xs text-text-muted mt-0.5">
             {t('scheduling.workingDaysOnlyHint')}
           </span>
         </span>
       </label>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
@@ -405,10 +405,10 @@ function RemindersSection(): JSX.Element {
   return (
     <form
       onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate(); }}
-      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+      className="border border-border rounded p-4 space-y-3"
     >
       <h3 className="font-medium">{t('reminders.title')}</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">{t('reminders.subtitle')}</p>
+      <p className="text-sm text-text-muted">{t('reminders.subtitle')}</p>
       {isLoading && <p className="text-xs text-slate-400">Loading…</p>}
       <label className="flex items-start gap-2 text-sm">
         <input
@@ -417,14 +417,14 @@ function RemindersSection(): JSX.Element {
           onChange={(e) => setSkipOffDays(e.target.checked)}
           className="mt-1"
         />
-        <span className="text-slate-700 dark:text-slate-200">
+        <span className="text-text">
           <span className="font-medium">{t('reminders.skipOffDays')}</span>
-          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <span className="block text-xs text-text-muted mt-0.5">
             {t('reminders.skipOffDaysHint')}
           </span>
         </span>
       </label>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
@@ -479,10 +479,10 @@ function DependencyEnforcementSection(): JSX.Element {
   return (
     <form
       onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate(); }}
-      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+      className="border border-border rounded p-4 space-y-3"
     >
       <h3 className="font-medium">Task dependencies — enforcement (admin · instance-wide)</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-text-muted">
         Controls how strictly TaskHub treats <code>FINISH_TO_START</code> dependency edges
         when a task changes status. The dependency UI itself (add / remove edges, see who's
         blocking whom) is always available regardless of this setting.
@@ -511,7 +511,7 @@ function DependencyEnforcementSection(): JSX.Element {
           label={<><strong>Block</strong> — a task can't move to <em>In progress</em> or <em>Done</em> while it has incomplete blockers.</>}
         />
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
@@ -558,10 +558,10 @@ function DateEditRestrictionSection(): JSX.Element {
   return (
     <form
       onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate(); }}
-      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+      className="border border-border rounded p-4 space-y-3"
     >
       <h3 className="font-medium">Task dates — who can change them? (admin · instance-wide)</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-text-muted">
         Controls who can MODIFY the due / planned / completed dates on a task.
         Adding a date when none exists is always allowed for everyone.
       </p>
@@ -582,7 +582,7 @@ function DateEditRestrictionSection(): JSX.Element {
           label={<><strong>Manager-only</strong> — members can ADD a date when none is set, but only team MANAGERS or global ADMINS can change or clear an existing date.</>}
         />
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button
           type="submit"
@@ -604,7 +604,7 @@ function Radio({
   return (
     <label className="flex items-start gap-2 text-sm">
       <input type="radio" name={name} value={value} checked={checked} onChange={onChange} className="mt-1" />
-      <span className="text-slate-700 dark:text-slate-200">{label}</span>
+      <span className="text-text">{label}</span>
     </label>
   );
 }
@@ -658,12 +658,12 @@ function WorkweekSection(): JSX.Element {
   return (
     <form
       onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate(); }}
-      className="border border-slate-200 dark:border-slate-700 rounded p-4 space-y-3"
+      className="border border-border rounded p-4 space-y-3"
     >
       <h3 className="font-medium">Workweek (admin · instance-wide)</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-text-muted">
         Pick the days the instance treats as off-days. They appear in
-        <span className="text-red-600 font-medium"> red </span>
+        <span className="text-danger font-medium"> red </span>
         on every date picker.
       </p>
 
@@ -683,10 +683,10 @@ function WorkweekSection(): JSX.Element {
       </div>
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-slate-600 dark:text-slate-400">
+        <summary className="cursor-pointer text-text-muted">
           Or pick custom days
         </summary>
-        <fieldset className="flex flex-wrap gap-3 text-sm mt-2 pl-3">
+        <fieldset className="flex flex-wrap gap-3 text-sm mt-2 ps-3">
           {WEEKDAY_LABELS.map((label, idx) => (
             <label key={idx} className="flex items-center gap-1">
               <input
@@ -694,7 +694,7 @@ function WorkweekSection(): JSX.Element {
                 checked={draft.includes(idx)}
                 onChange={() => toggle(idx)}
               />
-              <span className={draft.includes(idx) ? 'text-red-600 font-medium' : ''}>
+              <span className={draft.includes(idx) ? 'text-danger font-medium' : ''}>
                 {label}
               </span>
             </label>
@@ -702,7 +702,7 @@ function WorkweekSection(): JSX.Element {
         </fieldset>
       </details>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
 
       <div className="flex gap-2 pt-1">
         <button

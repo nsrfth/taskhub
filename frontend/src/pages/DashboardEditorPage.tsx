@@ -127,15 +127,15 @@ export default function DashboardEditorPage(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen p-4 md:p-8 space-y-6">
       <div className="flex flex-wrap items-start gap-4 justify-between">
         <div>
-          <Link to="/dashboards" className="text-xs text-indigo-500 dark:text-indigo-400">
+          <Link to="/dashboards" className="text-xs text-primary">
             {t('dashboard.backToList')}
           </Link>
           {canEdit ? (
             <input
-              className="block mt-2 text-2xl font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none w-full max-w-md"
+              className="block mt-2 text-2xl font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary outline-none w-full max-w-md"
               defaultValue={data.name}
               onBlur={(e) => {
                 const name = e.target.value.trim();
@@ -146,7 +146,7 @@ export default function DashboardEditorPage(): JSX.Element {
             <h1 className="mt-2 text-2xl font-bold">{data.name}</h1>
           )}
           {data.shared && (
-            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700">
+            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded bg-bg-elevated">
               {t('dashboard.shared')}
             </span>
           )}
@@ -164,7 +164,7 @@ export default function DashboardEditorPage(): JSX.Element {
             <button
               type="button"
               onClick={openNewWidget}
-              className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700"
+              className="px-3 py-1.5 text-sm rounded bg-primary text-primary-contrast hover:bg-primary"
             >
               {t('dashboard.widget.add')}
             </button>
@@ -195,14 +195,15 @@ export default function DashboardEditorPage(): JSX.Element {
                 <div className="absolute top-2 end-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     type="button"
-                    className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-600"
+                    className="text-xs px-2 py-0.5 rounded bg-bg-elevated"
                     onClick={() => openEditWidget(i)}
                   >
                     {t('dashboard.widget.edit')}
                   </button>
                   <button
                     type="button"
-                    className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/40"
+                    disabled={saveWidgets.isPending}
+                    className="text-xs px-2 py-0.5 rounded bg-danger/10 text-danger disabled:opacity-50"
                     onClick={() => removeWidget(i)}
                   >
                     {t('dashboard.widget.remove')}

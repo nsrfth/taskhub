@@ -120,7 +120,7 @@ export function LabelMultiSelect({
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="text-xs underline text-slate-600 dark:text-slate-300"
+          className="text-xs underline text-text"
         >
           {t('projects.labels.new')}
         </button>
@@ -133,13 +133,13 @@ export function LabelMultiSelect({
             placeholder={t('labels.newPlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="rounded border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 border text-sm"
+            className="rounded border-border dark:bg-slate-700 px-2 py-1 border text-sm"
           />
           <input
             type="color"
             value={color}
             onChange={(e) => setColor(e.target.value)}
-            className="h-8 w-10 cursor-pointer rounded border border-slate-300 dark:border-slate-600"
+            className="h-8 w-10 cursor-pointer rounded border border-border"
             aria-label={t('labels.color')}
           />
           <button
@@ -160,7 +160,7 @@ export function LabelMultiSelect({
           >
             {t('projects.edit.cancel')}
           </button>
-          {createError && <span className="text-xs text-red-600">{createError}</span>}
+          {createError && <span className="text-xs text-danger" role="alert">{createError}</span>}
         </form>
       )}
     </div>

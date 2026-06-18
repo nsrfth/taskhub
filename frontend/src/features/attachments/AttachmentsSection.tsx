@@ -106,7 +106,8 @@ export function AttachmentsSection({
                   onClick={() => {
                     if (window.confirm(`Delete "${a.filename}"?`)) deleteMut.mutate(a.id);
                   }}
-                  className="text-xs text-red-600 hover:underline shrink-0"
+                  disabled={deleteMut.isPending}
+                  className="text-xs text-danger hover:underline shrink-0 disabled:opacity-50"
                   aria-label={`Delete attachment ${a.filename}`}
                 >
                   Delete
@@ -130,7 +131,7 @@ export function AttachmentsSection({
         />
         {uploadMut.isPending && <span className="text-xs text-slate-500">Uploading…</span>}
       </div>
-      {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+      {uploadError && <p role="alert" className="text-xs text-danger">{uploadError}</p>}
     </div>
   );
 }

@@ -233,7 +233,7 @@ export default function MyTasksPage(): JSX.Element {
       {subView === 'board' && !isLoading && tasks.length > 0 && (
         <p className="text-xs text-slate-500 mt-4">
           {t('planner.myTasks.openFullCalendar')}{' '}
-          <Link to="/planner/calendar" className="text-indigo-600 hover:underline">
+          <Link to="/planner/calendar" className="text-primary hover:underline">
             {t('planner.nav.calendar')}
           </Link>
         </p>

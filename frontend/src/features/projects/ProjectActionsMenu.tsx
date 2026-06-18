@@ -24,9 +24,10 @@ export default function ProjectActionsMenu({
       <button
         type="button"
         onClick={onToggle}
-        className="text-sm px-1.5 py-0.5 rounded border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+        className="text-sm px-1.5 py-0.5 rounded border text-text-muted hover:bg-bg-elevated"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={t('projects.actions')}
         title={t('projects.actions')}
       >
         ⋯
@@ -34,7 +35,7 @@ export default function ProjectActionsMenu({
       {open && (
         <div
           role="menu"
-          className="absolute end-0 top-full mt-1 z-20 min-w-[10rem] rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg py-1 text-sm"
+          className="absolute end-0 top-full mt-1 z-20 min-w-[10rem] rounded border border-border bg-surface shadow-lg py-1 text-sm"
         >
           <button
             type="button"

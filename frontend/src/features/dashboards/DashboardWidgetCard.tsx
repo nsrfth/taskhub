@@ -31,7 +31,7 @@ export default function DashboardWidgetCard({ teamId, dashboardId, widget }: Pro
   });
 
   return (
-    <section className="bg-white dark:bg-slate-800 rounded-lg shadow p-4 flex flex-col min-h-[220px]">
+    <section className="bg-surface rounded-lg shadow p-4 flex flex-col min-h-[220px]">
       <h3 className="text-sm font-semibold mb-3 truncate">{widget.title}</h3>
       {isLoading && (
         <p className="text-sm text-slate-500 flex-1 flex items-center justify-center">
@@ -39,7 +39,7 @@ export default function DashboardWidgetCard({ teamId, dashboardId, widget }: Pro
         </p>
       )}
       {isError && (
-        <p className="text-sm text-red-500 flex-1 flex items-center justify-center">
+        <p className="text-sm text-danger flex-1 flex items-center justify-center" role="alert">
           {t('dashboard.widget.error')}
         </p>
       )}
@@ -63,7 +63,7 @@ function WidgetBody({
 }): JSX.Element {
   if (data.kind === 'metric') {
     return (
-      <p className="text-4xl font-bold tabular-nums text-center py-8 text-indigo-600 dark:text-indigo-400">
+      <p className="text-4xl font-bold tabular-nums text-center py-8 text-primary">
         {data.total ?? 0}
       </p>
     );
@@ -128,14 +128,14 @@ function WidgetBody({
     <div className="overflow-auto max-h-[220px]">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-slate-500 border-b dark:border-slate-700">
+          <tr className="text-start text-slate-500 border-b border-border">
             <th className="py-1 pe-2">{t('dashboard.widget.table.label')}</th>
             <th className="py-1 text-end">{t('dashboard.widget.table.value')}</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.key} className="border-b border-slate-100 dark:border-slate-700/50">
+            <tr key={r.key} className="border-b border-border">
               <td className="py-1 pe-2 truncate">{r.label}</td>
               <td className="py-1 text-end tabular-nums">{r.value}</td>
             </tr>

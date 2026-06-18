@@ -182,7 +182,7 @@ export default function WidgetEditorPanel({ teamId, initial, onSave, onCancel }:
       <div className="flex gap-2 pt-2">
         <button
           type="button"
-          className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white"
+          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-contrast"
           onClick={() => onSave(draft)}
         >
           {t('dashboard.widget.save')}

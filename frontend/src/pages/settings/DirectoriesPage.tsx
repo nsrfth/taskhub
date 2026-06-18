@@ -11,6 +11,7 @@ import {
   type DirectoryCreateInput,
 } from '@/features/directories/api';
 import ScimPanel from '@/features/directories/ScimPanel';
+import { useT } from '@/lib/i18n';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -40,6 +41,7 @@ const DEFAULT_FORM: DirectoryCreateInput = {
 };
 
 export default function DirectoriesPage(): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['directories'],
@@ -150,7 +152,7 @@ export default function DirectoriesPage(): JSX.Element {
       </header>
 
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
-      {error && <p className="text-sm text-red-600">Could not load directories.</p>}
+      {error && <p role="alert" className="text-sm text-danger">Could not load directories.</p>}
 
       {!isLoading && data && data.items.length === 0 && !showForm && (
         <p className="text-sm text-slate-500 italic">
@@ -196,7 +198,7 @@ export default function DirectoriesPage(): JSX.Element {
                       deleteMut.mutate(d.id);
                     }
                   }}
-                  className="text-xs text-red-600 hover:underline"
+                  className="text-xs text-danger hover:underline"
                 >
                   Delete
                 </button>
@@ -204,7 +206,7 @@ export default function DirectoriesPage(): JSX.Element {
             </div>
             {testResult?.id === d.id && (
               <p
-                className={`mt-2 text-xs ${testResult.ok ? 'text-emerald-700' : 'text-red-700'}`}
+                className={`mt-2 text-xs ${testResult.ok ? 'text-success' : 'text-danger'}`}
               >
                 {testResult.ok ? '✓ ' : '✗ '}
                 {testResult.message}
@@ -244,7 +246,7 @@ export default function DirectoriesPage(): JSX.Element {
                 value={form.slug}
                 onChange={(e) => setForm({ ...form, slug: e.target.value })}
                 className="border rounded px-2 py-1"
-                placeholder="acme-ldap"
+                placeholder={t('directories.placeholder.slug')}
               />
             </label>
             <label className="flex flex-col gap-1 md:col-span-2">
@@ -253,7 +255,7 @@ export default function DirectoriesPage(): JSX.Element {
                 value={form.host ?? ''}
                 onChange={(e) => setForm({ ...form, host: e.target.value })}
                 className="border rounded px-2 py-1"
-                placeholder="ldap.example.com"
+                placeholder={t('directories.placeholder.host')}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -299,7 +301,7 @@ export default function DirectoriesPage(): JSX.Element {
                 value={form.bindDN ?? ''}
                 onChange={(e) => setForm({ ...form, bindDN: e.target.value })}
                 className="border rounded px-2 py-1"
-                placeholder="cn=admin,dc=example,dc=org"
+                placeholder={t('directories.placeholder.bindDN')}
               />
             </label>
             <label className="flex flex-col gap-1 md:col-span-2">
@@ -325,7 +327,7 @@ export default function DirectoriesPage(): JSX.Element {
                 value={form.baseDN ?? ''}
                 onChange={(e) => setForm({ ...form, baseDN: e.target.value })}
                 className="border rounded px-2 py-1"
-                placeholder="ou=People,dc=example,dc=org"
+                placeholder={t('directories.placeholder.baseDN')}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -377,7 +379,7 @@ export default function DirectoriesPage(): JSX.Element {
               <span className="text-xs">Sync roles from group mappings</span>
             </label>
           </div>
-          {formError && <p className="text-sm text-red-600">{formError}</p>}
+          {formError && <p role="alert" className="text-sm text-danger">{formError}</p>}
           <div className="flex gap-2 pt-2">
             <button
               type="submit"

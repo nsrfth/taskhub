@@ -14,14 +14,14 @@ import type { BudgetCurrency } from '@/lib/formatBudget';
 function MemberStatusBadges({ member, t }: { member: teamsApi.TeamMember; t: (k: string) => string }): JSX.Element | null {
   if (member.disabled) {
     return (
-      <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">
+      <span className="text-xs px-1.5 py-0.5 rounded bg-danger/10 text-danger">
         {t('team.member.status.disabled')}
       </span>
     );
   }
   if (member.locked) {
     return (
-      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+      <span className="text-xs px-1.5 py-0.5 rounded bg-warning/10 text-warning">
         {t('team.member.status.locked')}
       </span>
     );
@@ -313,7 +313,7 @@ export default function TeamsPage(): JSX.Element {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8">
       <h1 className="text-2xl font-semibold mb-6">Teams</h1>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -326,13 +326,14 @@ export default function TeamsPage(): JSX.Element {
             {teams.map((t) => (
               <li key={t.id}>
                 <button
+                  type="button"
                   onClick={() => setCurrentTeamId(t.id)}
-                  className={`w-full text-left rounded px-2 py-1 text-sm ${
+                  className={`w-full text-start rounded px-2 py-1 text-sm ${
                     t.id === currentTeamId ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'
                   }`}
                 >
                   {t.name}
-                  <span className="ml-2 text-xs opacity-70">{t.myRole}</span>
+                  <span className="ms-2 text-xs opacity-70">{t.myRole}</span>
                 </button>
               </li>
             ))}
@@ -343,7 +344,7 @@ export default function TeamsPage(): JSX.Element {
             <input
               type="text"
               required
-              placeholder="Team name"
+              placeholder={t('team.placeholder.name')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded border-slate-300 px-2 py-1 border text-sm"
@@ -351,13 +352,13 @@ export default function TeamsPage(): JSX.Element {
             <input
               type="text"
               required
-              placeholder="slug-like-this"
+              placeholder={t('team.placeholder.slug')}
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase())}
               pattern="[a-z0-9]+(-[a-z0-9]+)*"
               className="w-full rounded border-slate-300 px-2 py-1 border text-sm font-mono"
             />
-            {createError && <p className="text-xs text-red-600">{createError}</p>}
+            {createError && <p className="text-xs text-danger" role="alert">{createError}</p>}
             <button
               type="submit"
               disabled={createMut.isPending}
@@ -417,7 +418,7 @@ export default function TeamsPage(): JSX.Element {
                           Cancel
                         </button>
                       </div>
-                      {renameError && <p className="text-xs text-red-600">{renameError}</p>}
+                      {renameError && <p className="text-xs text-danger" role="alert">{renameError}</p>}
                     </form>
                   ) : (
                     <>
@@ -450,12 +451,12 @@ export default function TeamsPage(): JSX.Element {
                         ⋮
                       </button>
                       {showActions && (
-                        <div className="absolute right-0 z-10 mt-1 w-40 rounded border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                        <div className="absolute end-0 z-10 mt-1 w-40 rounded border border-slate-200 bg-white shadow-lg py-1 text-sm">
                           {canEditDetails && (
                             <button
                               type="button"
                               onClick={startRename}
-                              className="w-full text-left px-3 py-1.5 hover:bg-slate-50"
+                              className="w-full text-start px-3 py-1.5 hover:bg-slate-50"
                             >
                               Rename team
                             </button>
@@ -468,7 +469,7 @@ export default function TeamsPage(): JSX.Element {
                                 setShowDeleteDialog(true);
                                 setShowActions(false);
                               }}
-                              className="w-full text-left px-3 py-1.5 text-red-600 hover:bg-red-50"
+                              className="w-full text-start px-3 py-1.5 text-danger hover:bg-red-50"
                             >
                               Delete team
                             </button>
@@ -487,18 +488,18 @@ export default function TeamsPage(): JSX.Element {
                   aria-modal="true"
                   aria-labelledby="remove-member-title"
                 >
-                  <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full p-5">
+                  <div className="bg-surface rounded-lg shadow-xl max-w-md w-full p-5">
                     <h3 id="remove-member-title" className="text-lg font-semibold mb-2">
                       {t('team.remove.confirm').replace('{name}', removeTarget.name)}
                     </h3>
                     {removeBlockers.ownedProjectCount > 0 && (
-                      <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+                      <p className="text-sm text-text mb-2">
                         {t('team.remove.ownsProjects')}
                       </p>
                     )}
                     {(removeBlockers.ownedProjects.length > 0 ||
                       removeBlockers.accountableProjects.length > 0) && (
-                      <ul className="list-disc ps-5 space-y-0.5 mb-3 text-sm text-slate-600 dark:text-slate-300">
+                      <ul className="list-disc ps-5 space-y-0.5 mb-3 text-sm text-text">
                         {removeBlockers.ownedProjects.map((p) => (
                           <li key={p.id}>{p.name}</li>
                         ))}
@@ -517,7 +518,7 @@ export default function TeamsPage(): JSX.Element {
                               setReassignOwnerTo(e.target.value);
                               if (e.target.value) setRemoveForce(false);
                             }}
-                            className="mt-1 block w-full rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                            className="mt-1 block w-full rounded border border-border bg-surface px-2 py-1 text-sm"
                           >
                             <option value="">—</option>
                             {reassignOptions.map((m) => (
@@ -527,7 +528,7 @@ export default function TeamsPage(): JSX.Element {
                             ))}
                           </select>
                         </label>
-                        <label className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
+                        <label className="flex items-center gap-2 text-sm text-danger">
                           <input
                             type="checkbox"
                             checked={removeForce}
@@ -540,7 +541,7 @@ export default function TeamsPage(): JSX.Element {
                         </label>
                       </div>
                     )}
-                    {removeError && <p className="text-xs text-red-600 mb-2">{removeError}</p>}
+                    {removeError && <p className="text-xs text-danger mb-2" role="alert">{removeError}</p>}
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
@@ -558,7 +559,7 @@ export default function TeamsPage(): JSX.Element {
                             !removeForce)
                         }
                         onClick={confirmRemoveWithBlockers}
-                        className="bg-red-600 text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                        className="bg-danger text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
                       >
                         {removeMut.isPending ? 'Removing…' : 'Remove'}
                       </button>
@@ -583,16 +584,16 @@ export default function TeamsPage(): JSX.Element {
                       cannot be undone.
                     </p>
                     {detail.deleteBlockers && !detail.deleteBlockers.canDelete && (
-                      <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-warning">
                         <p className="font-medium mb-1">Cannot delete team because:</p>
-                        <ul className="list-disc pl-5 space-y-0.5">
+                        <ul className="list-disc ps-5 space-y-0.5">
                           {detail.deleteBlockers.reasons.map((r) => (
                             <li key={r}>{r}</li>
                           ))}
                         </ul>
                       </div>
                     )}
-                    {deleteError && <p className="text-xs text-red-600 mb-2">{deleteError}</p>}
+                    {deleteError && <p className="text-xs text-danger mb-2" role="alert">{deleteError}</p>}
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
@@ -611,7 +612,7 @@ export default function TeamsPage(): JSX.Element {
                           (detail.deleteBlockers !== null && !detail.deleteBlockers.canDelete)
                         }
                         onClick={() => deleteMut.mutate()}
-                        className="bg-red-600 text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                        className="bg-danger text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
                       >
                         {deleteMut.isPending ? 'Deleting…' : 'Delete team'}
                       </button>
@@ -627,12 +628,12 @@ export default function TeamsPage(): JSX.Element {
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={t('team.members.search')}
-                  className="flex-1 min-w-[12rem] rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  className="flex-1 min-w-[12rem] rounded border border-border bg-surface px-2 py-1 text-sm"
                 />
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value as teamsApi.TeamRole | '')}
-                  className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  className="rounded border border-border bg-surface px-2 py-1 text-sm"
                   aria-label={t('team.members.filter.role')}
                 >
                   <option value="">{t('team.members.filter.roleAll')}</option>
@@ -644,7 +645,7 @@ export default function TeamsPage(): JSX.Element {
                   onChange={(e) =>
                     setStatusFilter(e.target.value as teamsApi.TeamMemberStatusFilter | '')
                   }
-                  className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  className="rounded border border-border bg-surface px-2 py-1 text-sm"
                   aria-label={t('team.members.filter.status')}
                 >
                   <option value="">{t('team.members.filter.statusAll')}</option>
@@ -655,7 +656,7 @@ export default function TeamsPage(): JSX.Element {
                 <select
                   value={kindFilter}
                   onChange={(e) => setKindFilter(e.target.value as teamsApi.TeamMemberKind)}
-                  className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                  className="rounded border border-border bg-surface px-2 py-1 text-sm"
                   aria-label={t('team.members.filter.kind')}
                 >
                   <option value="all">{t('team.members.filter.kind.all')}</option>
@@ -673,28 +674,28 @@ export default function TeamsPage(): JSX.Element {
 
               {roster.length > 0 && (
                 <table className="w-full text-sm mb-4">
-                  <thead className="text-left text-xs text-slate-500 uppercase">
+                  <thead className="text-start text-xs text-slate-500 uppercase">
                     <tr>
-                      <th className="py-1 pr-4">
+                      <th className="py-1 pe-4">
                         <button type="button" onClick={() => toggleSort('name')} className="hover:underline">
                           {t('team.members.col.name')}
                           {sortIndicator('name')}
                         </button>
                       </th>
-                      <th className="py-1 pr-4">
+                      <th className="py-1 pe-4">
                         <button type="button" onClick={() => toggleSort('email')} className="hover:underline">
                           {t('team.members.col.email')}
                           {sortIndicator('email')}
                         </button>
                       </th>
-                      <th className="py-1 pr-4">{t('team.members.col.status')}</th>
-                      <th className="py-1 pr-4">
+                      <th className="py-1 pe-4">{t('team.members.col.status')}</th>
+                      <th className="py-1 pe-4">
                         <button type="button" onClick={() => toggleSort('role')} className="hover:underline">
                           {t('team.members.col.role')}
                           {sortIndicator('role')}
                         </button>
                       </th>
-                      <th className="py-1 pr-4">
+                      <th className="py-1 pe-4">
                         <button type="button" onClick={() => toggleSort('joinedAt')} className="hover:underline">
                           {t('team.members.col.joined')}
                           {sortIndicator('joinedAt')}
@@ -707,11 +708,11 @@ export default function TeamsPage(): JSX.Element {
                     {roster.map((m) => (
                       <tr
                         key={m.userId}
-                        className={`border-t dark:border-slate-700 ${m.external ? 'bg-slate-50/80 dark:bg-slate-900/30' : ''}`}
+                        className={`border-t border-border ${m.external ? 'bg-bg' : ''}`}
                       >
-                        <td className="py-2 pr-4 font-medium">{m.name}</td>
-                        <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">{m.email}</td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pe-4 font-medium">{m.name}</td>
+                        <td className="py-2 pe-4 text-text">{m.email}</td>
+                        <td className="py-2 pe-4">
                           <div className="flex flex-wrap gap-1">
                             <MemberStatusBadges member={m} t={t} />
                             {m.external && (
@@ -733,7 +734,7 @@ export default function TeamsPage(): JSX.Element {
                             )}
                           </div>
                         </td>
-                        <td className="py-2 pr-4">
+                        <td className="py-2 pe-4">
                           {!m.external ? (
                             isManager && teamRoles.length > 0 ? (
                               <select
@@ -745,7 +746,7 @@ export default function TeamsPage(): JSX.Element {
                                   })
                                 }
                                 disabled={updateRoleMut.isPending}
-                                className="text-xs rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-1 py-0.5"
+                                className="text-xs rounded border border-border bg-surface px-1 py-0.5"
                               >
                                 {!m.roleId && <option value="">— ({m.role})</option>}
                                 {teamRoles.map((r) => (
@@ -764,7 +765,7 @@ export default function TeamsPage(): JSX.Element {
                             <span className="text-xs text-slate-400">—</span>
                           )}
                         </td>
-                        <td className="py-2 pr-4 text-slate-500 text-xs" dir="rtl">
+                        <td className="py-2 pe-4 text-slate-500 text-xs" dir="rtl">
                           {formatShamsiTimestampDate(m.joinedAt)}
                         </td>
                         {isManager && (
@@ -773,7 +774,7 @@ export default function TeamsPage(): JSX.Element {
                               <button
                                 type="button"
                                 onClick={() => void beginRemoveMember(m)}
-                                className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                                className="text-xs text-danger hover:underline disabled:opacity-50"
                                 disabled={removeMut.isPending || removeBlockersLoading}
                               >
                                 Remove
@@ -788,7 +789,7 @@ export default function TeamsPage(): JSX.Element {
               )}
 
               {totalPages > 0 && (
-                <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-text">
                   <span>
                     {t('team.members.pagination.pageOf')
                       .replace('{page}', String(currentPage))
@@ -822,7 +823,7 @@ export default function TeamsPage(): JSX.Element {
                       max={totalPages}
                       value={jumpPage}
                       onChange={(e) => setJumpPage(e.target.value)}
-                      className="w-14 rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-1 py-0.5"
+                      className="w-14 rounded border border-border bg-surface px-1 py-0.5"
                     />
                     <button type="submit" className="underline" disabled={membersFetching}>
                       {t('team.members.pagination.go')}
@@ -839,13 +840,13 @@ export default function TeamsPage(): JSX.Element {
                     value={addMemberQuery}
                     onChange={(e) => setAddMemberQuery(e.target.value)}
                     placeholder={t('team.addMember.searchPlaceholder')}
-                    className="w-full rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                    className="w-full rounded border border-border bg-surface px-2 py-1 text-sm"
                     aria-label={t('team.addMember.search')}
                   />
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as teamsApi.TeamRole)}
-                    className="rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-2 py-1 text-sm"
+                    className="rounded border border-border bg-surface px-2 py-1 text-sm"
                     aria-label={t('team.members.filter.role')}
                   >
                     <option value="MEMBER">MEMBER</option>
@@ -861,7 +862,7 @@ export default function TeamsPage(): JSX.Element {
                     <p className="text-xs text-slate-500">{t('team.addMember.searching')}</p>
                   )}
                   {addMemberHits.length > 0 && (
-                    <ul className="max-h-32 overflow-y-auto space-y-1 border rounded p-2 dark:border-slate-600">
+                    <ul className="max-h-32 overflow-y-auto space-y-1 border border-border rounded p-2">
                       {addMemberHits.map((u) => (
                         <li key={u.id}>
                           {u.alreadyMember ? (
@@ -875,7 +876,7 @@ export default function TeamsPage(): JSX.Element {
                             <button
                               type="button"
                               disabled={inviteMut.isPending}
-                              className="text-xs w-full text-left hover:underline disabled:opacity-50 py-0.5"
+                              className="text-xs w-full text-start hover:underline disabled:opacity-50 py-0.5"
                               onClick={() =>
                                 inviteMut.mutate({ userId: u.id, role: inviteRole })
                               }
@@ -887,7 +888,7 @@ export default function TeamsPage(): JSX.Element {
                       ))}
                     </ul>
                   )}
-                  {inviteError && <p className="text-xs text-red-600">{inviteError}</p>}
+                  {inviteError && <p className="text-xs text-danger" role="alert">{inviteError}</p>}
                   <p className="text-xs text-slate-500">{t('team.addMember.existingOnly')}</p>
                 </div>
               )}
@@ -926,7 +927,7 @@ function TeamDefaultCurrencyPicker({ team }: { team: teamsApi.TeamDetail }): JSX
     },
   });
   return (
-    <label className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
+    <label className="flex items-center gap-1 text-xs text-text">
       <span>{t('team.defaultCurrency')}</span>
       <CurrencySelector
         value={team.defaultCurrency}
@@ -958,8 +959,9 @@ function TeamColourPicker({ team }: { team: teamsApi.TeamDetail }): JSX.Element 
           key={c}
           type="button"
           aria-label={`Set colour ${c}`}
+          disabled={updateMut.isPending}
           onClick={() => updateMut.mutate(c)}
-          className={`w-5 h-5 rounded-full border ${current === c ? 'ring-2 ring-offset-1 ring-slate-900' : 'border-slate-200'}`}
+          className={`w-5 h-5 rounded-full border disabled:opacity-50 ${current === c ? 'ring-2 ring-offset-1 ring-slate-900' : 'border-slate-200'}`}
           style={{ background: c }}
         />
       ))}
@@ -973,9 +975,10 @@ function TeamColourPicker({ team }: { team: teamsApi.TeamDetail }): JSX.Element 
       {team.color && (
         <button
           type="button"
+          disabled={updateMut.isPending}
           onClick={() => updateMut.mutate(null)}
           title="Clear colour"
-          className="text-xs text-slate-500 underline ml-1"
+          className="text-xs text-slate-500 underline ms-1 disabled:opacity-50"
         >
           clear
         </button>

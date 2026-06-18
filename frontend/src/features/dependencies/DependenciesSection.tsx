@@ -122,15 +122,15 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
   return (
     <div className="mt-5 pt-4 border-t">
       <div className="flex items-baseline justify-between mb-2">
-        <h3 className="text-xs font-medium text-slate-600 dark:text-slate-300">
+        <h3 className="text-xs font-medium text-text">
           {t('deps.title')}
         </h3>
         {enforcement !== 'off' && (
           <span
             className={
               enforcement === 'block'
-                ? 'text-[10px] uppercase tracking-wide text-red-700 dark:text-red-300'
-                : 'text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300'
+                ? 'text-[10px] uppercase tracking-wide text-danger'
+                : 'text-[10px] uppercase tracking-wide text-warning'
             }
             title={t(`deps.enforcement.${enforcement}.help`)}
           >
@@ -167,11 +167,11 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
         }}
         className="mt-3 flex flex-wrap items-center gap-2"
       >
-        <label className="text-xs text-slate-600 dark:text-slate-300">{t('deps.add')}</label>
+        <label className="text-xs text-text">{t('deps.add')}</label>
         <select
           value={picker}
           onChange={(e) => setPicker(e.target.value)}
-          className="rounded border-slate-300 dark:border-slate-600 px-2 py-1 border text-sm bg-white dark:bg-slate-700 max-w-xs"
+          className="rounded border-border px-2 py-1 border text-sm bg-surface max-w-xs"
         >
           <option value="">{t('deps.pickPlaceholder')}</option>
           {pickerOptions.map((task) => (
@@ -185,7 +185,7 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
           onChange={(e) => setPickerType(e.target.value as DependencyType)}
           aria-label={t('dependency.type.label')}
           title={t('dependency.type.label')}
-          className="rounded border-slate-300 dark:border-slate-600 px-2 py-1 border text-sm bg-white dark:bg-slate-700"
+          className="rounded border-border px-2 py-1 border text-sm bg-surface"
         >
           {DEP_TYPE_ORDER.map((tp) => (
             <option key={tp} value={tp}>
@@ -201,7 +201,7 @@ export default function DependenciesSection({ teamId, projectId, taskId }: Props
           {addMut.isPending ? '…' : t('deps.addButton')}
         </button>
       </form>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger mt-1">{error}</p>}
     </div>
   );
 }
@@ -238,7 +238,7 @@ function EdgeColumn({
         {edges.map((edge) => (
           <li
             key={edge.id}
-            className="flex items-center justify-between gap-2 text-sm rounded border border-slate-200 dark:border-slate-700 px-2 py-1"
+            className="flex items-center justify-between gap-2 text-sm rounded border border-border px-2 py-1"
           >
             <Link
               to={`/projects/${edge.task.projectId}/tasks/${edge.task.id}`}
@@ -248,7 +248,7 @@ function EdgeColumn({
                 className={
                   edge.task.status === 'DONE'
                     ? 'text-slate-400 line-through'
-                    : 'text-slate-700 dark:text-slate-200'
+                    : 'text-text'
                 }
               >
                 {edge.task.title}
@@ -256,7 +256,7 @@ function EdgeColumn({
             </Link>
             <span className="flex items-center gap-2 shrink-0">
               <span
-                className="text-[10px] rounded bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-slate-600 dark:text-slate-300"
+                className="text-[10px] rounded bg-bg-elevated px-1.5 py-0.5 text-text"
                 title={t('dependency.type.label')}
               >
                 {t(DEP_TYPE_I18N[edge.type])}
@@ -267,7 +267,8 @@ function EdgeColumn({
               <button
                 type="button"
                 onClick={() => onRemove(edge.id)}
-                className="text-[11px] text-red-600 hover:underline"
+                aria-label="Remove dependency"
+                className="text-[11px] text-danger hover:underline"
               >
                 ✕
               </button>

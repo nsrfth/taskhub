@@ -11,6 +11,9 @@ import {
 } from './api';
 import { ShamsiDatePicker } from '@/lib/ShamsiDatePicker';
 import { formatShamsiCalendarLong } from '@/lib/shamsi';
+import { useT } from '@/lib/i18n';
+
+type T = (key: string) => string;
 
 // Phase 4 recurrence section, rendered inside Task detail. The recurrence
 // rule attaches to a "source task" — when active, the scheduler clones
@@ -34,6 +37,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export default function RecurrenceSection({ teamId, projectId, taskId }: Props): JSX.Element {
+  const t = useT();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['recurrence', taskId],
@@ -57,7 +61,7 @@ export default function RecurrenceSection({ teamId, projectId, taskId }: Props):
       setError(null);
       await qc.invalidateQueries({ queryKey: ['recurrence', taskId] });
     },
-    onError: (err) => setError(errorMessage(err, 'Could not save recurrence')),
+    onError: (err) => setError(errorMessage(err, t('recurrence.saveError'))),
   });
 
   const deleteMut = useMutation({
@@ -67,9 +71,9 @@ export default function RecurrenceSection({ teamId, projectId, taskId }: Props):
 
   return (
     <div className="mt-5 pt-4 border-t">
-      <h3 className="text-xs font-medium text-slate-600 mb-2">Recurrence</h3>
+      <h3 className="text-xs font-medium text-slate-600 mb-2">{t('recurrence.title')}</h3>
 
-      {isLoading && <p className="text-xs text-slate-400">Loading…</p>}
+      {isLoading && <p className="text-xs text-slate-400">{t('recurrence.loading')}</p>}
 
       {!isLoading && !data && !showForm && (
         <button
@@ -77,16 +81,17 @@ export default function RecurrenceSection({ teamId, projectId, taskId }: Props):
           onClick={() => setShowForm(true)}
           className="text-sm text-slate-700 underline"
         >
-          Set up recurrence
+          {t('recurrence.setUp')}
         </button>
       )}
 
       {!isLoading && data && !showForm && (
         <RecurrenceSummary
           rec={data}
+          t={t}
           onEdit={() => setShowForm(true)}
           onDelete={() => {
-            if (window.confirm('Remove recurrence? Already-spawned tasks stay.')) deleteMut.mutate();
+            if (window.confirm(t('recurrence.removeConfirm'))) deleteMut.mutate();
           }}
         />
       )}
@@ -94,6 +99,7 @@ export default function RecurrenceSection({ teamId, projectId, taskId }: Props):
       {showForm && (
         <RecurrenceForm
           initial={data ?? undefined}
+          t={t}
           pending={upsertMut.isPending}
           error={error}
           onCancel={() => { setShowForm(false); setError(null); }}
@@ -105,49 +111,63 @@ export default function RecurrenceSection({ teamId, projectId, taskId }: Props):
 }
 
 function RecurrenceSummary({
-  rec, onEdit, onDelete,
-}: { rec: Recurrence; onEdit: () => void; onDelete: () => void }): JSX.Element {
-  const summary = describeRule(rec);
+  rec, t, onEdit, onDelete,
+}: { rec: Recurrence; t: T; onEdit: () => void; onDelete: () => void }): JSX.Element {
+  const summary = describeRule(rec, t);
   return (
     <div className="text-sm">
       <p className="text-slate-700">
-        {rec.active ? summary : <span className="text-slate-400 italic">{summary} (paused)</span>}
+        {rec.active ? summary : <span className="text-slate-400 italic">{summary} {t('recurrence.paused')}</span>}
       </p>
       <p className="text-xs text-slate-500 mt-1">
-        Next run: <span dir="rtl">{formatShamsiCalendarLong(rec.nextRunAt)}</span>
-        {rec.spawnedCount > 0 && <> · spawned {rec.spawnedCount} so far</>}
+        {t('recurrence.nextRun')} <span dir="rtl">{formatShamsiCalendarLong(rec.nextRunAt)}</span>
+        {rec.spawnedCount > 0 && <> · {t('recurrence.spawned')} {rec.spawnedCount} {t('recurrence.spawnedSuffix')}</>}
         {rec.maxCount && <> / {rec.maxCount}</>}
       </p>
       <div className="flex gap-3 mt-2 text-xs">
-        <button onClick={onEdit} className="underline">Edit</button>
-        <button onClick={onDelete} className="text-red-600 hover:underline">Remove</button>
+        <button type="button" onClick={onEdit} className="underline">{t('recurrence.edit')}</button>
+        <button type="button" onClick={onDelete} className="text-danger hover:underline">{t('recurrence.remove')}</button>
       </div>
     </div>
   );
 }
 
-function describeRule(rec: Recurrence): string {
+function describeRule(rec: Recurrence, t: T): string {
   // QUARTERLY uses its own pluralisation because 'quarters' reads better
   // than 'quarterlys' and 'every 1 quarterly' sounds odd. The QUARTERLY
   // case also short-circuits the WEEKLY-byWeekday branch below.
   if (rec.frequency === 'QUARTERLY') {
-    return rec.interval === 1 ? 'Every quarter' : `Every ${rec.interval} quarters`;
+    return rec.interval === 1
+      ? t('recurrence.everyQuarter')
+      : t('recurrence.everyNQuarters').replace('{n}', String(rec.interval));
   }
-  const unit = ({
-    DAILY: 'day', WEEKLY: 'week', MONTHLY: 'month', YEARLY: 'year',
+  const singular = ({
+    DAILY: 'recurrence.everyDay',
+    WEEKLY: 'recurrence.everyWeek',
+    MONTHLY: 'recurrence.everyMonth',
+    YEARLY: 'recurrence.everyYear',
   } as const)[rec.frequency];
-  const every = rec.interval === 1 ? `Every ${unit}` : `Every ${rec.interval} ${unit}s`;
+  const plural = ({
+    DAILY: 'recurrence.everyNDays',
+    WEEKLY: 'recurrence.everyNWeeks',
+    MONTHLY: 'recurrence.everyNMonths',
+    YEARLY: 'recurrence.everyNYears',
+  } as const)[rec.frequency];
+  const every = rec.interval === 1
+    ? t(singular)
+    : t(plural).replace('{n}', String(rec.interval));
   if (rec.frequency === 'WEEKLY' && rec.byWeekday.length > 0) {
     const days = rec.byWeekday.map((d) => WEEKDAY_LABELS[d]).join(', ');
-    return `${every} on ${days}`;
+    return `${every} ${t('recurrence.onDays').replace('{days}', days)}`;
   }
   return every;
 }
 
 function RecurrenceForm({
-  initial, pending, error, onSubmit, onCancel,
+  initial, t, pending, error, onSubmit, onCancel,
 }: {
   initial?: Recurrence;
+  t: T;
   pending: boolean;
   error: string | null;
   onSubmit: (v: RecurrenceUpsertInput) => void;
@@ -190,21 +210,21 @@ function RecurrenceForm({
     >
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Frequency</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.frequency')}</span>
           <select
             value={frequency}
             onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
             className="border rounded px-2 py-1"
           >
-            <option value="DAILY">Daily</option>
-            <option value="WEEKLY">Weekly</option>
-            <option value="MONTHLY">Monthly</option>
-            <option value="QUARTERLY">Quarterly</option>
-            <option value="YEARLY">Yearly</option>
+            <option value="DAILY">{t('recurrence.freq.daily')}</option>
+            <option value="WEEKLY">{t('recurrence.freq.weekly')}</option>
+            <option value="MONTHLY">{t('recurrence.freq.monthly')}</option>
+            <option value="QUARTERLY">{t('recurrence.freq.quarterly')}</option>
+            <option value="YEARLY">{t('recurrence.freq.yearly')}</option>
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Every</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.every')}</span>
           <input
             type="number"
             min={1}
@@ -217,7 +237,7 @@ function RecurrenceForm({
 
       {frequency === 'WEEKLY' && (
         <fieldset>
-          <legend className="text-xs text-slate-600 mb-1">On weekdays</legend>
+          <legend className="text-xs text-slate-600 mb-1">{t('recurrence.field.onWeekdays')}</legend>
           <div className="flex flex-wrap gap-2">
             {WEEKDAY_LABELS.map((label, idx) => (
               <label key={idx} className="flex items-center gap-1 text-xs">
@@ -235,29 +255,29 @@ function RecurrenceForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Starts on</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.startsOn')}</span>
           <ShamsiDatePicker value={startsOn} onChange={(v) => setStartsOn(v ?? todayIso)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Ends on (optional)</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.endsOn')}</span>
           <ShamsiDatePicker value={endsOn} onChange={setEndsOn} />
         </label>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Max occurrences</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.maxOccurrences')}</span>
           <input
             type="number"
             min={1}
             value={maxCount}
             onChange={(e) => setMaxCount(e.target.value)}
             className="border rounded px-2 py-1"
-            placeholder="unlimited"
+            placeholder={t('recurrence.placeholder.unlimited')}
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Due offset (days)</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.dueOffset')}</span>
           <input
             type="number"
             value={dueOffset}
@@ -267,7 +287,7 @@ function RecurrenceForm({
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-600">Planned offset (days)</span>
+          <span className="text-xs text-slate-600">{t('recurrence.field.plannedOffset')}</span>
           <input
             type="number"
             value={plannedOffset}
@@ -284,10 +304,10 @@ function RecurrenceForm({
           checked={active}
           onChange={(e) => setActive(e.target.checked)}
         />
-        <span className="text-xs">Active</span>
+        <span className="text-xs">{t('recurrence.field.active')}</span>
       </label>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-danger" role="alert">{error}</p>}
 
       <div className="flex gap-2">
         <button
@@ -295,9 +315,9 @@ function RecurrenceForm({
           disabled={pending}
           className="bg-slate-900 text-white rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
         >
-          {pending ? 'Saving…' : 'Save recurrence'}
+          {pending ? t('recurrence.saving') : t('recurrence.save')}
         </button>
-        <button type="button" onClick={onCancel} className="text-sm underline">Cancel</button>
+        <button type="button" onClick={onCancel} className="text-sm underline">{t('recurrence.cancel')}</button>
       </div>
     </form>
   );

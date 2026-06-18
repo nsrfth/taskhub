@@ -75,12 +75,12 @@ export default function ProjectEditModal({
     <Modal title={t('projects.edit.title')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {error}
           </p>
         )}
         {nameOnly && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t('projects.edit.nameOnlyHint')}</p>
+          <p className="text-xs text-text-muted">{t('projects.edit.nameOnlyHint')}</p>
         )}
         <ProjectFormFields
           teamId={project.teamId}
@@ -97,7 +97,7 @@ export default function ProjectEditModal({
           <button
             type="submit"
             disabled={pending || !values.name.trim() || !!dateError}
-            className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-contrast disabled:opacity-50"
           >
             {t('projects.edit.save')}
           </button>
