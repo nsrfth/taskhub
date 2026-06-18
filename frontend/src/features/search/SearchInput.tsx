@@ -23,7 +23,7 @@ export default function SearchInput(): JSX.Element {
   }
 
   return (
-    <form onSubmit={submit} className="flex-1 max-w-md hidden sm:block" role="search">
+    <form onSubmit={submit} className="flex-1 hidden sm:block" role="search">
       <label className="sr-only" htmlFor="global-search">
         {t('search.placeholder')}
       </label>

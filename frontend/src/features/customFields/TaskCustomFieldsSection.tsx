@@ -58,9 +58,6 @@ export function TaskCustomFieldsSection({
   });
 
   const activeFields = customFields.filter((cf) => cf.active);
-  if (activeFields.length === 0 && definitions.filter((d) => d.active).length === 0) {
-    return null;
-  }
 
   const setMut = useMutation({
     mutationFn: (input: { fieldId: string; body: Parameters<typeof customFieldsApi.setTaskCustomFieldValue>[4] }) =>
@@ -74,6 +71,12 @@ export function TaskCustomFieldsSection({
     },
     onError: (err) => window.alert(errorMessage(err, 'Could not save custom field')),
   });
+
+  // Nothing to show: return AFTER all hooks so hook order stays stable
+  // (react-hooks/rules-of-hooks).
+  if (activeFields.length === 0 && definitions.filter((d) => d.active).length === 0) {
+    return null;
+  }
 
   const fieldsToShow = definitions.filter((d) => d.active).map((def) => {
     const val = customFields.find((cf) => cf.fieldId === def.id);

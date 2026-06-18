@@ -23,10 +23,6 @@ export default function AdminPage(): JSX.Element {
   const qc = useQueryClient();
   const invalidateUsers = useInvalidateAdminUsers();
 
-  if (user && user.globalRole !== 'ADMIN') {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   const [teamsCursor, setTeamsCursor] = useState<string | null>(null);
   const [teamsPages, setTeamsPages] = useState<adminApi.AdminTeam[]>([]);
   const [teamsDone, setTeamsDone] = useState(false);
@@ -90,6 +86,12 @@ export default function AdminPage(): JSX.Element {
   });
 
   void teamsPageData;
+
+  // Non-admins are redirected. Placed AFTER all hooks so hook order stays
+  // stable across renders (react-hooks/rules-of-hooks).
+  if (user && user.globalRole !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div>

@@ -19,10 +19,8 @@ import {
 import { daysBetween, todayUtcMs, utcDayMs } from './utils';
 import type { TimelineFilters, TimelineRow, TimelineZoom } from './types';
 
-const ALL_TEAMS = 'all' as const;
-
 interface Props {
-  selectedTeam: typeof ALL_TEAMS | string;
+  selectedTeam: 'all' | string;
   teams: Team[];
 }
 

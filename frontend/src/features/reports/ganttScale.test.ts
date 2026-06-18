@@ -13,7 +13,6 @@ import {
 } from './ganttScale';
 import { describe, expect, it } from 'vitest';
 
-const MS_DAY = 86_400_000;
 /** Default instance week start (Saturday) — matches getWeekStartDay() for [0,6] off-days. */
 const WEEK_START = 6;
 
@@ -126,7 +125,6 @@ describe('ganttScale', () => {
 
 describe('ganttScale weekStartMs', () => {
   it('aligns to configured week start', () => {
-    const weekStart = WEEK_START;
     const ms = Date.UTC(2025, 5, 11); // Wed
     const start = weekStartMs(ms, WEEK_START);
     expect(new Date(start).getUTCDay()).toBe(WEEK_START);

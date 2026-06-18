@@ -1,14 +1,15 @@
 import { NavLink, Link } from 'react-router-dom';
-import { useAuth } from '@/features/auth/AuthContext';
 import { useT } from '@/lib/i18n';
 import {
   IconCalendar,
   IconClose,
   IconDashboard,
+  IconDashboards,
   IconProjects,
   IconReports,
   IconSettings,
   IconTeams,
+  IconWorkload,
 } from './icons';
 import { BrandMark, BrandWordmark } from '@/features/brand/BrandMark';
 
@@ -29,16 +30,7 @@ interface NavItem {
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }
 
-function initials(name: string | undefined, email: string | undefined): string {
-  const source = (name || email || '?').trim();
-  if (!source) return '?';
-  const parts = source.split(/[\s.@_-]+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return source.slice(0, 2).toUpperCase();
-}
-
 export default function LeftSidebar({ open, onClose }: Props): JSX.Element {
-  const { user } = useAuth();
   const t = useT();
 
   const items: NavItem[] = [
@@ -47,9 +39,8 @@ export default function LeftSidebar({ open, onClose }: Props): JSX.Element {
     { to: '/projects', label: t('nav.projects'), icon: IconProjects },
     { to: '/planner/my-tasks', label: t('nav.planner'), icon: IconCalendar },
     { to: '/reports', label: t('nav.reports'), icon: IconReports },
-    { to: '/workload', label: t('nav.workload'), icon: IconReports },
-    { to: '/dashboards', label: t('nav.dashboards'), icon: IconReports },
-    { to: '/settings', label: t('nav.settings'), icon: IconSettings },
+    { to: '/workload', label: t('nav.workload'), icon: IconWorkload },
+    { to: '/dashboards', label: t('nav.dashboards'), icon: IconDashboards },
   ];
   const visible = items;
 
@@ -147,19 +138,31 @@ export default function LeftSidebar({ open, onClose }: Props): JSX.Element {
           </ul>
         </nav>
 
-        {/* User profile footer — avatar + name. Links to Settings → Preferences. */}
-        <Link
-          to="/settings/preferences"
-          onClick={onClose}
-          className="flex items-center gap-3 px-4 py-3 border-t border-border hover:bg-bg-elevated"
-        >
-          <span className="w-9 h-9 rounded-full bg-primary text-primary-contrast text-xs font-semibold flex items-center justify-center">
-            {initials(user?.name, user?.email)}
-          </span>
-          <span className="min-w-0 flex-1 text-sm text-text truncate">
-            {user?.name || user?.email}
-          </span>
-        </Link>
+        {/* Settings pinned to the bottom of the rail (where the user footer
+            used to be) — account/preferences live in the top-right menu. */}
+        <div className="px-2 py-3 border-t border-border">
+          <NavLink
+            to="/settings"
+            onClick={onClose}
+            className={({ isActive }) =>
+              [
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-text-muted hover:bg-bg-elevated hover:text-text',
+              ].join(' ')
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span className={isActive ? 'text-primary' : 'text-text-muted'}>
+                  <IconSettings size={18} />
+                </span>
+                <span>{t('nav.settings')}</span>
+              </>
+            )}
+          </NavLink>
+        </div>
       </aside>
     </>
   );

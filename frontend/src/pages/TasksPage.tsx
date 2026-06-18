@@ -917,15 +917,17 @@ function ResponsibleColumn({
       </h2>
       <ul className="space-y-2 min-h-[40px]">
         {tasks.map((t) => (
-          <li
-            key={t.id}
-            onClick={() => onOpen(t.id)}
-            className="bg-bg hover:bg-bg-elevated cursor-pointer rounded p-2 text-sm"
-          >
-            <p className="font-medium truncate">{t.title}</p>
-            <p className="text-xs text-text-muted mt-1">
-              {t.status} · {t.priority}
-            </p>
+          <li key={t.id}>
+            <button
+              type="button"
+              onClick={() => onOpen(t.id)}
+              className="w-full text-start bg-bg hover:bg-bg-elevated cursor-pointer rounded p-2 text-sm"
+            >
+              <span className="block font-medium truncate">{t.title}</span>
+              <span className="block text-xs text-text-muted mt-1">
+                {t.status} · {t.priority}
+              </span>
+            </button>
           </li>
         ))}
         {tasks.length === 0 && (

@@ -11,6 +11,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
     "test": "vitest run"
   },
   "dependencies": {
@@ -29,17 +30,24 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "eslint": "^9.39.4",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.6.0",
     "postcss": "^8.4.39",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
+    "typescript-eslint": "^8.61.1",
     "vite": "^5.3.3",
     "vite-plugin-pwa": "^0.21.1",
-    "sharp": "^0.33.5",
     "vitest": "^2.1.9"
   }
 }

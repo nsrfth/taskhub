@@ -89,6 +89,10 @@ export default function TaskGrid({
 
   useEffect(() => {
     if (defaultSort) setSort(defaultSort);
+    // Intentionally keyed on the primitive sort fields, not the defaultSort
+    // object identity, so a new object from the parent each render doesn't
+    // re-trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSort?.key, defaultSort?.dir]);
 
   const activePage = controlledPage ?? page;
@@ -365,6 +369,9 @@ function renderCell(
       return row.plannedBudget ? `${row.plannedBudget}` : '—';
     case 'labels':
       return (
+        // Presentational wrapper: only stops the row click from firing when the
+        // user interacts with labels — not an interactive control itself.
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
         <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
           {row.labels.map((l) => (
             <LabelChip key={l.id} label={l} />

@@ -389,11 +389,12 @@ export default function TeamsPage(): JSX.Element {
                         renameMut.mutate(trimmed);
                       }}
                     >
-                      <label className="block text-xs text-slate-500">Team name</label>
+                      <span className="block text-xs text-slate-500">Team name</span>
                       <input
                         type="text"
                         required
                         maxLength={120}
+                        aria-label="Team name"
                         value={draftName}
                         onChange={(e) => setDraftName(e.target.value)}
                         className="w-full rounded border-slate-300 px-2 py-1 border text-sm"

@@ -297,8 +297,11 @@ export default function CalendarPage(): JSX.Element {
         <div className="ms-auto flex items-center gap-2 text-sm">
           {view !== 'timeline' && (
             <>
-              <label className="text-xs text-slate-500">Date field</label>
+              <label htmlFor="cal-date-field" className="text-xs text-slate-500">
+                Date field
+              </label>
               <select
+                id="cal-date-field"
                 value={field}
                 onChange={(e) => setField(e.target.value as DateField)}
                 className="border rounded px-2 py-1"

@@ -18,6 +18,9 @@ export default function ProjectBucketAssignMenu({
   if (!open) return <></>;
 
   return (
+    // Menu container only stops the click from bubbling to the row; it's
+    // presentational, not an interactive control.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
     <div
       className="absolute end-0 top-full z-20 mt-1 w-52 rounded border border-border bg-surface shadow-lg p-2 text-sm"
       onClick={(e) => e.stopPropagation()}

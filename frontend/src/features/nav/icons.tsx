@@ -58,6 +58,22 @@ export const IconReports = (p: IconProps) => (
   </Base>
 );
 
+// Capacity / load — a gauge, distinct from the Reports line-chart.
+export const IconWorkload = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m12 14 4-4" />
+    <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+  </Base>
+);
+
+// Configurable dashboards — a pie/segment, distinct from the home grid.
+export const IconDashboards = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+    <path d="M22 12A10 10 0 0 0 12 2v10z" />
+  </Base>
+);
+
 export const IconTeams = (p: IconProps) => (
   <Base {...p}>
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />

@@ -62,11 +62,12 @@ export default function TopNav(): JSX.Element {
           </h1>
         )}
 
-        {/* v1.30: global search input grows in the middle. */}
+        {/* v1.30: global search grows to fill the bar. */}
         <SearchInput />
-        <div className="flex-1 sm:hidden" />
 
-        <div className="flex items-center gap-2">
+        {/* ms-auto pins the account controls to the inline-end, including on
+            mobile where the search is hidden. */}
+        <div className="flex items-center gap-2 ms-auto">
           <NotificationBell />
           <UserMenu />
         </div>

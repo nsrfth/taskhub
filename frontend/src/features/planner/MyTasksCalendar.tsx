@@ -21,7 +21,7 @@ export default function MyTasksCalendar({ limit = 200 }: Props): JSX.Element {
     queryFn: () => fetchMyTasks({ limit, sort: 'dueDate', order: 'asc' }),
   });
 
-  const tasks = data?.items ?? [];
+  const tasks = useMemo(() => data?.items ?? [], [data]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, MeTask[]>();

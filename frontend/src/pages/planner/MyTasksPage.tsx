@@ -52,7 +52,7 @@ export default function MyTasksPage(): JSX.Element {
     queryFn: () => fetchMyTasks(query),
   });
 
-  const tasks = data?.items ?? [];
+  const tasks = useMemo(() => data?.items ?? [], [data]);
   const projectNames = useMemo(() => {
     const m = new Map<string, string>();
     for (const tk of tasks) m.set(tk.projectId, tk.projectName);
