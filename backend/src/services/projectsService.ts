@@ -7,6 +7,7 @@ import {
 import { Errors } from '../lib/errors.js';
 import {
   assertCanWriteProject as assertProjectWrite,
+  isProjectEditDelegate,
   projectListAllWhereForCaller,
   projectListWhereForCaller,
   resolveProjectAccess,
@@ -169,6 +170,7 @@ async function callerHasProjectEdit(
 function updateTouchesNonNameFields(input: {
   description?: string | null;
   status?: ProjectStatus;
+  ownerId?: string | null;
   accountableId?: string | null;
   plannedBudget?: number | string | null;
   budgetCurrency?: Currency;
@@ -179,6 +181,9 @@ function updateTouchesNonNameFields(input: {
   return (
     input.description !== undefined
     || input.status !== undefined
+    // v1.86: owner reassignment is a non-name field — a rename-only manager
+    // must NOT be able to hand the project (and its FULL access) to anyone.
+    || input.ownerId !== undefined
     || input.accountableId !== undefined
     || input.plannedBudget !== undefined
     || input.budgetCurrency !== undefined
@@ -298,6 +303,7 @@ export class ProjectsService {
       name?: string;
       description?: string | null;
       status?: ProjectStatus;
+      ownerId?: string | null;
       accountableId?: string | null;
       plannedBudget?: number | string | null;
       budgetCurrency?: Currency;
@@ -329,6 +335,12 @@ export class ProjectsService {
       }
     }
 
+    // v1.86: owner reassignment. Only the owner/admin full-edit path reaches
+    // here with ownerId set (rename-only managers are rejected above). A new
+    // owner must be a team member — never grant FULL access to an outsider.
+    if (input.ownerId !== undefined) {
+      await assertOwnerInTeam(teamId, input.ownerId);
+    }
     if (input.accountableId !== undefined) {
       await assertAccountableInTeam(teamId, input.accountableId);
     }
@@ -349,6 +361,7 @@ export class ProjectsService {
           ...(input.name !== undefined && { name: input.name }),
           ...(input.description !== undefined && { description: input.description }),
           ...(input.status !== undefined && { status: input.status }),
+          ...(input.ownerId !== undefined && { ownerId: input.ownerId }),
           ...(input.accountableId !== undefined && { accountableId: input.accountableId }),
           ...(plannedPatch !== undefined && { plannedBudget: plannedPatch }),
           ...(input.budgetCurrency !== undefined && { budgetCurrency: input.budgetCurrency }),
@@ -435,6 +448,88 @@ export class ProjectsService {
     callerGlobalRole: GlobalRole,
   ): Promise<void> {
     await assertProjectWrite(projectId, teamId, callerUserId, callerGlobalRole);
+  }
+
+  // v1.86: per-project full-edit delegation management. Only the project OWNER
+  // or a global ADMIN may view/modify the delegate set — same authority that
+  // controls ownership. Non-owners get a 404 (existence hidden), matching
+  // remove()/update().
+  private async assertOwnerOrAdmin(
+    teamId: string,
+    projectId: string,
+    callerId: string,
+    callerGlobalRole: GlobalRole,
+  ): Promise<void> {
+    const p = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { teamId: true, ownerId: true },
+    });
+    if (!p || p.teamId !== teamId) throw Errors.notFound('Project not found');
+    if (callerGlobalRole !== 'ADMIN' && p.ownerId !== callerId) {
+      throw Errors.notFound('Project not found');
+    }
+  }
+
+  async listDelegates(
+    teamId: string,
+    projectId: string,
+    callerId: string,
+    callerGlobalRole: GlobalRole,
+  ): Promise<string[]> {
+    await this.assertOwnerOrAdmin(teamId, projectId, callerId, callerGlobalRole);
+    const rows = await prisma.projectEditDelegate.findMany({
+      where: { projectId },
+      select: { userId: true },
+    });
+    return rows.map((r) => r.userId);
+  }
+
+  // Self-scoped: "am I a full-edit delegate on this project?" Readable by any
+  // team member (the route's requireTeamRole gate) — returns only the caller's
+  // own bit, so it leaks nothing about the rest of the delegate set.
+  async isDelegate(teamId: string, projectId: string, userId: string): Promise<boolean> {
+    const p = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { teamId: true },
+    });
+    if (!p || p.teamId !== teamId) throw Errors.notFound('Project not found');
+    return isProjectEditDelegate(projectId, userId);
+  }
+
+  // Replace-set semantics (mirrors labelIds). Every delegate must be a team
+  // member — full-edit is a real elevation, never granted to an outsider.
+  async setDelegates(
+    teamId: string,
+    projectId: string,
+    callerId: string,
+    callerGlobalRole: GlobalRole,
+    userIds: string[],
+  ): Promise<string[]> {
+    await this.assertOwnerOrAdmin(teamId, projectId, callerId, callerGlobalRole);
+    const unique = [...new Set(userIds)];
+    if (unique.length > 0) {
+      const count = await prisma.teamMembership.count({
+        where: { teamId, userId: { in: unique } },
+      });
+      if (count !== unique.length) {
+        throw Errors.badRequest('Every delegate must be a member of this team');
+      }
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.projectEditDelegate.deleteMany({
+        where: {
+          projectId,
+          ...(unique.length > 0 ? { userId: { notIn: unique } } : {}),
+        },
+      });
+      if (unique.length > 0) {
+        await tx.projectEditDelegate.createMany({
+          data: unique.map((userId) => ({ projectId, userId, grantedById: callerId })),
+          skipDuplicates: true,
+        });
+      }
+    });
+    return unique;
   }
 }
 

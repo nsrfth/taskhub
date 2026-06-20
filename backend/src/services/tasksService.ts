@@ -3,6 +3,7 @@ import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import {
   assertCanWriteProject,
+  isProjectEditDelegate,
   isUserEligibleTaskResponsible,
   listEligibleTaskResponsibleCandidates,
   type TaskResponsibleCandidate,
@@ -45,9 +46,12 @@ function assertCanEditDate(
   callerTeamRole: TeamRole,
   callerGlobalRole: GlobalRole,
   restriction: 'open' | 'manager-only',
+  // v1.86: a per-project full-edit delegate is treated like a manager for this
+  // project's date fields (and only this project's).
+  elevated: boolean,
 ): void {
   if (restriction !== 'manager-only') return;
-  if (callerTeamRole === 'MANAGER' || callerGlobalRole === 'ADMIN') return;
+  if (callerTeamRole === 'MANAGER' || callerGlobalRole === 'ADMIN' || elevated) return;
   // Adding a date when none exists is always allowed (the wording from the
   // user request: "they can add but they can't modify"). Modification +
   // clearing both require manager/admin.
@@ -589,18 +593,36 @@ export class TasksService {
       if (!membership) throw Errors.badRequest('Assignee is not a member of this team');
     }
 
+    // v1.86: per-project full-edit delegation. A delegate on THIS project is
+    // elevated past the manager-only date gate and the task.change_responsible
+    // gate — for this project only. Computed once; skipped for ADMIN (already
+    // privileged) and when no gated field is in the patch.
+    const touchesDates =
+      input.startDate !== undefined ||
+      input.dueDate !== undefined ||
+      input.plannedDate !== undefined ||
+      input.completedAt !== undefined;
+    const touchesResponsible =
+      input.responsibleId !== undefined && input.responsibleId !== existing.responsibleId;
+    const elevated =
+      actorGlobalRole !== 'ADMIN' && (touchesDates || touchesResponsible)
+        ? await isProjectEditDelegate(projectId, actorId)
+        : false;
+
     // v1.19 → v1.23: responsible change gate. Now gated by the
     // `task.change_responsible` permission (default = Manager only). Custom
     // roles can grant it independently of the legacy MANAGER bit.
-    if (input.responsibleId !== undefined && input.responsibleId !== existing.responsibleId) {
+    // v1.86: a per-project full-edit delegate also passes.
+    if (touchesResponsible) {
       if (
+        !elevated &&
         !(await userHasPermission(actorId, teamId, actorGlobalRole, 'task.change_responsible'))
       ) {
         throw Errors.forbidden(
           'Missing permission: task.change_responsible',
         );
       }
-      if (input.responsibleId !== null) {
+      if (input.responsibleId != null) {
         const eligible = await isUserEligibleTaskResponsible(
           teamId,
           projectId,
@@ -617,12 +639,7 @@ export class TasksService {
     // skipping it on no-op patches keeps the hot path quick.
     // v1.37: startDate joins dueDate / plannedDate / completedAt under
     // the same gate — same semantics (commitment change).
-    if (
-      input.startDate !== undefined ||
-      input.dueDate !== undefined ||
-      input.plannedDate !== undefined ||
-      input.completedAt !== undefined
-    ) {
+    if (touchesDates) {
       const restriction = await readDateEditRestriction();
       if (input.startDate !== undefined) {
         assertCanEditDate(
@@ -632,6 +649,7 @@ export class TasksService {
           actorTeamRole,
           actorGlobalRole,
           restriction,
+          elevated,
         );
       }
       if (input.dueDate !== undefined) {
@@ -642,6 +660,7 @@ export class TasksService {
           actorTeamRole,
           actorGlobalRole,
           restriction,
+          elevated,
         );
       }
       if (input.plannedDate !== undefined) {
@@ -652,6 +671,7 @@ export class TasksService {
           actorTeamRole,
           actorGlobalRole,
           restriction,
+          elevated,
         );
       }
       if (input.completedAt !== undefined) {
@@ -662,6 +682,7 @@ export class TasksService {
           actorTeamRole,
           actorGlobalRole,
           restriction,
+          elevated,
         );
       }
     }

@@ -2,7 +2,7 @@ import { Prisma, type GlobalRole, type SubtaskStatus } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import { userHasPermission } from '../middleware/requirePermission.js';
-import { resolveProjectAccess } from '../lib/projectAccess.js';
+import { isProjectEditDelegate, resolveProjectAccess } from '../lib/projectAccess.js';
 import { logActivity } from './activityLogger.js';
 
 // Subtasks are checklist items inside a task. The route layer already verifies
@@ -206,8 +206,12 @@ export class SubtasksService {
     }
 
     // v1.19 → v1.23: responsible change gate. Now permission-driven.
+    // v1.86: a per-project full-edit delegate also passes (this project only).
     if (input.responsibleId !== undefined && input.responsibleId !== existing.responsibleId) {
+      const elevated =
+        actorGlobalRole !== 'ADMIN' && (await isProjectEditDelegate(projectId, actorId));
       if (
+        !elevated &&
         !(await userHasPermission(actorId, teamId, actorGlobalRole, 'task.change_responsible'))
       ) {
         throw Errors.forbidden('Missing permission: task.change_responsible');

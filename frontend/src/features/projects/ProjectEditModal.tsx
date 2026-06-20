@@ -10,6 +10,7 @@ import ProjectFormFields, {
   validateProjectDateRange,
   type ProjectFormValues,
 } from '@/features/projects/ProjectFormFields';
+import ProjectDelegatesField from '@/features/projects/ProjectDelegatesField';
 
 interface ProjectEditModalProps {
   project: ProjectCrossTeam;
@@ -90,6 +91,14 @@ export default function ProjectEditModal({
           nameOnly={nameOnly}
           dateError={dateError}
         />
+        {/* v1.86: owner-facing full-edit delegates — only in full-edit mode. */}
+        {!nameOnly && (
+          <ProjectDelegatesField
+            teamId={project.teamId}
+            projectId={project.id}
+            members={members}
+          />
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded border">
             {t('projects.edit.cancel')}

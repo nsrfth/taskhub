@@ -1,7 +1,11 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { TeamMembership } from '@prisma/client';
 import type { ProjectsService } from '../services/projectsService.js';
-import type { CreateProjectBody, UpdateProjectBody } from '../schemas/projects.js';
+import type {
+  CreateProjectBody,
+  ProjectDelegatesBody,
+  UpdateProjectBody,
+} from '../schemas/projects.js';
 import { Errors } from '../lib/errors.js';
 
 type TeamParams = { teamId: string };
@@ -132,5 +136,53 @@ export class ProjectsController {
       req.user.globalRole,
     );
     return reply.status(204).send();
+  };
+
+  // v1.86: per-project full-edit delegates — owner/admin only (enforced in svc).
+  listDelegates = async (
+    req: FastifyRequest<{ Params: ProjectParams }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    callerMembership(req);
+    const userIds = await this.svc.listDelegates(
+      req.params.teamId,
+      req.params.projectId,
+      req.user.sub,
+      req.user.globalRole,
+    );
+    return reply.send({ userIds });
+  };
+
+  setDelegates = async (
+    req: FastifyRequest<{ Params: ProjectParams; Body: ProjectDelegatesBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    callerMembership(req);
+    const userIds = await this.svc.setDelegates(
+      req.params.teamId,
+      req.params.projectId,
+      req.user.sub,
+      req.user.globalRole,
+      req.body.userIds,
+    );
+    return reply.send({ userIds });
+  };
+
+  // Self-scoped delegate status — any team member may read their own bit so the
+  // task/subtask UI can unlock the manager-only controls for a delegate.
+  myDelegateStatus = async (
+    req: FastifyRequest<{ Params: ProjectParams }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    callerMembership(req);
+    const isDelegate = await this.svc.isDelegate(
+      req.params.teamId,
+      req.params.projectId,
+      req.user.sub,
+    );
+    return reply.send({ isDelegate });
   };
 }

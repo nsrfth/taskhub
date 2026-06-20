@@ -57,6 +57,11 @@ export const updateProjectBody = z
     name: z.string().min(1).max(120).trim().optional(),
     description: z.string().max(2000).trim().nullable().optional(),
     status: projectStatusEnum.optional(),
+    // v1.86: reassignable OWNER from the edit form. Owner = FULL project access,
+    // so it's validated to a team member server-side and only the current owner
+    // or a global ADMIN may set it (managers with rename-only access cannot —
+    // it counts as a non-name field).
+    ownerId: z.string().nullable().optional(),
     accountableId: z.string().nullable().optional(),
     plannedBudget: budgetSchema,
     budgetCurrency: currencyEnum.optional(),
@@ -70,6 +75,7 @@ export const updateProjectBody = z
       v.name !== undefined ||
       v.description !== undefined ||
       v.status !== undefined ||
+      v.ownerId !== undefined ||
       v.accountableId !== undefined ||
       v.plannedBudget !== undefined ||
       v.budgetCurrency !== undefined ||
@@ -78,6 +84,25 @@ export const updateProjectBody = z
       v.labelIds !== undefined,
     'Provide at least one field to update',
   );
+
+// v1.86: per-project "full-edit" delegates. The owner (or a global ADMIN) names
+// the users who may edit ALL task/subtask fields on this project — including the
+// manager-only date fields and the task.change_responsible-gated field — for
+// THIS project only. Replace-set semantics, mirroring labelIds.
+export const projectDelegatesBody = z.object({
+  userIds: z.array(z.string().min(1)).max(100),
+});
+
+export const projectDelegatesResponse = z.object({
+  userIds: z.array(z.string()),
+});
+
+// v1.86: self-scoped "am I a full-edit delegate on this project?" — readable by
+// any team member (unlike the owner-only list), so the task/subtask UI can
+// unlock the manager-only controls for a delegate without leaking the full set.
+export const projectMyDelegateResponse = z.object({
+  isDelegate: z.boolean(),
+});
 
 export const projectResponse = z.object({
   id: z.string(),
@@ -104,3 +129,4 @@ export const projectCrossTeamResponse = projectResponse.extend({
 
 export type CreateProjectBody = z.infer<typeof createProjectBody>;
 export type UpdateProjectBody = z.infer<typeof updateProjectBody>;
+export type ProjectDelegatesBody = z.infer<typeof projectDelegatesBody>;

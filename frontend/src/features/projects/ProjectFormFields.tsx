@@ -10,6 +10,9 @@ export interface ProjectFormValues {
   name: string;
   description: string;
   status: ProjectStatus;
+  // v1.86: reassignable owner. null is accepted by the API (clears owner) but
+  // the picker keeps a concrete member selected.
+  ownerId: string | null;
   accountableId: string | null;
   plannedBudget: string;
   budgetCurrency: BudgetCurrency;
@@ -33,6 +36,7 @@ export function projectFormValuesFromProject(p: {
   name: string;
   description: string | null;
   status: ProjectStatus;
+  ownerId: string | null;
   accountableId: string | null;
   plannedBudget: string | null;
   budgetCurrency: BudgetCurrency;
@@ -44,6 +48,7 @@ export function projectFormValuesFromProject(p: {
     name: p.name,
     description: p.description ?? '',
     status: p.status,
+    ownerId: p.ownerId,
     accountableId: p.accountableId,
     plannedBudget: p.plannedBudget ?? '',
     budgetCurrency: p.budgetCurrency,
@@ -139,6 +144,24 @@ export default function ProjectFormFields({
         <p className="text-xs text-danger" role="alert">
           {t('projects.dateRange.invalid')}
         </p>
+      )}
+
+      {/* v1.86: reassignable owner — only shown in full-edit (owner/admin) mode. */}
+      {!locked && (
+        <label className="flex flex-col gap-1 text-sm">
+          <span>{t('projects.owner')}</span>
+          <select
+            value={values.ownerId ?? ''}
+            onChange={(e) => onChange({ ownerId: e.target.value || null })}
+            className="rounded border px-2 py-1.5 dark:bg-slate-700"
+          >
+            {members.map((m) => (
+              <option key={m.userId} value={m.userId}>
+                {m.name} ({m.role})
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       <label className="flex flex-col gap-1 text-sm">

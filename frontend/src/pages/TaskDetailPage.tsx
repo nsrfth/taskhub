@@ -7,6 +7,7 @@ import { useProjectTeam } from '@/features/projects/useProjectTeam';
 import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import * as tasksApi from '@/features/tasks/api';
+import { getMyDelegateStatus } from '@/features/projects/api';
 import * as commentsApi from '@/features/comments/api';
 import { MentionInput } from '@/features/comments/MentionInput';
 import { MentionText } from '@/features/comments/MentionText';
@@ -131,9 +132,20 @@ export default function TaskDetailPage(): JSX.Element {
     enabled: !!teamId && !!projectId && !!taskId,
   });
 
+  // v1.86: per-project full-edit delegation. A delegate (often a non-manager
+  // member) is elevated to change Responsible + the manager-only date fields on
+  // THIS project only. Self-scoped lookup — readable by any team member.
+  const { data: isDelegate = false } = useQuery({
+    queryKey: ['projects', teamId, projectId, 'delegates', 'me'],
+    queryFn: () => getMyDelegateStatus(teamId!, projectId!),
+    enabled: !!teamId && !!projectId && !!projectTeam,
+    staleTime: 30_000,
+  });
+
   // v1.19: team members feed the Responsible dropdown for managers/admins.
-  // Fetched lazily — only when the viewer can actually change Responsible.
-  const canChangeResponsible = isManager || user?.globalRole === 'ADMIN';
+  // v1.86: also for per-project delegates. Fetched lazily — only when the
+  // viewer can actually change Responsible.
+  const canChangeResponsible = isManager || user?.globalRole === 'ADMIN' || isDelegate;
   const canEditTask = !!projectTeam;
   const { data: teamMembersRaw = [] } = useQuery({
     queryKey: ['teams', teamId, 'assignees'],

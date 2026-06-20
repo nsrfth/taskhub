@@ -124,6 +124,15 @@ export async function resolveProjectAccess(
   // own (fixes the "Project not found" 404 on nested writes).
   if (await callerHasWriteAll(teamId, userId, globalRole)) return 'WRITE';
 
+  // v1.86: a per-project full-edit delegate gets WRITE so they can actually
+  // reach + edit this project's tasks/subtasks. This grants ACCESS only to the
+  // named delegate — it does NOT loosen the manager-only date gate or the
+  // task.change_responsible gate for anyone else (those are lifted separately,
+  // and only for the delegate, in tasks/subtasksService). The project-settings
+  // edit gate (projectsService.update) is unaffected — a delegate still can't
+  // rename/reassign the project.
+  if (await isProjectEditDelegate(projectId, userId)) return 'WRITE';
+
   let access: ProjectAccessLevel = 'NONE';
 
   if (scope === 'view' && (await callerHasProjectEdit(teamId, userId, globalRole))) {
@@ -134,6 +143,31 @@ export async function resolveProjectAccess(
   access = maxAccess(access, groupAccess);
 
   return access;
+}
+
+// v1.86: per-project "full-edit" delegation (ProjectEditDelegate). Deliberately
+// SEPARATE from resolveProjectAccess: project WRITE/group-FULL must NOT bypass
+// the manager-only date gate or the task.change_responsible gate, so this is its
+// own explicit, narrow elevation signal keyed by (projectId, userId). A delegate
+// on project A is never elevated on project B.
+export async function isProjectEditDelegate(
+  projectId: string,
+  userId: string,
+): Promise<boolean> {
+  const row = await prisma.projectEditDelegate.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { userId: true },
+  });
+  return !!row;
+}
+
+/** The userIds delegated full-edit on this project (owner-facing list + UI gate). */
+export async function listProjectDelegateIds(projectId: string): Promise<string[]> {
+  const rows = await prisma.projectEditDelegate.findMany({
+    where: { projectId },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
 }
 
 export interface TaskResponsibleCandidate {

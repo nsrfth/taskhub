@@ -345,9 +345,11 @@ Access resolution (highest wins, `scope`: `view` for list/get, `nested` for task
 
 1. Global `ADMIN` → WRITE
 2. `project.ownerId === userId` → WRITE
-3. `project.edit` manager → READ in **view** scope only (rename via separate update gate)
-4. ACCEPTED group grant with any FULL membership → WRITE; READONLY only → READ
-5. else NONE
+3. `project.write_all` → WRITE; else `project.edit` manager → READ in **view** scope only
+   (rename via separate update gate)
+4. `ProjectEditDelegate(projectId, userId)` → WRITE (v1.86 full-edit delegate)
+5. ACCEPTED group grant with any FULL membership → WRITE; READONLY only → READ
+6. else NONE
 
 External members are **not** given `TeamMembership`; they reach nested routes only via
 `requireTeamRoleOrGrantedProject` when `resolveProjectAccess !== NONE`.
@@ -360,8 +362,25 @@ creation** (v1.85): `projectsService.create(teamId, creatorId, input)` persists
 (`assertOwnerInTeam` → 400) — ownership grants full access, so it can never go to
 a non-member. `creatorId` (the requester) is only the default, kept distinct from
 the final owner. Before v1.85 the create body didn't accept an owner and the row
-always took the creator; reassigning ownership afterwards is still a separate
-manager action from the team roster.
+always took the creator.
+
+**Owner reassignment (v1.86).** `updateProjectBody` now accepts `ownerId`, so the
+owner can be changed from the edit form. It's a *non-name* field, so only the
+owner-or-ADMIN full-edit path may set it (a rename-only manager is rejected); the
+new owner is validated as a team member via the same `assertOwnerInTeam`.
+
+**Owner-delegated full edit (v1.86).** `ProjectEditDelegate(projectId, userId)` is a
+per-project delegation the **owner or a global ADMIN** manages
+(`PUT /teams/:teamId/projects/:projectId/delegates`, replace-set; owner/admin gated
+in the service). A delegate is granted project WRITE (rule #4 above, so they can
+reach the tasks) **and** is lifted past the two field-level gates — the
+`manager-only` date gate (`assertCanEditDate`) and the `task.change_responsible`
+permission — in `tasksService`/`subtasksService`, **for that project only**. This is
+deliberately a *separate* signal from access: WRITE/group-FULL on its own never
+bypasses those field gates (that would nullify them for every write-holder); only
+the explicit delegate is elevated. The task UI reads a self-scoped
+`GET …/delegates/me` to unlock the Responsible control for a delegate without
+exposing the full delegate list.
 
 ## Dashboard (v1.46)
 

@@ -598,6 +598,12 @@
   "projects.owner": "Owner",
   "projects.accountable": "Accountable",
   "projects.accountable.none": "None (optional)",
+  "projects.delegates.title": "Full-edit delegates",
+  "projects.delegates.hint": "Selected people can edit all task and subtask fields on this project — including the dates and the responsible person — even where those are normally manager-only.",
+  "projects.delegates.loading": "Loading…",
+  "projects.delegates.none": "No team members to delegate to.",
+  "projects.delegates.save": "Save delegates",
+  "projects.delegates.error": "Could not save delegates.",
   "projects.dateRange.invalid": "End date must be on or after start date",
   "projects.edit.nameOnlyHint": "You can rename this project only. Other fields are read-only for managers on projects you do not own.",
 

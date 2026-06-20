@@ -8,6 +8,9 @@ import { requireScope } from '../middleware/requireScope.js';
 import {
   createProjectBody,
   projectCrossTeamResponse,
+  projectDelegatesBody,
+  projectDelegatesResponse,
+  projectMyDelegateResponse,
   projectResponse,
   updateProjectBody,
 } from '../schemas/projects.js';
@@ -84,6 +87,48 @@ export async function projectsRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.remove,
+  });
+
+  // v1.86: per-project "full-edit" delegates. Read/replace the set of users the
+  // owner (or a global ADMIN) lets fully edit tasks/subtasks on this project —
+  // owner/admin authority is enforced in the service layer.
+  r.get('/:projectId/delegates', {
+    preHandler: requireScope('projects:read'),
+    schema: {
+      tags: ['projects'],
+      summary: 'List the full-edit delegates for a project (owner/admin only)',
+      params: z.object({ teamId: z.string(), projectId: z.string() }),
+      response: { 200: projectDelegatesResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.listDelegates,
+  });
+
+  r.put('/:projectId/delegates', {
+    preHandler: requireScope('projects:write'),
+    schema: {
+      tags: ['projects'],
+      summary: 'Replace the full-edit delegates for a project (owner/admin only)',
+      params: z.object({ teamId: z.string(), projectId: z.string() }),
+      body: projectDelegatesBody,
+      response: { 200: projectDelegatesResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.setDelegates,
+  });
+
+  // Self-scoped: any team member may check whether THEY are a delegate so the
+  // task/subtask UI can unlock the manager-only controls for them.
+  r.get('/:projectId/delegates/me', {
+    preHandler: requireScope('projects:read'),
+    schema: {
+      tags: ['projects'],
+      summary: 'Whether the caller is a full-edit delegate on this project',
+      params: z.object({ teamId: z.string(), projectId: z.string() }),
+      response: { 200: projectMyDelegateResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.myDelegateStatus,
   });
 }
 

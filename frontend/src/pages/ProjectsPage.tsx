@@ -202,6 +202,8 @@ export default function ProjectsPage(): JSX.Element {
             name: values.name,
             description: values.description || null,
             status: values.status,
+            // v1.86: owner reassignment (owner/admin full-edit path only).
+            ownerId: values.ownerId,
             accountableId: values.accountableId,
             plannedBudget: values.plannedBudget.trim() ? values.plannedBudget.trim() : null,
             budgetCurrency: values.budgetCurrency,

@@ -55,6 +55,9 @@ export default function CreateProjectForm({
     name: '',
     description: '',
     status: 'ACTIVE',
+    // Owner is tracked in the dedicated `ownerId` state above and merged in at
+    // submit ({ ...values, ownerId }); this placeholder just satisfies the type.
+    ownerId: user?.id ?? null,
     accountableId: null,
     plannedBudget: '',
     budgetCurrency: selectedTeam?.defaultCurrency ?? 'IRR',

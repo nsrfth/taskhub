@@ -349,6 +349,9 @@ model User {
   holidaysCreated    Holiday[]          @relation("HolidayCreatedBy")
   ownedDashboards    Dashboard[]        @relation("DashboardOwner")
   createdIntakeForms IntakeForm[]       @relation("IntakeFormCreator")
+  // v1.86: per-project full-edit delegations granted to / by this user.
+  projectEditDelegations ProjectEditDelegate[] @relation("ProjectEditDelegateUser")
+  projectEditDelegatesGranted ProjectEditDelegate[] @relation("ProjectEditDelegateGrantedBy")
 
   @@index([email])
 }
@@ -572,6 +575,7 @@ model Project {
   accountable   User?         @relation("ProjectAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   tasks         Task[]
   groupGrants   ProjectGroupGrant[]
+  editDelegates ProjectEditDelegate[]
   intakeForms   IntakeForm[]
   labels        ProjectLabel[]
 
@@ -635,6 +639,26 @@ model ProjectGroupGrant {
 
   @@id([projectId, groupId])
   @@index([groupId])
+}
+
+// v1.86: per-project "full-edit" delegation. The project owner (or a global
+// ADMIN) names users who may edit ALL task/subtask fields on this project —
+// crucially the manager-only date fields and the task.change_responsible-gated
+// field — for THIS project only. Deliberately separate from project access
+// (resolveProjectAccess) and group grants: WRITE/FULL must NOT silently bypass
+// those field-level restrictions, so the elevation is its own explicit record.
+model ProjectEditDelegate {
+  projectId   String
+  userId      String
+  grantedById String?
+  grantedAt   DateTime @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation("ProjectEditDelegateUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?   @relation("ProjectEditDelegateGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([projectId, userId])
+  @@index([userId])
 }
 
 enum RecurrenceFrequency {

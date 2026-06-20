@@ -77,6 +77,9 @@ export async function updateProject(
     name?: string;
     description?: string | null;
     status?: ProjectStatus;
+    // v1.86: reassignable owner. Owner = FULL access; server validates the new
+    // owner is a team member and that the caller is the owner or a global ADMIN.
+    ownerId?: string | null;
     accountableId?: string | null;
     // v1.41: budget PATCH. undefined leaves the field; null clears it.
     plannedBudget?: number | string | null;
@@ -93,4 +96,42 @@ export async function updateProject(
 
 export async function deleteProject(teamId: string, projectId: string): Promise<void> {
   await api.delete(`/teams/${teamId}/projects/${projectId}`);
+}
+
+// v1.86: per-project "full-edit" delegates — the users the owner/admin lets
+// fully edit tasks/subtasks on this project (incl. manager-only dates +
+// responsible). Owner/admin only; non-owners get 404 from these endpoints.
+export async function getProjectDelegates(
+  teamId: string,
+  projectId: string,
+): Promise<string[]> {
+  return (
+    await api.get<{ userIds: string[] }>(`/teams/${teamId}/projects/${projectId}/delegates`)
+  ).data.userIds;
+}
+
+export async function setProjectDelegates(
+  teamId: string,
+  projectId: string,
+  userIds: string[],
+): Promise<string[]> {
+  return (
+    await api.put<{ userIds: string[] }>(`/teams/${teamId}/projects/${projectId}/delegates`, {
+      userIds,
+    })
+  ).data.userIds;
+}
+
+// Self-scoped: whether the current user is a full-edit delegate on this project.
+// Readable by any team member (unlike the owner-only list above) so the
+// task/subtask UI can unlock the manager-only controls for a delegate.
+export async function getMyDelegateStatus(
+  teamId: string,
+  projectId: string,
+): Promise<boolean> {
+  return (
+    await api.get<{ isDelegate: boolean }>(
+      `/teams/${teamId}/projects/${projectId}/delegates/me`,
+    )
+  ).data.isDelegate;
 }

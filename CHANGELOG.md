@@ -7,6 +7,42 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.86.0] — 2026-06-20
+
+**System-admin reach, project-owner reassignment, and owner-delegated full edit.**
+Three related authorization features.
+
+**1. System Administrator — full settings access (verified + locked in).**
+A global `ADMIN` can already reach and edit *every* settings surface, including
+team-scoped settings (roles, labels, custom fields, automations, intake forms,
+groups, webhooks, …) for teams they are **not** a member of — via the existing
+synthetic-MANAGER-membership in `requireTeamRole` plus the `requirePermission`
+ADMIN bypass. No new role/enum was introduced (avoids the GlobalRole/TeamRole
+namespace confusion). This slice adds a comprehensive negative-authorization
+test suite (`adminSettingsAccess.test.ts`) proving admin-without-membership can
+read+write while a non-admin non-member is rejected.
+
+**2. Owner reassignment in the project edit form.**
+`updateProjectBody` now accepts `ownerId`; `projectsService.update` validates the
+new owner is a team member (reuses `assertOwnerInTeam`) and persists it. Owner =
+FULL access, so reassignment is gated to the **current owner or a global ADMIN**
+— a rename-only manager cannot set it (`ownerId` counts as a non-name field). The
+edit modal gains an Owner picker (reuses the `projects.owner` i18n key). No
+migration — `Project.ownerId` already existed.
+
+**3. Owner-delegated full edit of tasks & subtasks (per project).**
+New `ProjectEditDelegate` table (`@@id([projectId, userId])`). The project owner
+(or a global ADMIN) names users who may fully edit that project's tasks/subtasks
+— including the `manager-only` date fields and the `task.change_responsible`-gated
+field — **for that project only**. Deliberately a *separate* signal from project
+access: a delegate is granted project `WRITE` (so they can reach the tasks) and
+is lifted past the two field gates, but this never loosens those gates for any
+other write-holder, and never on a project they weren't delegated. Enforcement
+flows through `resolveProjectAccess` (delegate → WRITE) plus the date/responsible
+gates in `tasksService`/`subtasksService`. Owner-facing control lives in the
+project edit modal; the task UI unlocks the Responsible control for a delegate
+via a self-scoped `GET …/delegates/me`. i18n `projects.delegates.*` (EN + FA).
+
 ## [1.85.0] — 2026-06-17
 
 **Projects — selectable owner at creation (was silently ignored).**

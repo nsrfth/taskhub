@@ -598,6 +598,12 @@
   "projects.owner": "مالک",
   "projects.accountable": "مسئول (RACI)",
   "projects.accountable.none": "بدون مسئول (اختیاری)",
+  "projects.delegates.title": "نمایندگان ویرایش کامل",
+  "projects.delegates.hint": "افراد انتخاب‌شده می‌توانند همهٔ فیلدهای وظیفه‌ها و زیروظیفه‌های این پروژه را ویرایش کنند — از جمله تاریخ‌ها و فرد مسئول — حتی جایی که این موارد معمولاً فقط برای مدیران است.",
+  "projects.delegates.loading": "در حال بارگذاری…",
+  "projects.delegates.none": "عضوی برای واگذاری وجود ندارد.",
+  "projects.delegates.save": "ذخیرهٔ نمایندگان",
+  "projects.delegates.error": "ذخیرهٔ نمایندگان ممکن نشد.",
   "projects.dateRange.invalid": "تاریخ پایان باید در همان روز یا بعد از تاریخ شروع باشد",
   "projects.edit.nameOnlyHint": "فقط می‌توانید نام این پروژه را تغییر دهید. سایر فیلدها برای مدیرانی که مالک پروژه نیستند فقط خواندنی است.",
 
