@@ -23,11 +23,12 @@ import { loadBoardGroupBy, saveBoardGroupBy } from '@/features/planner/storage';
 import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import { ShamsiDatePicker } from '@/lib/ShamsiDatePicker';
-const STATUS_ORDER: tasksApi.TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
+const STATUS_ORDER: tasksApi.TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL', 'DONE'];
 const STATUS_LABEL: Record<tasksApi.TaskStatus, string> = {
   TODO: 'To do',
   IN_PROGRESS: 'In progress',
   REVIEW: 'Review',
+  PENDING_APPROVAL: 'Pending approval',
   DONE: 'Done',
 };
 const PRIORITY_LABEL: Record<tasksApi.TaskPriority, string> = {
@@ -557,12 +558,14 @@ const STATUS_RANK: Record<tasksApi.TaskStatus, number> = {
   TODO: 0,
   IN_PROGRESS: 1,
   REVIEW: 2,
-  DONE: 3,
+  PENDING_APPROVAL: 3,
+  DONE: 4,
 };
 const STATUS_BADGE: Record<tasksApi.TaskStatus, string> = {
   TODO: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
   IN_PROGRESS: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
   REVIEW: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200',
+  PENDING_APPROVAL: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200',
   DONE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200',
 };
 

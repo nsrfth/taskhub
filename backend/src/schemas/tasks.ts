@@ -4,7 +4,16 @@ import { refineTaskDueDateRange } from '../lib/calendarDate.js';
 import { taskCustomFieldValueResponse } from './customFields.js';
 import { currencyEnum } from './currency.js';
 
-export const taskStatusEnum = z.enum(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']);
+export const taskStatusEnum = z.enum([
+  'TODO',
+  'IN_PROGRESS',
+  'REVIEW',
+  // v1.87: system-managed approval gate. A task lands here when it is
+  // "completed" (moved to DONE) by a non-finalizer while requiresApproval is on.
+  // Not selectable directly in the UI status picker.
+  'PENDING_APPROVAL',
+  'DONE',
+]);
 export const taskPriorityEnum = z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']);
 
 // v1.42: shared budget validator. Same shape as the v1.41 Project budget
@@ -40,6 +49,10 @@ export const createTaskBody = z.object({
   assigneeId: z.string().nullable().optional(),
   // v1.78: optional at create — defaults to creator when omitted.
   responsibleId: z.string().nullable().optional(),
+  // v1.87: optional approval gate. requiresApproval=true needs an approverId
+  // (a project-eligible user, validated server-side).
+  requiresApproval: z.boolean().optional(),
+  approverId: z.string().nullable().optional(),
   // ISO 8601; backend converts to Date. Client sends `null` to clear.
   // Four date concepts the task model tracks (v1.37):
   //   - startDate   — when work began (informational; no scheduler reads it)
@@ -70,6 +83,10 @@ export const updateTaskBody = z
     assigneeId: z.string().nullable().optional(),
     // v1.19: gated server-side to team MANAGER / global ADMIN.
     responsibleId: z.string().nullable().optional(),
+    // v1.87: toggle the approval gate / change the approver. Status is NOT moved
+    // to PENDING_APPROVAL here — that only happens on a DONE transition.
+    requiresApproval: z.boolean().optional(),
+    approverId: z.string().nullable().optional(),
     // v1.37: started-on date. Same shape + governance as the other
     // date fields (subject to the v1.18 manager-only restriction).
     startDate: z.string().datetime().nullable().optional(),
@@ -101,6 +118,14 @@ export const reorderTaskBody = z.object({
 });
 
 export type ReorderTaskBody = z.infer<typeof reorderTaskBody>;
+
+// v1.87: approval decision bodies. Approve takes no body; reject requires a
+// reason (logged on the activity entry).
+export const rejectTaskBody = z.object({
+  reason: z.string().min(1).max(2000).trim(),
+});
+
+export type RejectTaskBody = z.infer<typeof rejectTaskBody>;
 
 export const responsibleCandidateResponse = z.object({
   userId: z.string(),
@@ -152,6 +177,11 @@ export const taskResponse = z.object({
   // global ADMIN via the `task.change_responsible` permission.
   responsibleId: z.string().nullable(),
   responsibleName: z.string().nullable(),
+  // v1.87: approval gate. requiresApproval reflects the per-task setting;
+  // approverId/approverName identify the designated approver (joined for the UI).
+  requiresApproval: z.boolean(),
+  approverId: z.string().nullable(),
+  approverName: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   status: taskStatusEnum,

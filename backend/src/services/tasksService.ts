@@ -123,6 +123,11 @@ export interface TaskView {
   // is joined for the UI.
   responsibleId: string | null;
   responsibleName: string | null;
+  // v1.87: approval gate. requiresApproval = per-task setting; approverId/Name
+  // identify the designated approver (joined for the UI).
+  requiresApproval: boolean;
+  approverId: string | null;
+  approverName: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -168,6 +173,8 @@ const TASK_INCLUDE = {
     },
   },
   responsible: { select: { name: true } },
+  // v1.87: approver name joined for the UI (approval gate).
+  approver: { select: { name: true } },
 } as const;
 
 function toView(
@@ -187,6 +194,9 @@ function toView(
     assigneeId: row.assigneeId,
     responsibleId: row.responsibleId,
     responsibleName: row.responsible?.name ?? null,
+    requiresApproval: row.requiresApproval,
+    approverId: row.approverId,
+    approverName: row.approver?.name ?? null,
     title: row.title,
     description: row.description,
     status: row.status,
@@ -291,6 +301,9 @@ export class TasksService {
       assigneeId?: string | null;
       // v1.78: optional at create — omitted defaults to creator.
       responsibleId?: string | null;
+      // v1.87: optional approval gate.
+      requiresApproval?: boolean;
+      approverId?: string | null;
       // v1.37: started-on date. Same shape as the other date fields.
       // Auto-set isn't worth the surprise — left as user-supplied only.
       startDate?: string | null;
@@ -358,6 +371,18 @@ export class TasksService {
       }
     }
 
+    // v1.87: approval gate. An approver (when set) must be project-eligible
+    // (same pool as responsible); turning requiresApproval on needs one.
+    const requiresApproval = input.requiresApproval ?? false;
+    const approverId = input.approverId ?? null;
+    if (requiresApproval && !approverId) {
+      throw Errors.badRequest('approverId is required when requiresApproval is true');
+    }
+    if (approverId) {
+      const approverEligible = await isUserEligibleTaskResponsible(teamId, projectId, approverId);
+      if (!approverEligible) throw Errors.badRequest('Approver is not eligible for this project');
+    }
+
     const status = input.status ?? 'TODO';
 
     // Append to the end of the target status column. Sparse positions (gap of
@@ -403,6 +428,8 @@ export class TasksService {
           description: input.description ?? null,
           status,
           priority: input.priority ?? 'MEDIUM',
+          requiresApproval,
+          approverId,
           startDate,
           dueDate: dueResolvedForCreate.dueDate,
           plannedDate: input.plannedDate ? new Date(input.plannedDate) : null,
@@ -561,6 +588,9 @@ export class TasksService {
       // v1.19: changing responsibleId requires team MANAGER or global ADMIN.
       // Undefined = leave as-is; explicit null = clear (also gated).
       responsibleId?: string | null;
+      // v1.87: toggle the approval gate / change the approver.
+      requiresApproval?: boolean;
+      approverId?: string | null;
       // v1.37: started-on date. Subject to the same v1.18 manager-only
       // gate as the other date fields.
       startDate?: string | null;
@@ -591,6 +621,24 @@ export class TasksService {
         where: { userId_teamId: { userId: input.assigneeId, teamId } },
       });
       if (!membership) throw Errors.badRequest('Assignee is not a member of this team');
+    }
+
+    // v1.87: approval-config change (toggle requiresApproval / set the approver).
+    // An approver (when set) must be project-eligible (same pool as responsible);
+    // turning requiresApproval on needs one. Computed here so the DONE-gate below
+    // sees the effective values even when the same PATCH toggles them.
+    const nextRequiresApproval =
+      input.requiresApproval !== undefined ? input.requiresApproval : existing.requiresApproval;
+    const nextApproverId =
+      input.approverId !== undefined ? input.approverId : existing.approverId;
+    if (input.requiresApproval !== undefined || input.approverId !== undefined) {
+      if (input.approverId != null) {
+        const approverEligible = await isUserEligibleTaskResponsible(teamId, projectId, input.approverId);
+        if (!approverEligible) throw Errors.badRequest('Approver is not eligible for this project');
+      }
+      if (nextRequiresApproval && !nextApproverId) {
+        throw Errors.badRequest('approverId is required when requiresApproval is true');
+      }
     }
 
     // v1.86: per-project full-edit delegation. A delegate on THIS project is
@@ -696,14 +744,34 @@ export class TasksService {
       await _deps.assertStatusTransitionAllowed(taskId, input.status);
     }
 
+    // v1.87: approval gate on "completion". Moving a require-approval task to
+    // DONE routes it to PENDING_APPROVAL instead — unless the actor is a
+    // finalizer (the designated approver, a team MANAGER, a global ADMIN, or a
+    // per-project full-edit delegate), who completes it directly. The dependency
+    // guard above already ran on the requested status (DONE), so a blocked task
+    // can't slip into approval.
+    let effectiveStatus = input.status;
+    let routedToApproval = false;
+    if (input.status === 'DONE' && input.status !== existing.status && nextRequiresApproval) {
+      const isFinalizer =
+        actorId === nextApproverId ||
+        actorTeamRole === 'MANAGER' ||
+        actorGlobalRole === 'ADMIN' ||
+        (await isProjectEditDelegate(projectId, actorId));
+      if (!isFinalizer) {
+        effectiveStatus = 'PENDING_APPROVAL';
+        routedToApproval = true;
+      }
+    }
+
     // Moving across status columns: re-append to the end of the new column so
     // the task lands somewhere sensible. Reordering within a column is a
     // future endpoint (drag-and-drop UI).
     let nextPosition = existing.position;
-    const statusChanged = input.status !== undefined && input.status !== existing.status;
+    const statusChanged = effectiveStatus !== undefined && effectiveStatus !== existing.status;
     if (statusChanged) {
       const last = await prisma.task.findFirst({
-        where: { projectId, status: input.status },
+        where: { projectId, status: effectiveStatus },
         orderBy: { position: 'desc' },
         select: { position: true },
       });
@@ -717,7 +785,7 @@ export class TasksService {
     let resolvedCompletedAt: Date | null | undefined;
     if (input.completedAt !== undefined) {
       resolvedCompletedAt = input.completedAt === null ? null : new Date(input.completedAt);
-    } else if (statusChanged && input.status === 'DONE' && existing.completedAt === null) {
+    } else if (statusChanged && effectiveStatus === 'DONE' && existing.completedAt === null) {
       resolvedCompletedAt = new Date();
     } else {
       resolvedCompletedAt = undefined; // skip update
@@ -765,10 +833,12 @@ export class TasksService {
           data: {
             ...(input.title !== undefined && { title: input.title }),
             ...(input.description !== undefined && { description: input.description }),
-            ...(input.status !== undefined && { status: input.status, position: nextPosition }),
+            ...(effectiveStatus !== undefined && { status: effectiveStatus, position: nextPosition }),
             ...(input.priority !== undefined && { priority: input.priority }),
             ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
             ...(input.responsibleId !== undefined && { responsibleId: input.responsibleId }),
+            ...(input.requiresApproval !== undefined && { requiresApproval: input.requiresApproval }),
+            ...(input.approverId !== undefined && { approverId: input.approverId }),
             ...(input.startDate !== undefined && {
               startDate: input.startDate === null ? null : new Date(input.startDate),
             }),
@@ -819,29 +889,41 @@ export class TasksService {
         // so the timeline reads naturally. A no-op PATCH (everything matched)
         // emits nothing — don't spam the audit log.
         if (statusChanged) {
+          const newStatus = effectiveStatus as TaskStatus;
           await logActivity(tx, {
             taskId,
             actorId,
             action: 'task.status_changed',
-            meta: { from: existing.status, to: input.status },
+            meta: { from: existing.status, to: newStatus },
           });
+          // v1.87: explicit approval-request entry when a completion was routed
+          // to PENDING_APPROVAL (separate from the generic status change).
+          if (routedToApproval) {
+            await logActivity(tx, {
+              taskId,
+              actorId,
+              action: 'task.approval_requested',
+              meta: { approverId: nextApproverId },
+            });
+          }
           await notifications.onStatusChanged(tx, {
             taskId,
             projectId: existing.projectId,
             teamId: existing.teamId,
             actorId,
             from: existing.status,
-            to: input.status!,
+            to: newStatus,
             taskTitle: updated.title,
           });
           // v1.29 / v1.83: fan-out unblock notifications. A → DONE frees
           // FS + FF dependents; A → IN_PROGRESS frees SS dependents. Runs in
           // the transaction so a rollback wipes both the change + notifications.
+          // (A completion routed to PENDING_APPROVAL is NOT done, so nothing unblocks.)
           if (
-            (input.status === 'DONE' || input.status === 'IN_PROGRESS') &&
-            input.status !== existing.status
+            (newStatus === 'DONE' || newStatus === 'IN_PROGRESS') &&
+            newStatus !== existing.status
           ) {
-            await _deps.notifyUnblocked(tx, taskId, input.status, actorId);
+            await _deps.notifyUnblocked(tx, taskId, newStatus, actorId);
           }
         }
         if (changedNonStatusFields.length > 0) {
@@ -950,6 +1032,123 @@ export class TasksService {
       }
       throw err;
     }
+  }
+
+  // v1.87: approve a PENDING_APPROVAL task → DONE (completedAt stamped now).
+  async approve(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    actorId: string,
+    actorTeamRole: TeamRole,
+    actorGlobalRole: GlobalRole,
+  ): Promise<TaskView> {
+    return this.decideApproval(teamId, projectId, taskId, actorId, actorTeamRole, actorGlobalRole, {
+      decision: 'APPROVED',
+    });
+  }
+
+  // v1.87: reject a PENDING_APPROVAL task → IN_PROGRESS, with a required reason.
+  async reject(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    actorId: string,
+    actorTeamRole: TeamRole,
+    actorGlobalRole: GlobalRole,
+    reason: string,
+  ): Promise<TaskView> {
+    return this.decideApproval(teamId, projectId, taskId, actorId, actorTeamRole, actorGlobalRole, {
+      decision: 'REJECTED',
+      reason,
+    });
+  }
+
+  // Shared approve/reject path. Any project access reaches this (the global
+  // requireProjectAccess hook) — the FINALIZER check here is the real gate, so
+  // a designated approver who lacks project WRITE can still decide.
+  private async decideApproval(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    actorId: string,
+    actorTeamRole: TeamRole,
+    actorGlobalRole: GlobalRole,
+    decision:
+      | { decision: 'APPROVED' }
+      | { decision: 'REJECTED'; reason: string },
+  ): Promise<TaskView> {
+    const existing = await this.get(teamId, projectId, taskId);
+    if (existing.status !== 'PENDING_APPROVAL') {
+      throw Errors.badRequest('Task is not pending approval');
+    }
+    const isFinalizer =
+      actorId === existing.approverId ||
+      actorTeamRole === 'MANAGER' ||
+      actorGlobalRole === 'ADMIN' ||
+      (await isProjectEditDelegate(projectId, actorId));
+    if (!isFinalizer) {
+      throw Errors.forbidden('Not permitted to decide approval for this task');
+    }
+
+    const nextStatus: TaskStatus = decision.decision === 'APPROVED' ? 'DONE' : 'IN_PROGRESS';
+    const last = await prisma.task.findFirst({
+      where: { projectId, status: nextStatus },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    const nextPosition = (last?.position ?? 0) + POSITION_GAP;
+
+    const view = await prisma.$transaction(async (tx) => {
+      const updated = await tx.task.update({
+        where: { id: taskId },
+        data: {
+          status: nextStatus,
+          position: nextPosition,
+          completedAt: decision.decision === 'APPROVED' ? new Date() : null,
+        },
+        include: TASK_INCLUDE,
+      });
+      await logActivity(tx, {
+        taskId,
+        actorId,
+        action: decision.decision === 'APPROVED' ? 'task.approval_approved' : 'task.approval_rejected',
+        meta: decision.decision === 'APPROVED' ? {} : { reason: decision.reason },
+      });
+      await logActivity(tx, {
+        taskId,
+        actorId,
+        action: 'task.status_changed',
+        meta: { from: 'PENDING_APPROVAL', to: nextStatus },
+      });
+      await notifications.onStatusChanged(tx, {
+        taskId,
+        projectId: existing.projectId,
+        teamId: existing.teamId,
+        actorId,
+        from: 'PENDING_APPROVAL',
+        to: nextStatus,
+        taskTitle: updated.title,
+      });
+      // Approval → DONE frees FS/FF dependents; rejection → IN_PROGRESS frees SS.
+      await _deps.notifyUnblocked(tx, taskId, nextStatus, actorId);
+      const blockerCount = await tx.taskDependency.count({
+        where: {
+          taskId,
+          type: 'FINISH_TO_START',
+          dependsOn: { status: { not: 'DONE' }, deletedAt: null },
+        },
+      });
+      return toView(updated, blockerCount);
+    });
+
+    const hydrated = await withCustomFields(teamId, view);
+    await _webhooks.emit(hydrated.teamId, 'task.status_changed', {
+      task: hydrated,
+      from: 'PENDING_APPROVAL',
+      to: nextStatus,
+    });
+    return hydrated;
   }
 
   // Place `taskId` immediately before `beforeTaskId` in the target column.

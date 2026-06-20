@@ -84,7 +84,7 @@ export const overdueTaskRow = z.object({
   taskTitle: z.string(),
   projectId: z.string(),
   projectName: z.string(),
-  status: z.enum(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']),
+  status: z.enum(['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL', 'DONE']),
   assigneeId: z.string().nullable(),
   assigneeName: z.string().nullable(),
   dueDate: z.string(),
@@ -139,7 +139,7 @@ export const upcomingTaskRow = z.object({
   taskTitle: z.string(),
   projectId: z.string(),
   projectName: z.string(),
-  status: z.enum(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']),
+  status: z.enum(['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL', 'DONE']),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   dueDate: z.string(),
   // Negative when the due date already passed today (caller normally hides

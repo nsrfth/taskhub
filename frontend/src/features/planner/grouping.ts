@@ -82,11 +82,12 @@ export interface BoardColumn<TKey extends string = string> {
 }
 
 export function groupTasksByStatus(tasks: Task[]): BoardColumn<Task['status']>[] {
-  const order: Task['status'][] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
+  const order: Task['status'][] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL', 'DONE'];
   const labels: Record<Task['status'], string> = {
     TODO: 'To do',
     IN_PROGRESS: 'In progress',
     REVIEW: 'Review',
+    PENDING_APPROVAL: 'Pending approval',
     DONE: 'Done',
   };
   const map = new Map<Task['status'], Task[]>();

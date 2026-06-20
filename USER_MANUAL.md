@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.86.0** (2026-06-20)
+Version **v1.87.0** (2026-06-20)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -178,6 +178,8 @@ The **Kanban board** (`/projects/<id>/tasks`) is the main work view for a single
 - When creating a task, you can optionally set **Start**, **Due**, and **Responsible** (defaults to you). Dates use the Shamsi/Gregorian calendar picker; only the title is required.
 - In **List** view, tasks with subtasks show a chevron and subtask count (collapsed by default); expand to see indented subtask rows.
 - Click a card to open the **Task detail** page.
+
+**Approval workflow (v1.87).** On the task detail page, a manager/admin (or a full-edit delegate) can switch on **Require approval** and choose an **approver**. After that, when someone moves the task to **Done** it goes to a **Pending approval** state instead of completing — unless the person completing it is a *finalizer* (the chosen approver, a team manager, a system admin, or a delegate), who completes it directly. While pending, the approver (or a finalizer) sees **Approve** (→ Done) or **Reject** with a required reason (→ In progress). Pending tasks appear in a purple **Pending approval** column on the board; the status isn't something you pick manually — it's reached by completing a require-approval task.
 
 To create a task: use the inline form at the top of the board, fill in at least a title, optionally pick a priority, hit **Add task**. New tasks land at the top of **To do**.
 

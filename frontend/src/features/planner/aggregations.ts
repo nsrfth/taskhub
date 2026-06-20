@@ -13,6 +13,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   TODO: 'Open',
   IN_PROGRESS: 'In Progress',
   REVIEW: 'Review',
+  PENDING_APPROVAL: 'Pending approval',
   DONE: 'Completed',
 };
 
@@ -22,6 +23,7 @@ export function statusDistributionFromTasks(tasks: Task[]): StatusSlice[] {
     TODO: 0,
     IN_PROGRESS: 0,
     REVIEW: 0,
+    PENDING_APPROVAL: 0,
     DONE: 0,
   };
   let blocked = 0;
@@ -30,7 +32,9 @@ export function statusDistributionFromTasks(tasks: Task[]): StatusSlice[] {
     if (t.incompleteBlockerCount > 0 && t.status !== 'DONE') blocked += 1;
   }
   const total = tasks.length || 1;
-  const slices: StatusSlice[] = (['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'] as TaskStatus[]).map(
+  const slices: StatusSlice[] = (
+    ['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL', 'DONE'] as TaskStatus[]
+  ).map(
     (s) => ({
       status: s,
       label: STATUS_LABEL[s],
@@ -53,7 +57,9 @@ export function statusDistributionFromSummary(summary: SummaryReport): StatusSli
   const by = summary.byStatus;
   const total =
     by.TODO + by.IN_PROGRESS + by.REVIEW + by.DONE || 1;
-  return (['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'] as TaskStatus[]).map((s) => ({
+  // The summary report's byStatus is a 4-state breakdown (no PENDING_APPROVAL),
+  // so iterate exactly its keys (`as const`, not the widened TaskStatus[]).
+  return (['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'] as const).map((s) => ({
     status: s,
     label: STATUS_LABEL[s],
     count: by[s],

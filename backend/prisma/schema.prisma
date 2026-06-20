@@ -35,6 +35,10 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   REVIEW
+  // v1.87: a task that requires approval lands here when "completed" (moved to
+  // DONE) by a non-finalizer — it waits for the designated approver (or a
+  // manager/admin) to approve (→ DONE) or reject-with-reason (→ IN_PROGRESS).
+  PENDING_APPROVAL
   DONE
 }
 
@@ -326,6 +330,7 @@ model User {
   assignedTasks  Task[]           @relation("TaskAssignee")
   createdTasks   Task[]           @relation("TaskCreator")
   responsibleForTasks    Task[]    @relation("TaskResponsible")
+  approverForTasks       Task[]    @relation("TaskApprover")
   responsibleForSubtasks Subtask[] @relation("SubtaskResponsible")
   // v1.42: Subtask assignee — distinct from responsible (RACI). Anyone
   // with project access can change this; SetNull on user delete.
@@ -725,6 +730,12 @@ model Task {
   description String?
   status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
+  // v1.87: optional approval gate. When requiresApproval is true, "completing"
+  // the task (moving it to DONE) by a non-finalizer routes it to
+  // PENDING_APPROVAL until the approver (or a manager/admin) decides. approverId
+  // is nullable + SetNull so a user delete doesn't cascade-kill the task.
+  requiresApproval Boolean   @default(false)
+  approverId       String?
   // Hard deadline — "must be done by". Powers the TASK_DUE scheduler.
   dueDate     DateTime?
   // v1.37: "started on" date. Nullable, UTC midnight (same convention as
@@ -768,6 +779,7 @@ model Task {
   creator     User?        @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   responsible  User?        @relation("TaskResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  approver    User?        @relation("TaskApprover", fields: [approverId], references: [id], onDelete: SetNull)
   deletedBy   User?        @relation("TaskDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   subtasks    Subtask[]
   labels      TaskLabel[]
@@ -796,6 +808,7 @@ model Task {
   @@index([teamId, status])
   @@index([teamId, assigneeId])
   @@index([teamId, responsibleId])
+  @@index([approverId])
   @@index([teamId, dueDate])
   @@index([teamId, deletedAt])
   // v1.30.10 (S-18): /reports/done + the CompletionTrend dashboard

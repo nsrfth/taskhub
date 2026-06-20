@@ -18,11 +18,13 @@ import { formatShamsiDate } from '@/lib/shamsi';
 import { taskProgressPercent } from './progress';
 import type { BoardColumn } from './grouping';
 
-const STATUS_ORDER: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
+const STATUS_ORDER: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL', 'DONE'];
 const STATUS_LABEL: Record<TaskStatus, string> = {
   TODO: 'To do',
   IN_PROGRESS: 'In progress',
   REVIEW: 'Review',
+  // v1.87: system-managed approval state — resolved via approve/reject, not the picker.
+  PENDING_APPROVAL: 'Pending approval',
   DONE: 'Done',
 };
 const PRIORITY_LABEL: Record<Task['priority'], string> = {
@@ -161,7 +163,9 @@ function BoardCard({
               onChange={(e) => onStatusChange(task, e.target.value as TaskStatus)}
               className="rounded border-slate-300 px-1 py-0.5 border text-xs dark:bg-slate-700"
             >
-              {STATUS_ORDER.map((s) => (
+              {/* v1.87: PENDING_APPROVAL is system-managed — only shown when the
+                  task is already there (so the value matches), never selectable. */}
+              {STATUS_ORDER.filter((s) => s !== 'PENDING_APPROVAL' || s === task.status).map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABEL[s]}
                 </option>

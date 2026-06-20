@@ -7,6 +7,33 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.87.0] — 2026-06-20
+
+**Tasks — optional approval workflow.**
+A task can now require **approval** by a designated approver before it counts as
+done — the first of the Mizito tasks-spec behaviours not already covered, adapted
+onto TaskHub's existing Fastify tasks module (no parallel models).
+
+- **Schema:** new `TaskStatus.PENDING_APPROVAL`, plus `Task.requiresApproval` +
+  `Task.approverId` (migration `20260627120000_task_approval`, additive).
+- **Behaviour:** moving a require-approval task to **DONE** routes it to
+  **PENDING_APPROVAL** *unless* the actor is a **finalizer** — the designated
+  approver, a team MANAGER, a global ADMIN, or a per-project full-edit delegate —
+  who completes it directly. The dependency status-guard still runs on the
+  requested status, so a blocked task can't slip into approval.
+- **Decisions:** `POST …/tasks/:taskId/approve` → DONE (+ `completedAt`);
+  `POST …/tasks/:taskId/reject` (reason **required**) → IN_PROGRESS. Both gated to
+  finalizers in the service (the routes deliberately don't require project WRITE,
+  so a designated approver with only READ access can still decide). Decisions are
+  recorded on the activity log (`task.approval_requested/approved/rejected`).
+- **UI:** the task detail page gains an Approval section — managers/admins/delegates
+  toggle *Require approval* + pick an approver; when pending, the approver (or a
+  finalizer) sees Approve / Reject-with-reason. `PENDING_APPROVAL` shows on the
+  board (purple) but is **not** offered in the manual status picker. i18n EN + FA.
+
+The supplied NestJS reference spec is kept at `docs/TASKS_MODULE.md`; copy /
+copy-for-several, weight, and multi-assignee remain deferred.
+
 ## [1.86.0] — 2026-06-20
 
 **System-admin reach, project-owner reassignment, and owner-delegated full edit.**

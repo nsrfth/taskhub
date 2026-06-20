@@ -97,6 +97,12 @@ function describeActivity(a: activityApi.ActivityEntry): string {
       return `moved the task from ${meta.from} to ${meta.to}`;
     case 'task.updated':
       return `updated ${(meta.fields as string[] | undefined)?.join(', ') ?? 'the task'}`;
+    case 'task.approval_requested':
+      return 'requested approval';
+    case 'task.approval_approved':
+      return 'approved the task';
+    case 'task.approval_rejected':
+      return `rejected the task${meta.reason ? `: "${meta.reason as string}"` : ''}`;
     case 'task.customfield_set': {
       const name = (meta.fieldName as string | undefined) ?? 'custom field';
       const summary = (meta.summary as string | undefined) ?? '';
@@ -190,6 +196,9 @@ export default function TaskDetailPage(): JSX.Element {
   const [dueDateInput, setDueDateInput] = useState<string | null>(null);
   const [plannedDateInput, setPlannedDateInput] = useState<string | null>(null);
   const [completedAtInput, setCompletedAtInput] = useState<string | null>(null);
+  // v1.87: approval reject reason + its inline editor toggle.
+  const [rejectReason, setRejectReason] = useState('');
+  const [showReject, setShowReject] = useState(false);
   useEffect(() => {
     setStartDateInput(task?.startDate ?? null);
     setDueDateInput(task?.dueDate ?? null);
@@ -206,6 +215,28 @@ export default function TaskDetailPage(): JSX.Element {
         qc.invalidateQueries({ queryKey: ['tasks', teamId, projectId] }),
         qc.invalidateQueries({ queryKey: ['activity', taskId] }),
       ]);
+    },
+  });
+
+  // v1.87: approval decisions. Both invalidate the same query set as updateTask.
+  const invalidateTask = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['task', teamId, projectId, taskId] }),
+      qc.invalidateQueries({ queryKey: ['tasks', teamId, projectId] }),
+      qc.invalidateQueries({ queryKey: ['activity', taskId] }),
+    ]);
+  const approveTaskMut = useMutation({
+    mutationFn: () => tasksApi.approveTask(teamId!, projectId!, taskId!),
+    onSuccess: async () => {
+      await invalidateTask();
+    },
+  });
+  const rejectTaskMut = useMutation({
+    mutationFn: (reason: string) => tasksApi.rejectTask(teamId!, projectId!, taskId!, reason),
+    onSuccess: async () => {
+      setRejectReason('');
+      setShowReject(false);
+      await invalidateTask();
     },
   });
 
@@ -357,6 +388,104 @@ export default function TaskDetailPage(): JSX.Element {
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* v1.87: approval-gate config — managers/admins/delegates can
+                require approval and pick the approver. */}
+            {canChangeResponsible && (
+              <div className="mt-5 pt-4 border-t">
+                <h3 className="text-xs font-medium text-slate-600 mb-2">
+                  {t('tasks.approval.config')}
+                </h3>
+                <label className="flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    checked={task.requiresApproval}
+                    onChange={(e) =>
+                      updateTaskMut.mutate({
+                        requiresApproval: e.target.checked,
+                        ...(e.target.checked ? {} : { approverId: null }),
+                      } as Partial<tasksApi.Task>)
+                    }
+                    disabled={updateTaskMut.isPending}
+                  />
+                  <span>{t('tasks.approval.requires')}</span>
+                </label>
+                {task.requiresApproval && (
+                  <select
+                    value={task.approverId ?? ''}
+                    onChange={(e) =>
+                      updateTaskMut.mutate({
+                        approverId: e.target.value || null,
+                      } as Partial<tasksApi.Task>)
+                    }
+                    disabled={updateTaskMut.isPending}
+                    className="text-sm rounded border border-border px-2 py-1 max-w-sm"
+                  >
+                    <option value="">{t('tasks.approval.pickApprover')}</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {m.name} ({m.role})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* v1.87: approval action — when pending, the approver (or a
+                manager/admin/delegate) approves or rejects with a reason. */}
+            {task.status === 'PENDING_APPROVAL' && (
+              <div className="mt-5 pt-4 border-t">
+                <h3 className="text-xs font-medium text-purple-700 mb-2">
+                  {t('tasks.approval.pending')}
+                </h3>
+                <p className="text-sm text-slate-600 mb-3">
+                  {t('tasks.approval.waitingFor')}{' '}
+                  <span className="font-medium">{task.approverName ?? '—'}</span>
+                </p>
+                {(canChangeResponsible || (!!user?.id && user.id === task.approverId)) && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => approveTaskMut.mutate()}
+                        disabled={approveTaskMut.isPending || rejectTaskMut.isPending}
+                        className="px-3 py-1.5 text-sm rounded bg-success text-white disabled:opacity-50"
+                      >
+                        {t('tasks.approval.approve')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowReject((s) => !s)}
+                        disabled={approveTaskMut.isPending || rejectTaskMut.isPending}
+                        className="px-3 py-1.5 text-sm rounded border border-danger text-danger disabled:opacity-50"
+                      >
+                        {t('tasks.approval.reject')}
+                      </button>
+                    </div>
+                    {showReject && (
+                      <div className="space-y-2">
+                        <textarea
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder={t('tasks.approval.reasonPlaceholder')}
+                          rows={2}
+                          className="w-full rounded border border-border px-2 py-1 text-sm dark:bg-slate-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => rejectTaskMut.mutate(rejectReason.trim())}
+                          disabled={rejectTaskMut.isPending || rejectReason.trim().length === 0}
+                          className="px-3 py-1.5 text-sm rounded bg-danger text-white disabled:opacity-50"
+                        >
+                          {t('tasks.approval.confirmReject')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

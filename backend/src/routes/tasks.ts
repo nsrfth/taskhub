@@ -9,6 +9,7 @@ import { requireScope } from '../middleware/requireScope.js';
 import {
   createTaskBody,
   listTasksQuery,
+  rejectTaskBody,
   reorderTaskBody,
   responsibleCandidatesResponse,
   taskResponse,
@@ -108,6 +109,34 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.reorder,
+  });
+
+  // v1.87: approval decisions. Deliberately NOT requireProjectWriteAccess — the
+  // designated approver may hold only READ project access; the service's
+  // finalizer check (approver / MANAGER / ADMIN / delegate) is the real gate.
+  r.post('/:taskId/approve', {
+    preHandler: requireScope('tasks:write'),
+    schema: {
+      tags: ['tasks'],
+      summary: 'Approve a task pending approval (→ DONE)',
+      params: z.object({ teamId: z.string(), projectId: z.string(), taskId: z.string() }),
+      response: { 200: taskResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.approve,
+  });
+
+  r.post('/:taskId/reject', {
+    preHandler: requireScope('tasks:write'),
+    schema: {
+      tags: ['tasks'],
+      summary: 'Reject a task pending approval, with a reason (→ IN_PROGRESS)',
+      params: z.object({ teamId: z.string(), projectId: z.string(), taskId: z.string() }),
+      body: rejectTaskBody,
+      response: { 200: taskResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.reject,
   });
 
   r.delete('/:taskId', {

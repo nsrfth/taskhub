@@ -4,6 +4,7 @@ import type { TasksService, TaskView } from '../services/tasksService.js';
 import type {
   CreateTaskBody,
   ListTasksQuery,
+  RejectTaskBody,
   ReorderTaskBody,
   UpdateTaskBody,
 } from '../schemas/tasks.js';
@@ -93,6 +94,41 @@ export class TasksController {
       m.role,
       req.user.globalRole,
       req.body,
+    );
+    return reply.send(serialize(t));
+  };
+
+  // v1.87: approval decisions. actorTeamRole comes from the stashed membership
+  // (synthetic MEMBER for group-granted callers / MANAGER for ADMIN), exactly
+  // like update(); the real gate is the finalizer check in the service.
+  approve = async (req: FastifyRequest<{ Params: TaskParams }>, reply: FastifyReply) => {
+    if (!req.user) throw Errors.unauthorized();
+    const m = callerMembership(req);
+    const t = await this.svc.approve(
+      req.params.teamId,
+      req.params.projectId,
+      req.params.taskId,
+      req.user.sub,
+      m.role,
+      req.user.globalRole,
+    );
+    return reply.send(serialize(t));
+  };
+
+  reject = async (
+    req: FastifyRequest<{ Params: TaskParams; Body: RejectTaskBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const m = callerMembership(req);
+    const t = await this.svc.reject(
+      req.params.teamId,
+      req.params.projectId,
+      req.params.taskId,
+      req.user.sub,
+      m.role,
+      req.user.globalRole,
+      req.body.reason,
     );
     return reply.send(serialize(t));
   };

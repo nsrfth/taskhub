@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   TODO: 'To do',
   IN_PROGRESS: 'In progress',
   REVIEW: 'Review',
+  PENDING_APPROVAL: 'Pending approval',
   DONE: 'Done',
 };
 const PRIORITY_LABEL: Record<TaskPriority, string> = {

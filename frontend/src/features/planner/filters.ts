@@ -63,7 +63,8 @@ const STATUS_RANK: Record<TaskStatus, number> = {
   TODO: 0,
   IN_PROGRESS: 1,
   REVIEW: 2,
-  DONE: 3,
+  PENDING_APPROVAL: 3,
+  DONE: 4,
 };
 const PRIORITY_RANK: Record<TaskPriority, number> = {
   LOW: 0,

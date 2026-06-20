@@ -2,7 +2,10 @@ import { api } from '@/lib/api';
 import type { BudgetCurrency } from '@/lib/formatBudget';
 import type { TaskCustomFieldValue } from '@/features/customFields/api';
 
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+// v1.87: PENDING_APPROVAL is system-managed (a require-approval task lands here
+// when "completed" by a non-finalizer). It is shown but NOT offered in the
+// manual status picker.
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'PENDING_APPROVAL' | 'DONE';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export interface TaskLabel {
@@ -43,6 +46,10 @@ export interface Task {
   // change it post-create.
   responsibleId: string | null;
   responsibleName: string | null;
+  // v1.87: approval gate — per-task setting + designated approver (joined).
+  requiresApproval: boolean;
+  approverId: string | null;
+  approverName: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -110,6 +117,9 @@ export async function createTask(
     assigneeId?: string | null;
     // v1.78: optional at create — omitted defaults to creator on the server.
     responsibleId?: string | null;
+    // v1.87: optional approval gate (approverId required when requiresApproval).
+    requiresApproval?: boolean;
+    approverId?: string | null;
     // v1.37: started-on date. Subject to the same v1.18 manager-only
     // restriction as the other date fields.
     startDate?: string | null;
@@ -141,6 +151,9 @@ export async function updateTask(
     // v1.19: gated server-side (manager/admin only). The mutation surfaces
     // a 403 inline on the calling page if the role check fails.
     responsibleId: string | null;
+    // v1.87: toggle the approval gate / set the approver.
+    requiresApproval: boolean;
+    approverId: string | null;
     // v1.37: started-on date. Same v1.18 date-edit gate as siblings.
     startDate: string | null;
     dueDate: string | null;
@@ -179,5 +192,29 @@ export async function reorderTask(
       `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/reorder`,
       input,
     )
+  ).data;
+}
+
+// v1.87: approval decisions. Approve → DONE; reject (reason required) → IN_PROGRESS.
+export async function approveTask(
+  teamId: string,
+  projectId: string,
+  taskId: string,
+): Promise<Task> {
+  return (
+    await api.post<Task>(`/teams/${teamId}/projects/${projectId}/tasks/${taskId}/approve`, {})
+  ).data;
+}
+
+export async function rejectTask(
+  teamId: string,
+  projectId: string,
+  taskId: string,
+  reason: string,
+): Promise<Task> {
+  return (
+    await api.post<Task>(`/teams/${teamId}/projects/${projectId}/tasks/${taskId}/reject`, {
+      reason,
+    })
   ).data;
 }
