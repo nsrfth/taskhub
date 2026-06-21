@@ -21,11 +21,17 @@ export function TeamsProvider({ children }: { children: ReactNode }): JSX.Elemen
 
   // Only query once we have a signed-in user; otherwise an unauth request would
   // race with the AuthProvider's bootstrap.
-  const { data: teams = [], isLoading } = useQuery({
+  // v1.87.1: never trust the query data's shape. The `= []` destructuring
+  // default only fires for `undefined`, so a transient non-array body (an error
+  // payload slipping through a token-refresh race, or a mid-update
+  // service-worker response) would make `teams.find(...)` below throw and
+  // white-screen the entire app. Coerce to an array unconditionally.
+  const { data, isLoading } = useQuery({
     queryKey: ['teams', 'mine'],
     queryFn: listMyTeams,
     enabled: !!user,
   });
+  const teams: Team[] = Array.isArray(data) ? data : [];
 
   const [currentTeamId, _setCurrentTeamId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
