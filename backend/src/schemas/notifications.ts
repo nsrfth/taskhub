@@ -6,6 +6,12 @@ export const notifyTypeEnum = z.enum([
   'TASK_DUE',
   'MENTION',
   'TASK_STATUS',
+  // v1.87.1: these are emitted by the services (group invites, dependency
+  // unblocks) and exist in the DB, but were missing here — so the response
+  // serializer (z.array(notificationResponse)) threw a ResponseValidationError
+  // and the whole /api/notifications feed 500'd for any user holding one.
+  'GROUP_INVITE',
+  'TASK_UNBLOCKED',
 ]);
 
 export const listNotificationsQuery = z.object({
