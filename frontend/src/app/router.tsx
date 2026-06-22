@@ -7,6 +7,7 @@ import TasksPage from '@/pages/TasksPage';
 import TaskDetailPage from '@/pages/TaskDetailPage';
 import ProjectGanttPage from '@/pages/ProjectGanttPage';
 import ProjectStatusPage from '@/pages/ProjectStatusPage';
+import CorrespondencePage from '@/pages/CorrespondencePage';
 import AdminPage from '@/pages/AdminPage';
 import ReportsPage from '@/pages/ReportsPage';
 import WorkloadPage from '@/pages/WorkloadPage';
@@ -24,6 +25,7 @@ import TaskhubPage from '@/pages/settings/TaskhubPage';
 import LabelsPage from '@/pages/settings/LabelsPage';
 import CustomFieldsPage from '@/pages/settings/CustomFieldsPage';
 import FormsListPage from '@/pages/settings/FormsListPage';
+import CorrespondenceModulePage from '@/pages/settings/CorrespondenceModulePage';
 import FormEditorPage from '@/pages/settings/FormEditorPage';
 import FormSubmitPage from '@/pages/FormSubmitPage';
 import PublicFormPage from '@/pages/PublicFormPage';
@@ -61,6 +63,9 @@ export const router = createBrowserRouter([
       { path: '/projects/:projectId/reports/gantt', element: <ProjectGanttPage /> },
       // v1.81: per-project one-page status report.
       { path: '/projects/:projectId/reports/status', element: <ProjectStatusPage /> },
+      // v1.89: per-project correspondence (دبیرخانه) register. Enabled per
+      // project by a global admin; the page guards on the project being found.
+      { path: '/projects/:projectId/correspondence', element: <CorrespondencePage /> },
       { path: '/admin', element: <Navigate to="/settings/admin" replace /> },
       { path: '/reports', element: <ReportsPage /> },
       { path: '/workload', element: <WorkloadPage /> },
@@ -94,6 +99,7 @@ export const router = createBrowserRouter([
           { path: 'custom-fields', element: <CustomFieldsPage /> },
           { path: 'forms', element: <FormsListPage /> },
           { path: 'forms/:formId', element: <FormEditorPage /> },
+          { path: 'correspondence', element: <CorrespondenceModulePage /> },
           { path: 'automations', element: <AutomationsPage /> },
           { path: 'directories', element: <DirectoriesPage /> },
           { path: 'taskhub', element: <TaskhubPage /> },

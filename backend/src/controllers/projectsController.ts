@@ -35,6 +35,7 @@ function serialize(p: {
   startDate: string | null;
   endDate: string | null;
   labels: Array<{ id: string; name: string; color: string }>;
+  correspondenceEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -52,6 +53,7 @@ function serialize(p: {
     startDate: p.startDate,
     endDate: p.endDate,
     labels: p.labels,
+    correspondenceEnabled: p.correspondenceEnabled,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };

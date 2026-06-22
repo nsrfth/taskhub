@@ -134,6 +134,49 @@ export const notifications = {
     });
   },
 
+  // v1.90: a project letter (correspondence) was referred (ارجاع) to one or
+  // more team members for ACTION or INFO. One notification row per recipient
+  // (actor excluded). Mirrors the in-transaction createMany + hub.publish
+  // pattern of the task notifications; the payload carries the reference
+  // number + subject so the bell can render without a follow-up fetch.
+  async onCorrespondenceReferral(
+    client: Client,
+    ctx: {
+      teamId: string;
+      projectId: string;
+      correspondenceId: string;
+      referenceNumber: string;
+      subject: string;
+      actorId: string;
+      recipients: Array<{ userId: string; kind: 'ACTION' | 'INFO' }>;
+    },
+  ): Promise<void> {
+    const targets = ctx.recipients.filter((r) => r.userId !== ctx.actorId);
+    if (targets.length === 0) return;
+    try {
+      await client.notification.createMany({
+        data: targets.map((r) => ({
+          userId: r.userId,
+          teamId: ctx.teamId,
+          type: 'CORRESPONDENCE_REFERRAL' as NotifyType,
+          payload: {
+            correspondenceId: ctx.correspondenceId,
+            projectId: ctx.projectId,
+            referenceNumber: ctx.referenceNumber,
+            subject: ctx.subject,
+            kind: r.kind,
+            referredBy: ctx.actorId,
+          },
+        })),
+      });
+      for (const r of targets) {
+        notificationsHub.publish(r.userId, { type: 'notification:new', id: '' });
+      }
+    } catch {
+      // Best-effort fan-out. Failures shouldn't fail the parent mutation.
+    }
+  },
+
   async onTaskDue(
     client: Client,
     ctx: { taskId: string; projectId: string; teamId: string; taskTitle: string; dueDate: string },

@@ -50,6 +50,16 @@ export const PERMISSIONS = [
   // v1.69: intake form builder + public-token management.
   'form.manage',
 
+  // v1.90: correspondence (دبیرخانه) module. `correspondence.read` lets a
+  // member view a project's letters register + referrals; `correspondence.manage`
+  // gates create/update/delete/status/refer of letters; `contacts.manage` gates
+  // the team-level contacts directory writes. The per-project enablement flag
+  // (admin-controlled) is a separate gate ON TOP of these. Default Member set
+  // includes `correspondence.read`; the rest are Manager-default.
+  'correspondence.read',
+  'correspondence.manage',
+  'contacts.manage',
+
   // Team membership + governance.
   'team.invite_member',
   'team.remove_member',
@@ -92,6 +102,7 @@ export const PERMISSION_GROUPS: Record<string, readonly Permission[]> = {
   Groups: ['group.manage'],
   CustomFields: ['customfield.manage'],
   Forms: ['form.manage'],
+  Correspondence: ['correspondence.read', 'correspondence.manage', 'contacts.manage'],
   Team: [
     'team.invite_member',
     'team.remove_member',
@@ -120,4 +131,7 @@ export const DEFAULT_MANAGER_PERMISSIONS: readonly Permission[] = PERMISSIONS;
 export const DEFAULT_MEMBER_PERMISSIONS: readonly Permission[] = [
   'task.delete',
   'task.modify_dates',
+  // v1.90: members can view a project's letters register by default; managing
+  // letters (create/refer/…) and contacts stays Manager-default.
+  'correspondence.read',
 ];

@@ -76,6 +76,13 @@ const NAV: NavItem[] = [
     descriptionKey: 'settings.nav.directoriesDesc',
     roles: ['ADMIN'],
   },
+  // v1.89: global-admin per-project enablement of the correspondence module.
+  {
+    to: '/settings/correspondence',
+    labelKey: 'settings.nav.correspondence',
+    descriptionKey: 'settings.nav.correspondenceDesc',
+    roles: ['ADMIN'],
+  },
   {
     to: '/settings/taskhub',
     labelKey: 'settings.nav.taskhub',

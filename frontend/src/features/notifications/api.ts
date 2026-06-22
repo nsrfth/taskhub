@@ -5,7 +5,9 @@ export type NotifyType =
   | 'TASK_COMMENT'
   | 'TASK_DUE'
   | 'MENTION'
-  | 'TASK_STATUS';
+  | 'TASK_STATUS'
+  // v1.89: a letter was referred (ارجاع) to this user.
+  | 'CORRESPONDENCE_REFERRAL';
 
 export interface Notification {
   id: string;

@@ -34,6 +34,11 @@ export const SCOPES = [
   // Projects (the container) and team-scoped Label CRUD live here.
   'projects:read',
   'projects:write',
+  // v1.90: correspondence (دبیرخانه) module — letters register + contacts.
+  // Split read/write so an automation token can read the register without
+  // being able to create/refer letters.
+  'correspondence:read',
+  'correspondence:write',
   // Webhooks — separate because the surface is integration-only.
   'webhooks:manage',
   // Admin — anything previously gated by GlobalRole=ADMIN: /api/admin/*,

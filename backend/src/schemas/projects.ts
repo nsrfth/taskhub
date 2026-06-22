@@ -140,6 +140,9 @@ export const projectResponse = z.object({
   startDate: z.string().datetime().nullable(),
   endDate: z.string().datetime().nullable(),
   labels: z.array(taskLabelResponse),
+  // v1.90: whether the optional correspondence (دبیرخانه) module is enabled
+  // for this project (admin-controlled). Lets the SPA gate the nav entry.
+  correspondenceEnabled: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

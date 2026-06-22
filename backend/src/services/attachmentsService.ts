@@ -23,7 +23,11 @@ import { ALLOWED_MIME_TYPES } from '../schemas/attachments.js';
 
 export interface AttachmentView {
   id: string;
-  taskId: string;
+  // v1.90: attachments are polymorphic — exactly one parent is set. Task
+  // attachments carry taskId (correspondenceId null); correspondence (letter)
+  // attachments carry correspondenceId (taskId null).
+  taskId: string | null;
+  correspondenceId: string | null;
   uploaderId: string;
   uploaderName: string;
   filename: string;
@@ -109,6 +113,7 @@ export class AttachmentsService {
     return {
       id: row.id,
       taskId: row.taskId,
+      correspondenceId: row.correspondenceId,
       uploaderId: row.uploaderId,
       uploaderName: row.uploader.name,
       filename: row.filename,
@@ -128,6 +133,7 @@ export class AttachmentsService {
     return rows.map((a) => ({
       id: a.id,
       taskId: a.taskId,
+      correspondenceId: a.correspondenceId,
       uploaderId: a.uploaderId,
       uploaderName: a.uploader.name,
       filename: a.filename,
@@ -189,6 +195,170 @@ export class AttachmentsService {
     }
     // Best-effort file cleanup. If the unlink fails the row is already gone;
     // we accept a small chance of an orphan blob on disk over a broken delete.
+    const storagePath = path.resolve(this.uploadDir, att.storageKey);
+    await unlink(storagePath).catch(() => undefined);
+  }
+
+  // ---------------------------------------------------------------------------
+  // v1.90: correspondence (letter) attachments. Same on-disk storage, MIME
+  // allowlist, size handling, and path-escape guard as the task variants above —
+  // only the parent chain check + the FK column differ (correspondenceId, with
+  // taskId left null). Route-layer gates already enforced project access +
+  // module enablement; this service just verifies the letter lives at exactly
+  // this team→project (404 on mismatch / soft-deleted).
+  // ---------------------------------------------------------------------------
+
+  private async ensureCorrespondenceInChain(
+    teamId: string,
+    projectId: string,
+    correspondenceId: string,
+  ) {
+    const row = await prisma.correspondence.findUnique({
+      where: { id: correspondenceId },
+      select: { id: true, teamId: true, projectId: true, deletedAt: true },
+    });
+    if (!row || row.teamId !== teamId || row.projectId !== projectId || row.deletedAt !== null) {
+      throw Errors.notFound('Correspondence not found');
+    }
+  }
+
+  async uploadToCorrespondence(input: {
+    teamId: string;
+    projectId: string;
+    correspondenceId: string;
+    uploaderId: string;
+    filename: string;
+    mimeType: string;
+    stream: Readable;
+    isTruncated: () => boolean;
+  }): Promise<AttachmentView> {
+    await this.ensureCorrespondenceInChain(
+      input.teamId,
+      input.projectId,
+      input.correspondenceId,
+    );
+
+    if (!ALLOWED_MIME_TYPES.has(input.mimeType)) {
+      throw Errors.badRequest(`Disallowed MIME type: ${input.mimeType}`);
+    }
+
+    const storageKey = crypto.randomBytes(16).toString('hex');
+    await mkdir(this.uploadDir, { recursive: true });
+    const storagePath = path.join(this.uploadDir, storageKey);
+
+    try {
+      await pipeline(input.stream, createWriteStream(storagePath));
+    } catch (err) {
+      await unlink(storagePath).catch(() => undefined);
+      throw err;
+    }
+
+    if (input.isTruncated()) {
+      await unlink(storagePath).catch(() => undefined);
+      throw Errors.badRequest('File exceeds size limit');
+    }
+
+    const { size } = await stat(storagePath);
+
+    const row = await prisma.attachment.create({
+      data: {
+        correspondenceId: input.correspondenceId,
+        uploaderId: input.uploaderId,
+        filename: input.filename,
+        storageKey,
+        mimeType: input.mimeType,
+        sizeBytes: size,
+      },
+      include: { uploader: { select: { name: true } } },
+    });
+    return {
+      id: row.id,
+      taskId: row.taskId,
+      correspondenceId: row.correspondenceId,
+      uploaderId: row.uploaderId,
+      uploaderName: row.uploader.name,
+      filename: row.filename,
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async listForCorrespondence(
+    teamId: string,
+    projectId: string,
+    correspondenceId: string,
+  ): Promise<AttachmentView[]> {
+    await this.ensureCorrespondenceInChain(teamId, projectId, correspondenceId);
+    const rows = await prisma.attachment.findMany({
+      where: { correspondenceId },
+      orderBy: { createdAt: 'desc' },
+      include: { uploader: { select: { name: true } } },
+    });
+    return rows.map((a) => ({
+      id: a.id,
+      taskId: a.taskId,
+      correspondenceId: a.correspondenceId,
+      uploaderId: a.uploaderId,
+      uploaderName: a.uploader.name,
+      filename: a.filename,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+      createdAt: a.createdAt,
+    }));
+  }
+
+  async getForCorrespondenceDownload(
+    teamId: string,
+    projectId: string,
+    correspondenceId: string,
+    attachmentId: string,
+  ): Promise<AttachmentDownload> {
+    await this.ensureCorrespondenceInChain(teamId, projectId, correspondenceId);
+    const att = await prisma.attachment.findUnique({ where: { id: attachmentId } });
+    if (!att || att.correspondenceId !== correspondenceId) {
+      throw Errors.notFound('Attachment not found');
+    }
+
+    const storagePath = path.resolve(this.uploadDir, att.storageKey);
+    const rootResolved = path.resolve(this.uploadDir);
+    if (!storagePath.startsWith(rootResolved + path.sep) && storagePath !== rootResolved) {
+      throw Errors.internal('Storage path escaped upload root');
+    }
+
+    return {
+      storagePath,
+      filename: att.filename,
+      mimeType: att.mimeType,
+      sizeBytes: att.sizeBytes,
+    };
+  }
+
+  async removeFromCorrespondence(
+    teamId: string,
+    projectId: string,
+    correspondenceId: string,
+    attachmentId: string,
+    callerId: string,
+    callerRole: TeamRole,
+  ): Promise<void> {
+    await this.ensureCorrespondenceInChain(teamId, projectId, correspondenceId);
+    const att = await prisma.attachment.findUnique({ where: { id: attachmentId } });
+    if (!att || att.correspondenceId !== correspondenceId) {
+      throw Errors.notFound('Attachment not found');
+    }
+    if (att.uploaderId !== callerId && callerRole !== 'MANAGER') {
+      throw Errors.forbidden('Only the uploader or a team MANAGER can delete this attachment');
+    }
+
+    try {
+      await prisma.attachment.delete({ where: { id: attachmentId } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw Errors.notFound('Attachment not found');
+      }
+      throw err;
+    }
     const storagePath = path.resolve(this.uploadDir, att.storageKey);
     await unlink(storagePath).catch(() => undefined);
   }

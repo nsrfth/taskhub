@@ -24,6 +24,10 @@ export interface Project {
   startDate: string | null;
   endDate: string | null;
   labels: TaskLabel[];
+  // v1.89: per-project correspondence (دبیرخانه) module flag. Set by a global
+  // admin in Settings → Correspondence module; the SPA gates the nav entry +
+  // routes on it. Optional on the wire for forward-compat with older responses.
+  correspondenceEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }

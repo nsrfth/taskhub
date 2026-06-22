@@ -38,6 +38,9 @@ import { customFieldsRoutes, taskCustomFieldsRoutes } from './routes/customField
 import { automationsRoutes } from './routes/automations.js';
 import { dashboardsRoutes } from './routes/dashboards.js';
 import { intakeFormsRoutes, publicIntakeFormsRoutes } from './routes/intakeForms.js';
+import { contactsRoutes } from './routes/contacts.js';
+import { correspondenceRoutes } from './routes/correspondence.js';
+import { correspondenceAdminRoutes } from './routes/correspondenceAdmin.js';
 import { backupsRoutes } from './routes/backups.js';
 import { taskhubRoutes } from './routes/taskhub.js';
 import { securitySettingsRoutes } from './routes/securitySettings.js';
@@ -222,6 +225,16 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // registered separately under /public/forms (no auth).
     await api.register(intakeFormsRoutes, { prefix: '/teams/:teamId/forms' });
     await api.register(publicIntakeFormsRoutes, { prefix: '/public/forms', env });
+
+    // v1.90: correspondence (دبیرخانه) module. Team-level contacts directory,
+    // per-project letters register (gated by the optional-module flag), and
+    // the admin-only per-project enablement toggle (under /admin).
+    await api.register(contactsRoutes, { prefix: '/teams/:teamId/contacts' });
+    await api.register(correspondenceRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/correspondence',
+      env,
+    });
+    await api.register(correspondenceAdminRoutes, { prefix: '/admin/correspondence' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

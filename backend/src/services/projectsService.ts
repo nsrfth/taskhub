@@ -40,6 +40,7 @@ export interface ProjectView {
   startDate: string | null;
   endDate: string | null;
   labels: ProjectLabelView[];
+  correspondenceEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -85,6 +86,7 @@ function toView(p: ProjectRow): ProjectView {
     startDate: calendarDateToIso(p.startDate),
     endDate: calendarDateToIso(p.endDate),
     labels: mapLabels(p),
+    correspondenceEnabled: p.correspondenceEnabled,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };

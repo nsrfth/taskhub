@@ -316,9 +316,19 @@ export default function TasksPage(): JSX.Element {
         {/* Project context: a board belongs to one project — surface a quick
             jump back to the Projects list since that's the immediate parent
             in the URL hierarchy. The top nav handles dashboard / reports. */}
-        <Link to="/projects" className="text-sm underline whitespace-nowrap">
-          ← Projects
-        </Link>
+        <div className="flex items-center gap-4 whitespace-nowrap">
+          {project.correspondenceEnabled && (
+            <Link
+              to={`/projects/${project.id}/correspondence`}
+              className="text-sm underline"
+            >
+              {t('correspondence.navShort')}
+            </Link>
+          )}
+          <Link to="/projects" className="text-sm underline">
+            ← Projects
+          </Link>
+        </div>
       </div>
 
       <section className="bg-white rounded shadow p-4 mb-6">

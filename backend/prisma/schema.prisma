@@ -60,6 +60,37 @@ enum NotifyType {
   TASK_UNBLOCKED
   // v1.51: user group invitation for cross-team project access.
   GROUP_INVITE
+  // v1.90: a project letter was referred (ارجاع) to you for ACTION or INFO.
+  CORRESPONDENCE_REFERRAL
+}
+
+// v1.90: correspondence (دبیرخانه) module enums.
+enum CorrespondenceDirection {
+  INCOMING
+  OUTGOING
+  INTERNAL
+}
+
+enum CorrespondenceStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  ARCHIVED
+}
+
+enum ContactType {
+  PERSON
+  ORG
+}
+
+enum ReferralKind {
+  ACTION
+  INFO
+}
+
+enum ReferralStatus {
+  PENDING
+  HANDLED
 }
 
 enum GroupAccessLevel {
@@ -357,6 +388,12 @@ model User {
   // v1.86: per-project full-edit delegations granted to / by this user.
   projectEditDelegations ProjectEditDelegate[] @relation("ProjectEditDelegateUser")
   projectEditDelegatesGranted ProjectEditDelegate[] @relation("ProjectEditDelegateGrantedBy")
+  // v1.90: correspondence (دبیرخانه) module back-relations.
+  contactsCreated         Contact[]                @relation("ContactCreatedBy")
+  correspondenceCreated   Correspondence[]         @relation("CorrespondenceCreatedBy")
+  correspondenceDeleted   Correspondence[]         @relation("CorrespondenceDeletedBy")
+  correspondenceReferralsReceived CorrespondenceReferral[] @relation("ReferralRecipient")
+  correspondenceReferralsSent     CorrespondenceReferral[] @relation("ReferralReferredBy")
 
   @@index([email])
 }
@@ -486,6 +523,9 @@ model Team {
   automationRules AutomationRule[]
   dashboards    Dashboard[]
   intakeForms   IntakeForm[]
+  contacts                Contact[]
+  correspondence          Correspondence[]
+  correspondenceReferrals CorrespondenceReferral[]
   directory     Directory?       @relation("TeamDirectory", fields: [directoryId], references: [id], onDelete: SetNull)
 
   @@index([directoryId])
@@ -570,6 +610,9 @@ model Project {
   // v1.72: optional project schedule window (UTC-midnight calendar dates).
   startDate      DateTime?
   endDate        DateTime?
+  // v1.90: correspondence (دبیرخانه) module toggle — a global admin enables the
+  // per-project letters register from Settings → Correspondence module.
+  correspondenceEnabled Boolean @default(false)
   createdAt      DateTime  @default(now())
   updatedAt     DateTime      @updatedAt
   team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -583,6 +626,8 @@ model Project {
   editDelegates ProjectEditDelegate[]
   intakeForms   IntakeForm[]
   labels        ProjectLabel[]
+  correspondence        Correspondence[]
+  correspondenceCounters CorrespondenceCounter[]
 
   // v1.30: tsvector for full-text search. See Task.searchVector for
   // rationale + lifecycle (managed by raw SQL, never read via Prisma).
@@ -1086,7 +1131,10 @@ model IntakeFormField {
 
 model Attachment {
   id         String   @id @default(cuid())
-  taskId     String
+  // v1.90: polymorphic parent — exactly one of taskId / correspondenceId is set
+  // (enforced by a DB CHECK in the migration). taskId was previously required.
+  taskId           String?
+  correspondenceId String?
   uploaderId String
   // Display name shown in UI; never used to construct filesystem paths.
   filename   String
@@ -1095,13 +1143,118 @@ model Attachment {
   mimeType   String
   sizeBytes  Int
   createdAt  DateTime @default(now())
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task           Task?           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  correspondence Correspondence? @relation(fields: [correspondenceId], references: [id], onDelete: Cascade)
   // Cascade — when a user is deleted, their uploaded blobs are removed along
   // with the user account. The on-disk files are NOT cleaned up automatically;
   // a janitor task is the proper home for orphan-blob GC.
   uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+  @@index([correspondenceId])
+}
+
+// v1.90: correspondence (دبیرخانه) — a per-project register of formal letters.
+// Optional module, enabled per project by a global admin (Project.correspondenceEnabled).
+model Correspondence {
+  id              String                  @id @default(cuid())
+  // teamId denormalized from the project for cheap multi-tenant filtering (like Task.teamId).
+  teamId          String
+  projectId       String
+  direction       CorrespondenceDirection
+  subject         String
+  body            String?
+  // UTC-midnight instant for a Jalali calendar date (same convention as Task date fields).
+  letterDate      DateTime
+  // Jalali year derived from letterDate at create; the auto-number reset key.
+  jalaliYear      Int
+  // Sequential ordinal within (projectId, jalaliYear); backs referenceNumber.
+  sequence        Int
+  // Human reference "{jy}-{NNN}", e.g. "1404-001". Permanent once issued.
+  referenceNumber String
+  status          CorrespondenceStatus    @default(DRAFT)
+  senderId        String?
+  recipientId     String?
+  createdById     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  deletedAt       DateTime?
+  deletedById     String?
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sender    Contact? @relation("CorrespondenceSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipient Contact? @relation("CorrespondenceRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  createdBy User?    @relation("CorrespondenceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deletedBy User?    @relation("CorrespondenceDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  referrals   CorrespondenceReferral[]
+  attachments Attachment[]
+
+  @@unique([projectId, jalaliYear, sequence])
+  @@unique([projectId, referenceNumber])
+  @@index([teamId])
+  @@index([projectId, deletedAt, letterDate])
+  @@index([projectId, status])
+}
+
+// v1.90: referral (ارجاع) of a letter to a team member for ACTION or INFO.
+model CorrespondenceReferral {
+  id               String         @id @default(cuid())
+  correspondenceId String
+  teamId           String
+  userId           String
+  kind             ReferralKind   @default(ACTION)
+  note             String?
+  status           ReferralStatus @default(PENDING)
+  referredById     String?
+  createdAt        DateTime       @default(now())
+  handledAt        DateTime?
+
+  correspondence Correspondence @relation(fields: [correspondenceId], references: [id], onDelete: Cascade)
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user           User           @relation("ReferralRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  referredBy     User?          @relation("ReferralReferredBy", fields: [referredById], references: [id], onDelete: SetNull)
+
+  @@unique([correspondenceId, userId])
+  @@index([userId, status])
+  @@index([correspondenceId])
+}
+
+// v1.90: per-(project, Jalali year) sequence backing correspondence reference numbers.
+model CorrespondenceCounter {
+  id           String @id @default(cuid())
+  projectId    String
+  jalaliYear   Int
+  currentValue Int    @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, jalaliYear])
+}
+
+// v1.90: team-level reusable contacts directory (letter senders/recipients).
+model Contact {
+  id           String      @id @default(cuid())
+  teamId       String
+  name         String
+  organization String?
+  email        String?
+  phone        String?
+  type         ContactType @default(PERSON)
+  createdById  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  team      Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ContactCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  sentLetters     Correspondence[] @relation("CorrespondenceSender")
+  receivedLetters Correspondence[] @relation("CorrespondenceRecipient")
+
+  @@index([teamId, deletedAt])
+  @@index([teamId, name])
 }
 
 model Comment {

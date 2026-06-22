@@ -115,6 +115,10 @@ async function main(): Promise<void> {
     'project.delete',
     'project.set_accountable',
     'project.write_all',
+    // v1.90: correspondence module + contacts directory.
+    'correspondence.read',
+    'correspondence.manage',
+    'contacts.manage',
     'team.invite_member',
     'team.remove_member',
     'team.change_role',
@@ -122,7 +126,7 @@ async function main(): Promise<void> {
     'webhooks.manage',
     'trash.purge',
   ];
-  const DEFAULT_MEMBER_PERMS = ['task.delete', 'task.modify_dates'];
+  const DEFAULT_MEMBER_PERMS = ['task.delete', 'task.modify_dates', 'correspondence.read'];
 
   async function ensureSystemRole(name: 'Manager' | 'Member', perms: string[]): Promise<string> {
     const existing = await prisma.role.findUnique({

@@ -140,6 +140,11 @@ export default function NotificationBell(): JSX.Element {
         return `"${p.taskTitle ?? 'A task'}" is due soon`;
       case 'MENTION':
         return `You were mentioned on "${p.taskTitle ?? 'a task'}": ${p.excerpt ?? ''}`;
+      case 'CORRESPONDENCE_REFERRAL':
+        return t('correspondence.notify.referred').replace(
+          '{ref}',
+          String(p.referenceNumber ?? p.subject ?? ''),
+        );
       default:
         return n.type;
     }
@@ -152,7 +157,9 @@ export default function NotificationBell(): JSX.Element {
     // straight to the task. Older notifications without projectId fall back
     // to the dashboard.
     const p = n.payload as { taskId?: string; projectId?: string };
-    if (p.projectId && p.taskId) {
+    if (n.type === 'CORRESPONDENCE_REFERRAL' && p.projectId) {
+      void nav(`/projects/${p.projectId}/correspondence`);
+    } else if (p.projectId && p.taskId) {
       void nav(`/projects/${p.projectId}/tasks/${p.taskId}`);
     } else {
       void nav('/dashboard');

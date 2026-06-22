@@ -155,6 +155,15 @@ export default function ProjectListRow({
             >
               Gantt
             </Link>
+            {project.correspondenceEnabled && (
+              <Link
+                to={`/projects/${project.id}/correspondence`}
+                className="text-xs text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {t('correspondence.navShort')}
+              </Link>
+            )}
           </div>
         </div>
       </div>

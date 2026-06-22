@@ -23,7 +23,9 @@ export const ALLOWED_MIME_TYPES = new Set<string>([
 
 export const attachmentResponse = z.object({
   id: z.string(),
-  taskId: z.string(),
+  // v1.90: polymorphic parent — exactly one is non-null.
+  taskId: z.string().nullable(),
+  correspondenceId: z.string().nullable(),
   uploaderId: z.string(),
   uploaderName: z.string(),
   filename: z.string(),
