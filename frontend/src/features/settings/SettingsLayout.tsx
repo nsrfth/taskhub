@@ -70,6 +70,15 @@ const NAV: NavItem[] = [
     descriptionKey: 'settings.nav.automationsDesc',
     roles: ['ADMIN', 'MANAGER'],
   },
+  // v1.98 (PMIS R2): PMO project-profile administration. Listing/CRUD is gated
+  // server-side by pmo.manage_profiles; the page itself shows a no-access note
+  // when the capability is absent.
+  {
+    to: '/settings/profiles',
+    labelKey: 'settings.nav.profiles',
+    descriptionKey: 'settings.nav.profilesDesc',
+    roles: ['ADMIN', 'MANAGER'],
+  },
   {
     to: '/settings/directories',
     labelKey: 'settings.nav.directories',

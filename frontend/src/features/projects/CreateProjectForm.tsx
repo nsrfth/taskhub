@@ -5,6 +5,7 @@ import type { Team } from '@/features/teams/api';
 import { listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import * as projectsApi from '@/features/projects/api';
+import * as profilesApi from '@/features/profiles/api';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useT } from '@/lib/i18n';
 import ProjectFormFields, {
@@ -67,6 +68,14 @@ export default function CreateProjectForm({
   });
   const [dateError, setDateError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  // v1.98 (PMIS R2): optional profile pick. Empty = let the server resolve the
+  // group/team default → system NEUTRAL.
+  const [profileId, setProfileId] = useState<string>('');
+  const { data: systemProfiles = [] } = useQuery({
+    queryKey: ['profiles', 'system'],
+    queryFn: profilesApi.listSystemProfiles,
+    staleTime: 5 * 60_000,
+  });
 
   useEffect(() => {
     if (selectedTeam?.defaultCurrency) {
@@ -87,6 +96,7 @@ export default function CreateProjectForm({
         startDate: input.startDate,
         endDate: input.endDate,
         labelIds: input.labelIds.length > 0 ? input.labelIds : undefined,
+        profileId: profileId || undefined,
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['projects', 'all'] });
@@ -164,6 +174,24 @@ export default function CreateProjectForm({
         members={formMembers}
         dateError={dateError}
       />
+
+      <label className="block">
+        <span className="block text-xs text-text-muted mb-1">{t('profiles.projectProfile')}</span>
+        <select
+          value={profileId}
+          onChange={(e) => setProfileId(e.target.value)}
+          className="w-full rounded border-border dark:bg-slate-700 dark:text-slate-100 px-2 py-1.5 border text-sm"
+        >
+          <option value="">{t('profiles.useDefault')}</option>
+          {systemProfiles
+            .filter((p) => p.status === 'PUBLISHED')
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+        </select>
+      </label>
 
       {createError && <p role="alert" className="text-xs text-danger">{createError}</p>}
 

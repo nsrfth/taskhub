@@ -30,6 +30,7 @@ import FormEditorPage from '@/pages/settings/FormEditorPage';
 import FormSubmitPage from '@/pages/FormSubmitPage';
 import PublicFormPage from '@/pages/PublicFormPage';
 import AutomationsPage from '@/pages/settings/AutomationsPage';
+import ProfilesPage from '@/pages/settings/ProfilesPage';
 import SearchPage from '@/pages/SearchPage';
 import HelpPage from '@/pages/HelpPage';
 import AboutPage from '@/pages/AboutPage';
@@ -101,6 +102,7 @@ export const router = createBrowserRouter([
           { path: 'forms/:formId', element: <FormEditorPage /> },
           { path: 'correspondence', element: <CorrespondenceModulePage /> },
           { path: 'automations', element: <AutomationsPage /> },
+          { path: 'profiles', element: <ProfilesPage /> },
           { path: 'directories', element: <DirectoriesPage /> },
           { path: 'taskhub', element: <TaskhubPage /> },
           { path: 'security', element: <SecurityPage /> },

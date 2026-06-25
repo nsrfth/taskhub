@@ -69,6 +69,9 @@ export async function createProject(
     startDate?: string | null;
     endDate?: string | null;
     labelIds?: string[];
+    // v1.98 (PMIS R2): the project profile to snapshot at create. Omitted →
+    // server resolves group/team default → system NEUTRAL.
+    profileId?: string;
   },
 ): Promise<Project> {
   return normalizeProject((await api.post<Project>(`/teams/${teamId}/projects`, input)).data);

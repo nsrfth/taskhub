@@ -9,6 +9,13 @@ import { projectsCrossTeamRoutes, projectsRoutes } from './routes/projects.js';
 import { ganttRoutes } from './routes/gantt.js';
 import { projectStatusRoutes } from './routes/projectStatus.js';
 import { projectBaselinesRoutes } from './routes/projectBaselines.js';
+import {
+  groupDefaultProfileRoutes,
+  projectEffectiveConfigRoutes,
+  projectProfileRoutes,
+  teamProfileDefaultsRoutes,
+  teamProfilesRoutes,
+} from './routes/profiles.js';
 import { wbsRoutes } from './routes/wbs.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { commentsRoutes } from './routes/comments.js';
@@ -209,6 +216,20 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // create(parentId) mutations live on the tasks routes.
     await api.register(wbsRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/wbs',
+    });
+    // v1.98: PMIS R2 — project profiles. Team-scoped profile CRUD + the team/
+    // group/project defaulting carriers + the per-project effective-config
+    // resolver (the hot path every future Wave-B module route calls).
+    await api.register(teamProfilesRoutes, { prefix: '/teams/:teamId/profiles' });
+    await api.register(teamProfileDefaultsRoutes, { prefix: '/teams/:teamId/defaults' });
+    await api.register(groupDefaultProfileRoutes, {
+      prefix: '/teams/:teamId/groups/:groupId/default-profile',
+    });
+    await api.register(projectProfileRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/profile',
+    });
+    await api.register(projectEffectiveConfigRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/effective-config',
     });
     // v1.30: cross-team full-text search. Top-level mount — the endpoint
     // spans every team the caller is a member of, so it isn't nested

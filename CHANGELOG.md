@@ -7,6 +7,45 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.98.0] — 2026-06-25
+
+**PMIS R2 — Project Profiles.** Pluggable industry "profiles" toggle the optional
+PMIS modules per project on top of the always-on neutral core. A mandatory
+**NEUTRAL** default keeps the holding's cross-industry portfolio view uniform.
+Profile gating is **additive to RBAC** — it can hide a capability a role grants,
+never grant one a role lacks. Profiles are inert until Wave-B modules consume
+them; this slice ships the registry-driven toggles, the resolver, and the admin UI.
+
+- **Schema:** new `ProjectProfile` (`kind BUILTIN|CUSTOM`, `ownerScope SYSTEM|TEAM`,
+  `version`, `status DRAFT|PUBLISHED|DEPRECATED`, `basedOnProfileId`) +
+  `ProfileModuleSetting` (`moduleKey`, `enabled`, `requiredFields/defaults/config`
+  JSON). `Project += profileId/profileVersion/profileOverrides`,
+  `Team += defaultProfileId`, `UserGroup += defaultProfileId`. Migration
+  `20260707120000_pmis_r2_profiles`, **additive + backfills to identity**: seeds
+  4 BUILTIN/PUBLISHED/SYSTEM profiles (NEUTRAL/IT/EPC/OPERATIONS), pins every
+  existing project to NEUTRAL v1, sets every `Team.defaultProfileId = NEUTRAL`.
+  NEUTRAL = all modules OFF = today's behaviour exactly.
+- **Resolution:** at project **create** the base profile is picked by
+  `group default ▸ team default ▸ system NEUTRAL` and **snapshotted**
+  (`profileId` + `profileVersion`) so re-publishing a profile never mutates live
+  projects. At **read**, `GET …/effective-config` layers `profileOverrides` on the
+  snapshot and closes the enabled set over `expandWithDependencies` (enabling
+  `evm` pulls in `baselines` + `cost_control`).
+- **API:** `GET /api/system/{modules,profiles}` (auth-less, code-bound);
+  `GET/POST/PUT /api/teams/:teamId/profiles[/:id]` + `…/publish` + `…/deprecate`
+  (`pmo.manage_profiles`); `PUT …/defaults/profile` (`pmo.set_team_defaults`),
+  `PUT …/groups/:groupId/default-profile` (`pmo.set_group_defaults`);
+  `PUT …/projects/:projectId/profile` (`pmo.assign_profile`), `… /profile/overrides`
+  (`pmo.override_profile`); and the hot path `GET …/projects/:projectId/effective-config`.
+  Cross-tenant ids return the existence-hiding 404.
+- **Middleware:** reusable `requireModule(moduleKey)` preHandler — loads
+  effective-config and 403s `module_disabled` when off. Nothing consumes it yet;
+  it's the gate Wave B installs. The neutral core is never gated by it.
+- **UI:** Settings → **Project profiles** (PMO admin: clone, module toggle matrix,
+  publish/deprecate, team default; gated on `capabilities.manageProfiles`); a
+  profile picker on project create; a Project Settings → Profile tab (read-only
+  effective-config matrix, with an override row for PMO users). EN + FA.
+
 ## [1.97.0] — 2026-06-25
 
 **Tasks — WBS (n-level work-breakdown tree).** Completes the R1 neutral core

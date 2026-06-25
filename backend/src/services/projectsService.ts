@@ -13,6 +13,7 @@ import {
 } from '../lib/projectAccess.js';
 import { getDelegateCapabilities } from '../lib/delegateCaps.js';
 import { listMembershipPermissions } from '../middleware/requirePermission.js';
+import { ProfilesService } from './profilesService.js';
 // Project visibility (additive):
 // - globalRole === 'ADMIN' → all projects
 // - owner → own project (full edit + nested routes)
@@ -238,6 +239,7 @@ export class ProjectsService {
       startDate?: string | null;
       endDate?: string | null;
       labelIds?: string[];
+      profileId?: string;
     },
   ): Promise<ProjectView> {
     // v1.85: honor a selectable owner. Effective owner = chosen owner (when
@@ -264,6 +266,15 @@ export class ProjectsService {
       });
       budgetCurrency = team?.defaultCurrency ?? 'IRR';
     }
+
+    // v1.98 (PMIS R2): resolve + snapshot the base profile (picker ▸ team
+    // default ▸ system NEUTRAL) onto the new project so later re-publishing a
+    // profile never silently mutates it. Backfills to NEUTRAL → identity.
+    const baseProfile = await new ProfilesService().resolveBaseProfileForCreate(
+      teamId,
+      input.profileId ?? null,
+    );
+
     try {
       const p = await prisma.project.create({
         data: {
@@ -278,6 +289,10 @@ export class ProjectsService {
           ...(planned !== undefined && { plannedBudget: planned }),
           ...(startDate !== undefined && { startDate }),
           ...(endDate !== undefined && { endDate }),
+          ...(baseProfile && {
+            profileId: baseProfile.profileId,
+            profileVersion: baseProfile.profileVersion,
+          }),
         },
         include: projectInclude,
       });

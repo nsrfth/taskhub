@@ -164,6 +164,28 @@ Settings → **Automations** lets managers with `automation.manage` define no-co
 - Rules run **after your save completes** — a failing rule never rolls back your edit.
 - **Loop protection** — each rule fires at most once per task per originating change chain; nested depth is capped at 5.
 
+### Project profiles (v1.98)
+
+Settings → **Project profiles** lets a PMO user (with `pmo.manage_profiles`) decide
+which optional modules are switched on for each kind of project. Every project always
+keeps its **neutral core** (work breakdown, baseline dates, % complete, RACI, RAG,
+project code, baselines); profiles only toggle the *optional* modules on top.
+
+- **Built-in profiles** ship ready to use: **Neutral** (everything off — the default,
+  so every project looks the same across the portfolio), **IT**, **EPC**, and
+  **Operations**. Built-ins are read-only — **clone** one to make your own.
+- **Lifecycle:** a cloned profile starts as a **Draft** you can edit freely; **Publish**
+  it to make it assignable (published profiles are frozen — clone again to change one);
+  **Deprecate** hides it from new assignments without touching projects already using it.
+- **Defaults:** set a **team default** profile (and optionally a per-group default) so new
+  projects start on the right one automatically.
+- **On a project:** when you create a project you can pick a profile (or leave it on the
+  team/group default). On an existing project, the **Profile** tab shows the resolved
+  module matrix; PMO users can re-assign the profile or override individual modules just
+  for that project. Enabling a module automatically pulls in the modules it depends on.
+- Profiles never grant a permission your role lacks — they can only hide an optional
+  module. They take full effect as the individual PMIS modules ship.
+
 ---
 
 ## Tasks — the basics

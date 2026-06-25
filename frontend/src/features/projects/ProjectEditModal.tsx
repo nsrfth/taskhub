@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/features/ui/Modal';
-import { listTeamMembersForAssignees } from '@/features/teams/api';
+import { getTeam, listTeamMembersForAssignees } from '@/features/teams/api';
 import { visibleTeamMembers } from '@/lib/systemUser';
 import { useT } from '@/lib/i18n';
 import type { ProjectCrossTeam } from '@/features/projects/api';
@@ -11,6 +11,7 @@ import ProjectFormFields, {
   type ProjectFormValues,
 } from '@/features/projects/ProjectFormFields';
 import ProjectDelegatesField from '@/features/projects/ProjectDelegatesField';
+import ProjectProfilePanel from '@/features/projects/ProjectProfilePanel';
 
 interface ProjectEditModalProps {
   project: ProjectCrossTeam;
@@ -39,6 +40,13 @@ export default function ProjectEditModal({
     staleTime: 30_000,
   });
   const members = visibleTeamMembers(membersRaw);
+
+  const { data: teamDetail } = useQuery({
+    queryKey: ['teams', project.teamId, 'detail'],
+    queryFn: () => getTeam(project.teamId),
+    staleTime: 30_000,
+    enabled: !nameOnly,
+  });
 
   useEffect(() => {
     setValues(projectFormValuesFromProject(project));
@@ -97,6 +105,13 @@ export default function ProjectEditModal({
             teamId={project.teamId}
             projectId={project.id}
             members={members}
+          />
+        )}
+        {!nameOnly && (
+          <ProjectProfilePanel
+            teamId={project.teamId}
+            projectId={project.id}
+            canManage={teamDetail?.capabilities.manageProfiles ?? false}
           />
         )}
         <div className="flex justify-end gap-2 pt-2">

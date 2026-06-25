@@ -555,9 +555,16 @@ model Team {
   // (consumed from R4). Null → fall back to defaultCurrency. Deliberately
   // distinct from defaultCurrency (which only pre-fills new project budgets).
   reportingCurrency Currency?
+  // v1.98 (PMIS R2): the team's default project profile (defaulting carrier:
+  // group ▸ team ▸ system NEUTRAL). Backfilled to system NEUTRAL for existing
+  // teams; new teams are stamped with NEUTRAL at create. SetNull on profile
+  // delete.
+  defaultProfileId String?
   createdAt       DateTime         @default(now())
   memberships   TeamMembership[]
   projects      Project[]
+  ownedProfiles ProjectProfile[] @relation("TeamOwnedProfiles")
+  defaultProfile ProjectProfile? @relation("TeamDefaultProfile", fields: [defaultProfileId], references: [id], onDelete: SetNull)
   labels        Label[]
   roles         Role[]
   notifications Notification[]
@@ -675,9 +682,19 @@ model Project {
   // unattached (invisible to portfolio roll-ups). Indexed for the R3 subtree
   // aggregations.
   orgUnitId      String?
+  // v1.98 (PMIS R2 — project profiles): the profile snapshotted onto this
+  // project at create (profileId + the version it was at), plus project-level
+  // overrides layered on the profile's module settings at read time. All
+  // nullable/additive: existing projects backfill to system NEUTRAL v1 (all
+  // modules off = today's behaviour exactly). profileOverrides is a JSON map of
+  // moduleKey → partial { enabled, requiredFields, defaults, config }.
+  profileId        String?
+  profileVersion   Int?
+  profileOverrides Json?
   createdAt      DateTime  @default(now())
   updatedAt     DateTime      @updatedAt
   team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  profile       ProjectProfile? @relation("ProjectAssignedProfile", fields: [profileId], references: [id], onDelete: SetNull)
   // ownerId is nullable + SetNull so admins can delete a user without
   // cascading the deletion to every project they own. The project then shows
   // "owner: (deleted user)" in the UI until a manager reassigns it.
@@ -704,6 +721,7 @@ model Project {
   @@index([ownerId])
   @@index([accountableId])
   @@index([orgUnitId])
+  @@index([profileId])
 }
 
 // v1.96 (PMIS R1 — neutral core): how a captured baseline came to be. R1 only
@@ -741,6 +759,95 @@ model ProjectBaseline {
   @@index([teamId])
 }
 
+// v1.98 (PMIS R2 — project profiles): a profile is BUILTIN (system-seeded,
+// immutable) or CUSTOM (team-authored). System built-ins are the four
+// cross-industry presets (NEUTRAL/IT/EPC/OPERATIONS); teams clone + tweak them
+// as CUSTOM profiles.
+enum ProfileKind {
+  BUILTIN
+  CUSTOM
+}
+
+// v1.98 (PMIS R2): SYSTEM profiles (teamId null) are the global built-ins
+// visible to every team; TEAM profiles belong to one team.
+enum ProfileOwnerScope {
+  SYSTEM
+  TEAM
+}
+
+// v1.98 (PMIS R2): a CUSTOM profile is editable only while DRAFT; PUBLISHED is
+// the assignable, immutable state (editing a published profile = clone to a new
+// draft so live projects that snapshot a version never silently mutate);
+// DEPRECATED hides it from new assignments without breaking projects already
+// pinned to it. The four system built-ins ship PUBLISHED.
+enum ProfileStatus {
+  DRAFT
+  PUBLISHED
+  DEPRECATED
+}
+
+// v1.98 (PMIS R2 — project profiles): a pluggable industry profile that toggles
+// the optional PMIS modules (lib/moduleRegistry) on top of the always-on
+// neutral core. Profile gating is ADDITIVE to RBAC — it can hide a capability a
+// role grants, never grant one a role lacks. A project snapshots a profile
+// (profileId + profileVersion) at create so re-publishing never mutates live
+// projects; `profileOverrides` on the project layer on top at read time.
+model ProjectProfile {
+  id   String @id @default(cuid())
+  // Stable machine key. Unique per (ownerScope, teamId, key) — enforced by a
+  // partial unique index in the migration (system keys are globally unique;
+  // a team's keys are unique within that team), which Prisma can't express, so
+  // @@unique is intentionally omitted here.
+  key  String
+  name String
+  kind       ProfileKind       @default(CUSTOM)
+  ownerScope ProfileOwnerScope @default(TEAM)
+  // Null for SYSTEM built-ins; set for TEAM-owned profiles.
+  teamId     String?
+  version    Int               @default(1)
+  status     ProfileStatus     @default(DRAFT)
+  // Lineage: the profile this one was cloned from (null for built-ins + the
+  // first hand-authored profile). SetNull so deleting the ancestor doesn't
+  // cascade the clone away.
+  basedOnProfileId String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  team            Team?            @relation("TeamOwnedProfiles", fields: [teamId], references: [id], onDelete: Cascade)
+  basedOnProfile  ProjectProfile?  @relation("ProfileLineage", fields: [basedOnProfileId], references: [id], onDelete: SetNull)
+  derivedProfiles ProjectProfile[] @relation("ProfileLineage")
+  moduleSettings  ProfileModuleSetting[]
+  // Back-relations from the three "carriers" that point at a profile.
+  projectsUsing    Project[]   @relation("ProjectAssignedProfile")
+  teamsDefaulting  Team[]      @relation("TeamDefaultProfile")
+  groupsDefaulting UserGroup[] @relation("GroupDefaultProfile")
+
+  @@index([teamId])
+  @@index([ownerScope, status])
+  @@index([key])
+}
+
+// v1.98 (PMIS R2): one row per (profile, optional module). `moduleKey` is
+// validated against lib/moduleRegistry (isModuleKey) at the service layer.
+// `requiredFields` references existing team CustomFieldDefinition ids the
+// profile marks required; `defaults`/`config` are free-form per-module bags the
+// consuming Wave-B/C module interprets.
+model ProfileModuleSetting {
+  id             String  @id @default(cuid())
+  profileId      String
+  moduleKey      String
+  enabled        Boolean @default(false)
+  requiredFields Json    @default("[]")
+  defaults       Json    @default("{}")
+  config         Json    @default("{}")
+
+  profile ProjectProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, moduleKey])
+  @@index([profileId])
+}
+
 // v1.50 / v1.51: team-scoped user groups for granting project access without
 // changing project ownership. v1.51 adds cross-team invites + access levels.
 model UserGroup {
@@ -748,12 +855,18 @@ model UserGroup {
   teamId      String
   name        String
   description String?
+  // v1.98 (PMIS R2): optional per-group default project profile — the highest-
+  // priority defaulting carrier (group ▸ team ▸ system NEUTRAL) the project-
+  // create picker pre-fills from. SetNull so deleting the profile just clears
+  // the default.
+  defaultProfileId String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   team     Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
   members  UserGroupMember[]
   grants   ProjectGroupGrant[]
+  defaultProfile ProjectProfile? @relation("GroupDefaultProfile", fields: [defaultProfileId], references: [id], onDelete: SetNull)
 
   @@unique([teamId, name])
   @@index([teamId])

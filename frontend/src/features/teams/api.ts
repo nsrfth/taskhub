@@ -66,6 +66,8 @@ export interface TeamCapabilities {
   manageCustomFields: boolean;
   manageAutomations: boolean;
   manageForms: boolean;
+  // v1.98 (PMIS R2): whether the caller may manage this team's project profiles.
+  manageProfiles: boolean;
 }
 
 export interface TeamDetail extends Team {

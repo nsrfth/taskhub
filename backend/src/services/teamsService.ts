@@ -3,6 +3,7 @@ import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import type { Permission } from '../lib/permissions.js';
 import { searchUsers } from '../lib/userSearch.js';
+import { NEUTRAL_PROFILE_ID } from '../lib/profiles.js';
 import { listMembershipPermissions } from '../middleware/requirePermission.js';
 import { logActivity } from './activityLogger.js';
 import { systemRoleIdFor } from '../lib/teamRoles.js';
@@ -280,11 +281,19 @@ export class TeamsService {
     input: { name: string; slug: string; color?: string },
   ): Promise<TeamWithRole> {
     try {
+      // v1.98 (PMIS R2): stamp the team's default profile with system NEUTRAL so
+      // every team carries an explicit default (group ▸ team ▸ NEUTRAL). Guarded
+      // by existence so a pre-migration environment never trips the FK.
+      const neutral = await prisma.projectProfile.findUnique({
+        where: { id: NEUTRAL_PROFILE_ID },
+        select: { id: true },
+      });
       const team = await prisma.team.create({
         data: {
           name: input.name,
           slug: input.slug,
           color: input.color ?? null,
+          ...(neutral && { defaultProfileId: NEUTRAL_PROFILE_ID }),
           memberships: { create: { userId: creatorId, role: 'MANAGER' } },
         },
       });

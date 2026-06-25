@@ -54,6 +54,10 @@ export const createProjectBody = z
     startDate: calendarDateField,
     endDate: calendarDateField,
     labelIds: z.array(z.string()).optional(),
+    // v1.98 (PMIS R2): the project profile to snapshot at create (the create
+    // picker's choice). Omitted → group/team default → system NEUTRAL. Validated
+    // server-side to a published profile the team may use.
+    profileId: z.string().optional(),
   })
   .superRefine(refineCalendarDateRange);
 

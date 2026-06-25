@@ -9,6 +9,8 @@ import { HolidaysService } from '../services/holidaysService.js';
 import { holidayResponse } from '../schemas/holidays.js';
 import { readSchedulingSettings } from '../lib/schedulingSettings.js';
 import { readReminderSettings } from '../lib/reminderTiming.js';
+import { ProfilesService, listModuleDefs } from '../services/profilesService.js';
+import { moduleListResponse, profileListResponse } from '../schemas/profiles.js';
 
 // Public read-only system metadata. Used by:
 //   - The frontend's About button (version + build + license + counts).
@@ -161,5 +163,30 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
           Object.entries(PERMISSION_GROUPS).map(([k, v]) => [k, [...v]]),
         ),
       }),
+  });
+
+  // v1.98 (PMIS R2): the optional-module catalog, served from MODULE_REGISTRY.
+  // Auth-less + code-bound (like /system/permissions) — pure metadata the
+  // profile-matrix UI renders.
+  r.get('/modules', {
+    schema: {
+      tags: ['system'],
+      summary: 'The optional PMIS module catalog (key, label, wave, dependsOn)',
+      response: { 200: moduleListResponse },
+    },
+    handler: async (_req, reply) => reply.send({ modules: listModuleDefs() }),
+  });
+
+  // v1.98 (PMIS R2): the four system-seeded built-in profiles
+  // (NEUTRAL/IT/EPC/OPERATIONS). Global, non-tenant data — the picker + the
+  // profile-admin clone source read it.
+  r.get('/profiles', {
+    schema: {
+      tags: ['system'],
+      summary: 'The system-seeded built-in project profiles',
+      response: { 200: profileListResponse },
+    },
+    handler: async (_req, reply) =>
+      reply.send({ items: await new ProfilesService().listSystemProfiles() }),
   });
 }
