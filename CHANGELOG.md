@@ -7,6 +7,83 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.97.0] — 2026-06-25
+
+**Tasks — WBS (n-level work-breakdown tree).** Completes the R1 neutral core
+on the task side. Tasks can now nest under other tasks (Subtask stays the leaf
+checklist), giving every project a proper work-breakdown structure. Backend + API.
+
+- **Schema:** `Task.parentId` (self-FK, same project, `SetNull` on parent delete)
+  + `Task.wbsOrder`. Migration `20260706120000_task_wbs`, additive — every
+  existing task defaults to a root, no backfill.
+- **Derived on read:** the outline code (`1.2.3`), depth, summary flag, and a
+  leaf-weighted `rollupPercentComplete` are computed by **`GET …/projects/:id/wbs`**
+  (returned flat in DFS pre-order), not stored — so create/move/delete never
+  rewrite the project's codes, and soft-delete/restore self-corrects (a trashed
+  parent's children float to roots in the view).
+- **API:** `POST …/tasks` accepts `parentId` (appends as last child);
+  **`POST …/tasks/:id/move {newParentId, position}`** reparents/reorders with
+  self-parent, cross-project, cycle, and depth-cap (20) guards. Both need project
+  WRITE.
+- **UI:** none yet — surfaced by the upcoming scheduling/Gantt work.
+
+## [1.96.0] — 2026-06-25
+
+**Projects — schedule baselines + org-unit attach point.** Completes the R1
+neutral core on the project side.
+
+- **Baselines:** new `ProjectBaseline` (+ `BaselineSource` enum). Capturing one
+  snapshots every live task's plan/progress dates and becomes the project's
+  **current** baseline, demoting the previous one (one transaction). `GET/POST
+  …/projects/:id/baselines`; capture needs project **WRITE + `core.capture_baseline`**
+  (the R0 permission). Cross-tenant ids get the existence-hiding 404.
+- **Org-unit:** new nullable `Project.orgUnitId` (no FK yet — the OrgUnit table
+  lands in R3), indexed for the future portfolio roll-ups. Null = unattached.
+- **Migration** `20260705120000_project_baseline_org_unit`, additive. **UI:** none yet.
+
+## [1.95.0] — 2026-06-25
+
+**PMIS R0 — plumbing (substrate only, no behaviour change).**
+The foundation the PMIS waves build on, landed after the R1 neutral-core columns
+(v1.91–v1.94). Everything here is inert until later releases reference it.
+
+- **Permissions:** new `pmo.*` (manage/assign/override profiles + set team/group
+  defaults), `core.capture_baseline`, and `portfolio.*` (view/manage/attach/
+  manage_managers) keys. Flat dot-notation (not the roadmap's `pmo:*` colon
+  sketch); `core.set_health` intentionally omitted (v1.91 health already gates on
+  project WRITE). Migration `20260704120000_pmis_r0_plumbing` backfills them onto
+  every existing system Manager role; new teams inherit them via the seed.
+- **Capability:** new `manageProfiles` on the team `capabilities` object
+  (= `pmo.manage_profiles`) so the frontend can gate the future profiles nav.
+- **Module registry** (`lib/moduleRegistry.ts`): authoritative 15-module key list
+  + dependency DAG + dependency-closure helper, for R2's profile resolver.
+- **Money:** `lib/money.ts` establishes integer **minor units** (`amountMinor:
+  bigint`) as the standard for all future cost data (existing `Decimal` budgets
+  untouched). Scaffolds the global `FxRate` reference table + nullable
+  `Team.reportingCurrency` (both consumed from R4).
+- **UI:** none, beyond the role matrix listing the new (inert) permission groups.
+
+## [1.94.0] — 2026-06-25
+
+**Tasks — RACI (Consulted/Informed) assignments.**
+Fourth slice of the PMIS "neutral core". Responsible and Accountable already
+exist (the task's responsible person and the project's accountable owner); this
+adds the **Consulted** and **Informed** legs, which are many-per-task and so
+live in a join table rather than scalar columns. Backend + API only.
+
+- **Schema:** new `RaciRole` enum (`CONSULTED`/`INFORMED`) + `TaskRaci`
+  `{taskId, userId, role}` join table, `@@unique([taskId, userId, role])`,
+  cascade on task or user delete; migration `20260703120000_task_raci`,
+  additive (empty C/I = today's behaviour).
+- **API:** `GET /teams/:teamId/projects/:projectId/tasks/:taskId/raci` reads the
+  set; **`PUT …/raci {entries:[{userId,role}]}`** replaces it wholesale
+  (replace-set semantics, like project delegates / task labels). Entries are
+  deduped by `(userId, role)`; every user must be a member of the team
+  (**400** otherwise). Reads need project READ; writes ride
+  `requireProjectWriteAccess`. A cross-team / wrong-project task id returns the
+  existence-hiding **404**.
+- **UI:** none yet — surfaced alongside the upcoming responsibility/RACI UI.
+
 ## [1.93.0] — 2026-06-25
 
 **Tasks — schedule baseline/actual dates + stored percent-complete.**

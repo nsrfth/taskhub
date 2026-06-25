@@ -82,6 +82,34 @@ export const PERMISSIONS = [
   // Trash. The `trash.emptyAllowedRoles` InstanceSetting (v1.21) gates this
   // on TOP of the permission — both layers must pass.
   'trash.purge',
+
+  // v1.95 (PMIS R0 — plumbing): permission substrate for the PMIS waves. These
+  // keys are pre-registered here so the role matrix + backfill exist before the
+  // features that enforce them land (profiles in R2, portfolio in R3, baseline
+  // capture in the remaining R1 slice). They gate nothing yet — adding them is
+  // inert until a `requirePermission(...)` call site references one. Naming
+  // follows the existing dot convention (NOT the `pmo:*` colon form the roadmap
+  // sketched — TaskHub permission keys are flat dot strings, no wildcards).
+  //
+  // PMO / Project-Admin: manage profile definitions + assign/override them on a
+  // project, and set the team/group profile defaults. Distinct from team
+  // governance so "who controls project profiles" is a deliberate grant.
+  'pmo.manage_profiles',
+  'pmo.assign_profile',
+  'pmo.override_profile',
+  'pmo.set_team_defaults',
+  'pmo.set_group_defaults',
+  // Neutral-core: capture a formal project schedule baseline (the upcoming
+  // ProjectBaseline entity). `core.set_health` is intentionally NOT added — the
+  // v1.91 RAG health endpoint already gates on project WRITE (assertCanWriteProject),
+  // so a separate permission would be permanently dead.
+  'core.capture_baseline',
+  // Portfolio / Program (OrgUnit tree): view roll-ups, manage the tree, attach
+  // projects, and manage portfolio managers.
+  'portfolio.view',
+  'portfolio.manage',
+  'portfolio.attach_project',
+  'portfolio.manage_managers',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -113,6 +141,21 @@ export const PERMISSION_GROUPS: Record<string, readonly Permission[]> = {
   ],
   Integrations: ['webhooks.manage', 'automation.manage'],
   Trash: ['trash.purge'],
+  // v1.95 (PMIS R0): substrate groups — render the new namespaces in the matrix.
+  PMO: [
+    'pmo.manage_profiles',
+    'pmo.assign_profile',
+    'pmo.override_profile',
+    'pmo.set_team_defaults',
+    'pmo.set_group_defaults',
+  ],
+  Core: ['core.capture_baseline'],
+  Portfolio: [
+    'portfolio.view',
+    'portfolio.manage',
+    'portfolio.attach_project',
+    'portfolio.manage_managers',
+  ],
 };
 
 // Validate a string against the known constants. Used by the role-update

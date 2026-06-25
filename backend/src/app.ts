@@ -8,6 +8,8 @@ import { teamsRoutes } from './routes/teams.js';
 import { projectsCrossTeamRoutes, projectsRoutes } from './routes/projects.js';
 import { ganttRoutes } from './routes/gantt.js';
 import { projectStatusRoutes } from './routes/projectStatus.js';
+import { projectBaselinesRoutes } from './routes/projectBaselines.js';
+import { wbsRoutes } from './routes/wbs.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { commentsRoutes } from './routes/comments.js';
 import { activityRoutes } from './routes/activity.js';
@@ -26,6 +28,7 @@ import { apiTokensRoutes } from './routes/apiTokens.js';
 import { webhooksRoutes } from './routes/webhooks.js';
 import { recurrenceRoutes } from './routes/recurrence.js';
 import { dependenciesRoutes } from './routes/dependencies.js';
+import { taskRaciRoutes } from './routes/taskRaci.js';
 import { searchRoutes } from './routes/search.js';
 import { systemRoutes } from './routes/system.js';
 import { holidaysRoutes } from './routes/holidays.js';
@@ -181,6 +184,12 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     await api.register(dependenciesRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/dependencies',
     });
+    // v1.94: task RACI (Consulted/Informed) legs. Same task nesting as
+    // dependencies so the requireTeamRole + project-access cascade carries
+    // through; PUT writes reuse the project write gate.
+    await api.register(taskRaciRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/raci',
+    });
     // v1.42: project Gantt report. Per-project read-only aggregator —
     // every subtask grouped by parent task with summary counters.
     await api.register(ganttRoutes, {
@@ -190,6 +199,16 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // requireProjectAccess cascade as the Gantt report.
     await api.register(projectStatusRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/reports/status',
+    });
+    // v1.96: per-project schedule baselines (PMIS R1). Same per-project nesting;
+    // capture is gated on project WRITE + core.capture_baseline.
+    await api.register(projectBaselinesRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/baselines',
+    });
+    // v1.97: per-project WBS tree (PMIS R1). Read-only aggregator; the move +
+    // create(parentId) mutations live on the tasks routes.
+    await api.register(wbsRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/wbs',
     });
     // v1.30: cross-team full-text search. Top-level mount — the endpoint
     // spans every team the caller is a member of, so it isn't nested

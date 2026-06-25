@@ -92,6 +92,10 @@ export interface TeamCapabilities {
   manageCustomFields: boolean;
   manageAutomations: boolean;
   manageForms: boolean;
+  // v1.95 (PMIS R0): whether the caller may manage project profiles for this
+  // team. Inert until R2 ships the profile admin screen — pre-exposed so the
+  // frontend can gate the nav the moment it lands.
+  manageProfiles: boolean;
 }
 
 export interface TeamDeleteBlockers {
@@ -437,6 +441,7 @@ export class TeamsService {
       manageCustomFields: permGranted(perms, 'customfield.manage'),
       manageAutomations: permGranted(perms, 'automation.manage'),
       manageForms: permGranted(perms, 'form.manage'),
+      manageProfiles: permGranted(perms, 'pmo.manage_profiles'),
     };
     const deleteBlockers = capabilities.deleteTeam
       ? await this.getDeleteBlockers(teamId)

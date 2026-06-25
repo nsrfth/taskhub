@@ -9,6 +9,7 @@ import { requireScope } from '../middleware/requireScope.js';
 import {
   createTaskBody,
   listTasksQuery,
+  moveTaskBody,
   rejectTaskBody,
   reorderTaskBody,
   responsibleCandidatesResponse,
@@ -113,6 +114,22 @@ export async function tasksRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.reorder,
+  });
+
+  // v1.97 (PMIS R1): WBS move — reparent a task in the work-breakdown tree and
+  // place it at a position among its new siblings. Rejects self-parent (400),
+  // cross-project / unknown parent (400), cycles (400), and over-deep nesting.
+  r.post('/:taskId/move', {
+    preHandler: [requireProjectWriteAccess(), requireScope('tasks:write')],
+    schema: {
+      tags: ['tasks'],
+      summary: 'Reparent a task in the WBS tree (newParentId null = make it a root)',
+      params: z.object({ teamId: z.string(), projectId: z.string(), taskId: z.string() }),
+      body: moveTaskBody,
+      response: { 200: taskResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.move,
   });
 
   // v1.87: approval decisions. Deliberately NOT requireProjectWriteAccess — the

@@ -79,6 +79,10 @@ export const createTaskBody = z.object({
   // service rejects cross-team ids with 400. Deduped server-side. The
   // catalog-based attach/detach endpoints continue to work post-create.
   labelIds: z.array(z.string().min(1)).max(50).optional(),
+  // v1.97 (PMIS R1): optional WBS parent. When set, the new task nests under
+  // this task (must be a live task in the same project) and appends as its last
+  // child. Omitted/null = a WBS root (today's behaviour).
+  parentId: z.string().nullable().optional(),
 }).superRefine(refineTaskDueDateRange);
 
 export const updateTaskBody = z
@@ -218,6 +222,9 @@ export const taskResponse = z.object({
   // v1.59: inherited from parent project — tasks do not store currency.
   budgetCurrency: currencyEnum,
   position: z.number().int(),
+  // v1.97 (PMIS R1): WBS parent id (null = root). The outline code/depth are
+  // derived by the dedicated /wbs endpoint, not carried on the flat task row.
+  parentId: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   labels: z.array(taskLabelResponse),
@@ -227,6 +234,44 @@ export const taskResponse = z.object({
   // present; 0 when there are no blockers or all blockers are DONE.
   incompleteBlockerCount: z.number().int().nonnegative(),
   customFields: z.array(taskCustomFieldValueResponse),
+});
+
+// v1.97 (PMIS R1): WBS move. `newParentId` null = promote to a root; otherwise
+// nest under that task (same project, not self or a descendant). `position` is
+// the 0-based index among the new siblings (clamped to the sibling count).
+export const moveTaskBody = z.object({
+  newParentId: z.string().nullable(),
+  position: z.number().int().min(0),
+});
+
+export type MoveTaskBody = z.infer<typeof moveTaskBody>;
+
+// v1.97 (PMIS R1): WBS tree read. Returned as a FLAT list in depth-first
+// pre-order — each node carries its derived outline `wbsCode` ("1.2.3"),
+// `wbsDepth` (0 = root), `isSummary` (has children), and a `rollupPercentComplete`
+// (leaf-weighted average of the subtree; equals own % for a leaf). Clients
+// render the tree by indenting on depth or rebuilding from `parentId`.
+export const wbsNodeResponse = z.object({
+  id: z.string(),
+  parentId: z.string().nullable(),
+  title: z.string(),
+  status: taskStatusEnum,
+  wbsCode: z.string(),
+  wbsDepth: z.number().int().nonnegative(),
+  isSummary: z.boolean(),
+  childCount: z.number().int().nonnegative(),
+  percentComplete: z.number().int(),
+  rollupPercentComplete: z.number().int(),
+  responsibleId: z.string().nullable(),
+  responsibleName: z.string().nullable(),
+  startDate: z.string().nullable(),
+  dueDate: z.string().nullable(),
+  baselineStart: z.string().nullable(),
+  baselineEnd: z.string().nullable(),
+});
+
+export const wbsResponse = z.object({
+  items: z.array(wbsNodeResponse),
 });
 
 export type CreateTaskBody = z.infer<typeof createTaskBody>;

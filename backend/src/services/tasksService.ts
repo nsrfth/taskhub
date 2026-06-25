@@ -88,6 +88,32 @@ const _customFields = new CustomFieldsService();
 
 const POSITION_GAP = 1000;
 
+// v1.97 (PMIS R1): max WBS nesting depth (root = 0). A guard against pathological
+// trees; deep enough for any real work-breakdown structure.
+const MAX_WBS_DEPTH = 20;
+
+// v1.97 (PMIS R1): one node of the derived WBS tree, returned flat in DFS
+// pre-order by projectWbs(). wbsCode/wbsDepth/isSummary/rollup are computed at
+// read time from the stored parentId + wbsOrder.
+export interface WbsNodeView {
+  id: string;
+  parentId: string | null;
+  title: string;
+  status: TaskStatus;
+  wbsCode: string;
+  wbsDepth: number;
+  isSummary: boolean;
+  childCount: number;
+  percentComplete: number;
+  rollupPercentComplete: number;
+  responsibleId: string | null;
+  responsibleName: string | null;
+  startDate: string | null;
+  dueDate: string | null;
+  baselineStart: string | null;
+  baselineEnd: string | null;
+}
+
 export interface TaskLabelView {
   id: string;
   name: string;
@@ -152,6 +178,9 @@ export interface TaskView {
   actualSpent: string | null;
   budgetCurrency: Currency;
   position: number;
+  // v1.97 (PMIS R1): WBS parent id (null = root). Outline code/depth are
+  // derived by the /wbs endpoint, not on the flat task row.
+  parentId: string | null;
   createdAt: Date;
   updatedAt: Date;
   labels: TaskLabelView[];
@@ -223,6 +252,7 @@ function toView(
     actualSpent: row.actualSpent === null ? null : row.actualSpent.toFixed(2),
     budgetCurrency: row.project.budgetCurrency,
     position: row.position,
+    parentId: row.parentId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     labels: row.labels.map((tl) => ({ id: tl.label.id, name: tl.label.name, color: tl.label.color })),
@@ -336,6 +366,8 @@ export class TasksService {
       // time. Empty array / omitted = no labels. Validated to belong to
       // the task's team (cross-team → 400). Deduped before insert.
       labelIds?: string[];
+      // v1.97 (PMIS R1): optional WBS parent (live task in this project).
+      parentId?: string | null;
     },
     opts?: { intake?: boolean },
   ): Promise<TaskView> {
@@ -413,6 +445,26 @@ export class TasksService {
     });
     const position = (last?.position ?? 0) + POSITION_GAP;
 
+    // v1.97 (PMIS R1): WBS placement. Validate the parent is a live task in this
+    // project, then append the new task as the last child of that parent (or as
+    // the last root when parentId is null). Same sparse-less append shape as the
+    // kanban position above, but keyed on (projectId, parentId).
+    let wbsParentId: string | null = null;
+    if (input.parentId) {
+      const parent = await prisma.task.findFirst({
+        where: { id: input.parentId, projectId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!parent) throw Errors.badRequest('Parent task not found in this project');
+      wbsParentId = input.parentId;
+    }
+    const lastSibling = await prisma.task.findFirst({
+      where: { projectId, parentId: wbsParentId, deletedAt: null },
+      orderBy: { wbsOrder: 'desc' },
+      select: { wbsOrder: true },
+    });
+    const wbsOrder = (lastSibling?.wbsOrder ?? -1) + 1;
+
     // completedAt resolution at create time:
     //   - explicit input wins (member backdates)
     //   - else, if creating directly into status=DONE, stamp now
@@ -467,6 +519,9 @@ export class TasksService {
           }),
           ...(input.percentComplete !== undefined && { percentComplete: input.percentComplete }),
           position,
+          // v1.97 (PMIS R1): WBS placement.
+          parentId: wbsParentId,
+          wbsOrder,
           // v1.42: Decimal? — Prisma accepts undefined ("don't write") so
           // the conditional spread keeps the default NULL when caller omits.
           ...(normaliseBudget(input.plannedBudget) !== undefined && {
@@ -1349,6 +1404,167 @@ export class TasksService {
       });
       return toView(updated, blockerCount);
     }).then((view) => withCustomFields(teamId, view));
+  }
+
+  // v1.97 (PMIS R1): WBS move — reparent a task and/or reorder it among its
+  // (new) siblings. newParentId null promotes it to a root. Guards: same
+  // project + live parent, no self-parent, no cycle (can't move under a
+  // descendant), and a depth cap. Sibling wbsOrder is renumbered sequentially.
+  async move(
+    teamId: string,
+    projectId: string,
+    taskId: string,
+    actorId: string,
+    actorGlobalRole: GlobalRole,
+    input: { newParentId: string | null; position: number },
+  ): Promise<TaskView> {
+    await assertCanWriteProject(projectId, teamId, actorId, actorGlobalRole);
+
+    const task = await prisma.task.findFirst({
+      where: { id: taskId, projectId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!task) throw Errors.notFound('Task not found');
+    if (input.newParentId === taskId) {
+      throw Errors.badRequest('A task cannot be its own parent');
+    }
+
+    const { newParentId } = input;
+    if (newParentId !== null) {
+      // Load (id, parentId) for every live task: validate the parent exists and
+      // walk its ancestor chain in memory for cycle detection + depth.
+      const rows = await prisma.task.findMany({
+        where: { projectId, deletedAt: null },
+        select: { id: true, parentId: true },
+      });
+      const parentOf = new Map(rows.map((r) => [r.id, r.parentId]));
+      if (!parentOf.has(newParentId)) {
+        throw Errors.badRequest('Parent task not found in this project');
+      }
+      let cur: string | null = newParentId;
+      let parentDepth = 0;
+      let hops = 0;
+      while (cur !== null) {
+        if (cur === taskId) {
+          throw Errors.badRequest('Cannot move a task under its own descendant');
+        }
+        cur = parentOf.get(cur) ?? null;
+        if (cur !== null) parentDepth += 1;
+        if (++hops > MAX_WBS_DEPTH + 2) break; // defensive against a malformed chain
+      }
+      if (parentDepth + 1 > MAX_WBS_DEPTH) {
+        throw Errors.badRequest('WBS nesting is too deep');
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const siblings = await tx.task.findMany({
+        where: { projectId, parentId: newParentId, deletedAt: null, NOT: { id: taskId } },
+        orderBy: [{ wbsOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true },
+      });
+      const ordered = siblings.map((s) => s.id);
+      const insertAt = Math.min(Math.max(input.position, 0), ordered.length);
+      ordered.splice(insertAt, 0, taskId);
+      // Renumber the affected sibling group sequentially; set the moved task's
+      // new parent in the same pass.
+      for (let i = 0; i < ordered.length; i++) {
+        await tx.task.update({
+          where: { id: ordered[i] },
+          data:
+            ordered[i] === taskId ? { parentId: newParentId, wbsOrder: i } : { wbsOrder: i },
+        });
+      }
+    });
+
+    return this.get(teamId, projectId, taskId);
+  }
+
+  // v1.97 (PMIS R1): build the project's WBS as a flat DFS pre-order list with
+  // derived outline codes + leaf-weighted % rollups. Children of a soft-deleted
+  // parent surface as roots (the read layer self-heals orphans). Pure read.
+  async projectWbs(teamId: string, projectId: string): Promise<WbsNodeView[]> {
+    await this.ensureProjectInTeam(teamId, projectId);
+    const rows = await prisma.task.findMany({
+      where: { projectId, deletedAt: null },
+      select: {
+        id: true,
+        parentId: true,
+        wbsOrder: true,
+        createdAt: true,
+        title: true,
+        status: true,
+        percentComplete: true,
+        startDate: true,
+        dueDate: true,
+        baselineStart: true,
+        baselineEnd: true,
+        responsibleId: true,
+        responsible: { select: { name: true } },
+      },
+    });
+
+    type Row = (typeof rows)[number];
+    const liveIds = new Set(rows.map((r) => r.id));
+    const childrenOf = new Map<string | null, Row[]>();
+    for (const r of rows) {
+      // A parent that isn't live (trashed/purged) → treat the row as a root.
+      const key = r.parentId && liveIds.has(r.parentId) ? r.parentId : null;
+      const bucket = childrenOf.get(key);
+      if (bucket) bucket.push(r);
+      else childrenOf.set(key, [r]);
+    }
+    const sortSibs = (arr: Row[]): Row[] =>
+      [...arr].sort(
+        (a, b) => a.wbsOrder - b.wbsOrder || a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+
+    const out: WbsNodeView[] = [];
+    const visited = new Set<string>(); // defensive cycle guard (move prevents cycles)
+
+    // DFS. Returns the subtree's { leafCount, weightedPct } so a summary node can
+    // average over its leaves. Pushes pre-order; fixes rollup after recursing.
+    const walk = (row: Row, code: string, depth: number): { leafCount: number; weightedPct: number } => {
+      if (visited.has(row.id)) return { leafCount: 0, weightedPct: 0 };
+      visited.add(row.id);
+      const kids = sortSibs(childrenOf.get(row.id) ?? []);
+      const isSummary = kids.length > 0;
+      const node: WbsNodeView = {
+        id: row.id,
+        parentId: row.parentId && liveIds.has(row.parentId) ? row.parentId : null,
+        title: row.title,
+        status: row.status,
+        wbsCode: code,
+        wbsDepth: depth,
+        isSummary,
+        childCount: kids.length,
+        percentComplete: row.percentComplete,
+        rollupPercentComplete: row.percentComplete,
+        responsibleId: row.responsibleId,
+        responsibleName: row.responsible?.name ?? null,
+        startDate: row.startDate ? row.startDate.toISOString() : null,
+        dueDate: row.dueDate ? row.dueDate.toISOString() : null,
+        baselineStart: row.baselineStart ? row.baselineStart.toISOString() : null,
+        baselineEnd: row.baselineEnd ? row.baselineEnd.toISOString() : null,
+      };
+      out.push(node);
+      if (!isSummary) {
+        return { leafCount: 1, weightedPct: row.percentComplete };
+      }
+      let leafCount = 0;
+      let weightedPct = 0;
+      kids.forEach((kid, i) => {
+        const sub = walk(kid, `${code}.${i + 1}`, depth + 1);
+        leafCount += sub.leafCount;
+        weightedPct += sub.weightedPct;
+      });
+      node.rollupPercentComplete = leafCount > 0 ? Math.round(weightedPct / leafCount) : 0;
+      return { leafCount, weightedPct };
+    };
+
+    const roots = sortSibs(childrenOf.get(null) ?? []);
+    roots.forEach((r, i) => walk(r, `${i + 1}`, 0));
+    return out;
   }
 
   // Rewrite every task in (projectId, status) with sparse positions. Used as

@@ -116,6 +116,8 @@ export const teamCapabilitiesResponse = z.object({
   manageCustomFields: z.boolean(),
   manageAutomations: z.boolean(),
   manageForms: z.boolean(),
+  // v1.95 (PMIS R0): pre-exposed profile-management capability (inert until R2).
+  manageProfiles: z.boolean(),
 });
 
 export const teamDetailResponse = teamResponse.extend({

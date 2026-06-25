@@ -4,6 +4,7 @@ import type { TasksService, TaskView } from '../services/tasksService.js';
 import type {
   CreateTaskBody,
   ListTasksQuery,
+  MoveTaskBody,
   RejectTaskBody,
   ReorderTaskBody,
   UpdateTaskBody,
@@ -152,6 +153,29 @@ export class TasksController {
       req.body,
     );
     return reply.send(serialize(t));
+  };
+
+  // v1.97 (PMIS R1): WBS move (reparent + reorder among siblings).
+  move = async (
+    req: FastifyRequest<{ Params: TaskParams; Body: MoveTaskBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    const t = await this.svc.move(
+      req.params.teamId,
+      req.params.projectId,
+      req.params.taskId,
+      req.user.sub,
+      req.user.globalRole,
+      req.body,
+    );
+    return reply.send(serialize(t));
+  };
+
+  // v1.97 (PMIS R1): the project's WBS tree (flat DFS pre-order + rollups).
+  wbs = async (req: FastifyRequest<{ Params: ProjectParams }>, reply: FastifyReply) => {
+    const items = await this.svc.projectWbs(req.params.teamId, req.params.projectId);
+    return reply.send({ items });
   };
 
   remove = async (req: FastifyRequest<{ Params: TaskParams }>, reply: FastifyReply) => {
