@@ -31,6 +31,16 @@ enum ProjectStatus {
   ON_HOLD
 }
 
+// v1.91 (PMIS R1 — neutral core): project health as a RAG (Red/Amber/Green)
+// signal for portfolio roll-up. Today this is a manual PM judgement; a later
+// slice may derive it from schedule/cost variance and flip ragManual. GREEN is
+// the migration default so every existing project stays valid with no backfill.
+enum RagStatus {
+  GREEN
+  AMBER
+  RED
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -613,6 +623,14 @@ model Project {
   // v1.90: correspondence (دبیرخانه) module toggle — a global admin enables the
   // per-project letters register from Settings → Correspondence module.
   correspondenceEnabled Boolean @default(false)
+  // v1.91 (PMIS R1 — neutral core): project health for portfolio roll-up.
+  // ragStatus defaults GREEN (no backfill needed); ragReason is an optional
+  // free-text note. healthUpdatedAt is stamped whenever the health is set so
+  // the portfolio view can flag stale health. Set via PUT .../projects/:id/health
+  // by anyone with project WRITE access.
+  ragStatus      RagStatus @default(GREEN)
+  ragReason      String?
+  healthUpdatedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt     DateTime      @updatedAt
   team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)

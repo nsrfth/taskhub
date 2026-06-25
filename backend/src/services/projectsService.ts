@@ -1,4 +1,4 @@
-import { Prisma, type Currency, type GlobalRole, type ProjectStatus } from '@prisma/client';
+import { Prisma, type Currency, type GlobalRole, type ProjectStatus, type RagStatus } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import {
   calendarDateToIso,
@@ -41,6 +41,10 @@ export interface ProjectView {
   endDate: string | null;
   labels: ProjectLabelView[];
   correspondenceEnabled: boolean;
+  // v1.91 (PMIS R1): project health (RAG) for portfolio roll-up.
+  ragStatus: RagStatus;
+  ragReason: string | null;
+  healthUpdatedAt: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +91,11 @@ function toView(p: ProjectRow): ProjectView {
     endDate: calendarDateToIso(p.endDate),
     labels: mapLabels(p),
     correspondenceEnabled: p.correspondenceEnabled,
+    ragStatus: p.ragStatus,
+    ragReason: p.ragReason,
+    // healthUpdatedAt is a true instant (UTC), unlike the zone-neutral
+    // calendar dates above — serialize with the timestamp formatter.
+    healthUpdatedAt: p.healthUpdatedAt ? p.healthUpdatedAt.toISOString() : null,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };
@@ -387,6 +396,36 @@ export class ProjectsService {
       }
       throw err;
     }
+  }
+
+  // v1.91 (PMIS R1): set a project's health (RAG). Gated on project WRITE
+  // access — owner, manager-write (project.write_all), or a FULL group grant —
+  // the same authority that edits a project's tasks. Non-writers get the
+  // existence-hiding 404/403 from assertProjectWrite. Stamps healthUpdatedAt so
+  // the portfolio view can surface stale health.
+  async setHealth(
+    teamId: string,
+    projectId: string,
+    callerId: string,
+    callerGlobalRole: GlobalRole,
+    input: { ragStatus: RagStatus; ragReason?: string | null },
+  ): Promise<ProjectView> {
+    const p = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { teamId: true },
+    });
+    if (!p || p.teamId !== teamId) throw Errors.notFound('Project not found');
+    await assertProjectWrite(projectId, teamId, callerId, callerGlobalRole);
+    const updated = await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        ragStatus: input.ragStatus,
+        ...(input.ragReason !== undefined && { ragReason: input.ragReason }),
+        healthUpdatedAt: new Date(),
+      },
+      include: projectInclude,
+    });
+    return toView(updated);
   }
 
   async remove(

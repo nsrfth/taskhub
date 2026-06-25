@@ -6,6 +6,9 @@ import { taskLabelResponse } from './tasks.js';
 
 export const projectStatusEnum = z.enum(['ACTIVE', 'ARCHIVED', 'ON_HOLD']);
 
+// v1.91 (PMIS R1): project health RAG signal.
+export const ragStatusEnum = z.enum(['GREEN', 'AMBER', 'RED']);
+
 // v1.41: budget fields are optional positive decimals serialized as
 // strings on the wire (Decimal has more range than JS number safely
 // represents). Accept JSON numbers too, but coerce to a normalised
@@ -143,8 +146,19 @@ export const projectResponse = z.object({
   // v1.90: whether the optional correspondence (دبیرخانه) module is enabled
   // for this project (admin-controlled). Lets the SPA gate the nav entry.
   correspondenceEnabled: z.boolean(),
+  // v1.91 (PMIS R1): project health (RAG) for portfolio roll-up.
+  ragStatus: ragStatusEnum,
+  ragReason: z.string().nullable(),
+  healthUpdatedAt: z.string().datetime().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+});
+
+// v1.91 (PMIS R1): set a project's health. Requires project WRITE access
+// (owner / manager-write / FULL group grant) — same gate as other mutations.
+export const updateProjectHealthBody = z.object({
+  ragStatus: ragStatusEnum,
+  ragReason: z.string().max(500).trim().nullable().optional(),
 });
 
 export const projectCrossTeamResponse = projectResponse.extend({
@@ -155,3 +169,4 @@ export const projectCrossTeamResponse = projectResponse.extend({
 export type CreateProjectBody = z.infer<typeof createProjectBody>;
 export type UpdateProjectBody = z.infer<typeof updateProjectBody>;
 export type ProjectDelegatesBody = z.infer<typeof projectDelegatesBody>;
+export type UpdateProjectHealthBody = z.infer<typeof updateProjectHealthBody>;

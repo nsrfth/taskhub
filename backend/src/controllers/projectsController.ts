@@ -5,6 +5,7 @@ import type {
   CreateProjectBody,
   ProjectDelegatesBody,
   UpdateProjectBody,
+  UpdateProjectHealthBody,
 } from '../schemas/projects.js';
 import { Errors } from '../lib/errors.js';
 
@@ -36,6 +37,9 @@ function serialize(p: {
   endDate: string | null;
   labels: Array<{ id: string; name: string; color: string }>;
   correspondenceEnabled: boolean;
+  ragStatus: string;
+  ragReason: string | null;
+  healthUpdatedAt: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -54,6 +58,9 @@ function serialize(p: {
     endDate: p.endDate,
     labels: p.labels,
     correspondenceEnabled: p.correspondenceEnabled,
+    ragStatus: p.ragStatus,
+    ragReason: p.ragReason,
+    healthUpdatedAt: p.healthUpdatedAt,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -119,6 +126,23 @@ export class ProjectsController {
     if (!req.user) throw Errors.unauthorized();
     callerMembership(req); // ensure team-member context
     const p = await this.svc.update(
+      req.params.teamId,
+      req.params.projectId,
+      req.user.sub,
+      req.user.globalRole,
+      req.body,
+    );
+    return reply.send(serialize(p));
+  };
+
+  // v1.91 (PMIS R1): set project health (RAG). WRITE access enforced in svc.
+  setHealth = async (
+    req: FastifyRequest<{ Params: ProjectParams; Body: UpdateProjectHealthBody }>,
+    reply: FastifyReply,
+  ) => {
+    if (!req.user) throw Errors.unauthorized();
+    callerMembership(req);
+    const p = await this.svc.setHealth(
       req.params.teamId,
       req.params.projectId,
       req.user.sub,

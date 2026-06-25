@@ -13,6 +13,7 @@ import {
   projectMyDelegateResponse,
   projectResponse,
   updateProjectBody,
+  updateProjectHealthBody,
 } from '../schemas/projects.js';
 
 // Projects mount under /api/teams/:teamId/projects so requireTeamRole can
@@ -76,6 +77,21 @@ export async function projectsRoutes(app: FastifyInstance): Promise<void> {
       security: [{ bearerAuth: [] }],
     },
     handler: ctrl.update,
+  });
+
+  // v1.91 (PMIS R1): set project health (RAG) for portfolio roll-up. Requires
+  // project WRITE access (enforced in the service) — not a rename-only manager.
+  r.put('/:projectId/health', {
+    preHandler: requireScope('projects:write'),
+    schema: {
+      tags: ['projects'],
+      summary: 'Set a project\'s health (RAG) — requires project WRITE access',
+      params: z.object({ teamId: z.string(), projectId: z.string() }),
+      body: updateProjectHealthBody,
+      response: { 200: projectResponse },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: ctrl.setHealth,
   });
 
   r.delete('/:projectId', {
