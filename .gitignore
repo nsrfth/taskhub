@@ -51,3 +51,4 @@ backend/prisma/*.db
 frontend/public/USER_MANUAL.md
 frontend/public/USER_MANUAL.fa.md
 DIAGNOSTIC_REPORT.md
+docs/PMIS_ROADMAP.md
