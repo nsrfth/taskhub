@@ -30,6 +30,11 @@ function serialize(t: TaskView) {
     dueDate: t.dueDate ? t.dueDate.toISOString() : null,
     plannedDate: t.plannedDate ? t.plannedDate.toISOString() : null,
     completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+    // v1.93 (PMIS R1): baseline/actual schedule dates → ISO.
+    baselineStart: t.baselineStart ? t.baselineStart.toISOString() : null,
+    baselineEnd: t.baselineEnd ? t.baselineEnd.toISOString() : null,
+    actualStart: t.actualStart ? t.actualStart.toISOString() : null,
+    actualEnd: t.actualEnd ? t.actualEnd.toISOString() : null,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   };

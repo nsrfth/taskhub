@@ -7,6 +7,21 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.93.0] — 2026-06-25
+
+**Tasks — schedule baseline/actual dates + stored percent-complete.**
+Third slice of the PMIS "neutral core": every task gains baseline & actual
+execution dates plus a stored 0–100 percent-complete — the substrate later
+scheduling/EVM and portfolio roll-up read from. Backend + API only.
+
+- **Schema:** `Task.baselineStart/baselineEnd/actualStart/actualEnd` (nullable
+  timestamps) and `Task.percentComplete` (int, default 0, DB CHECK 0..100);
+  migration `20260702120000_task_baseline_actual_progress`, additive.
+- **API:** all five accepted on task create + update and returned on the task
+  response. Baseline/actual dates are **manager-gated** (the existing
+  `EDIT_DATES` date gate); percent-complete rides the `EDIT_DETAILS` gate.
+- **UI:** none yet — surfaced by the upcoming scheduling/Gantt + EVM work.
+
 ## [1.92.0] — 2026-06-25
 
 **Projects — human-facing project code.**

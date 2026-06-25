@@ -340,6 +340,8 @@ There's a **Print** button for a clean single-page printout, and the page render
 
 **Project code — v1.92.** A project can carry an optional **code** (e.g. `EPC-014`) — a short identifier unique within the team — set when you create or edit the project. It's there for the upcoming **portfolio roll-up** to reference. Codes are optional, and two different teams may reuse the same code.
 
+**Task baseline & progress — v1.93.** Each task can now record **baseline** start/finish dates (the planned schedule snapshot), **actual** start/finish dates, and a **percent-complete** (0–100). These feed the upcoming scheduling and earned-value (EVM) views; for now they're set via the API (the dates are manager/admin-gated, like the other task dates), with on-screen editing to follow.
+
 ### Project Gantt chart (v1.42, scales v1.76)
 
 Open a project → **Gantt** (or `/projects/:id/reports/gantt`). The chart lists every **scheduled subtask** (start + end dates) grouped under its parent task. Bars are coloured by parent status; overdue open items get a red border. Off-days (weekends + holidays) are shaded red; hover a red day for the holiday name.

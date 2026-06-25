@@ -840,6 +840,15 @@ model Task {
   // The SPA computes utilization on the client as Actual / Planned * 100.
   plannedBudget Decimal?    @db.Decimal(18, 2)
   actualSpent   Decimal?    @db.Decimal(18, 2)
+  // v1.93 (PMIS R1 — neutral core): schedule baseline + actual execution dates
+  // (UTC-midnight calendar dates; manager-gated like the other date fields) and a
+  // stored 0–100 percent-complete for portfolio roll-up + future EVM. All additive:
+  // dates nullable, percentComplete defaults 0 (a DB CHECK keeps it in 0..100).
+  baselineStart DateTime?
+  baselineEnd   DateTime?
+  actualStart   DateTime?
+  actualEnd     DateTime?
+  percentComplete Int        @default(0)
   position    Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt

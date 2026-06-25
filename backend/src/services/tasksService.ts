@@ -140,6 +140,12 @@ export interface TaskView {
   dueDate: Date | null;
   plannedDate: Date | null;
   completedAt: Date | null;
+  // v1.93 (PMIS R1): baseline/actual schedule dates + stored percent-complete.
+  baselineStart: Date | null;
+  baselineEnd: Date | null;
+  actualStart: Date | null;
+  actualEnd: Date | null;
+  percentComplete: number;
   // v1.42: optional task budget fields. Fixed-2 strings on the wire
   // (Decimal serializes to string to preserve precision); null when unset.
   plannedBudget: string | null;
@@ -207,6 +213,11 @@ function toView(
     dueDate: row.dueDate,
     plannedDate: row.plannedDate,
     completedAt: row.completedAt,
+    baselineStart: row.baselineStart,
+    baselineEnd: row.baselineEnd,
+    actualStart: row.actualStart,
+    actualEnd: row.actualEnd,
+    percentComplete: row.percentComplete,
     // v1.42: Decimal → fixed-2 string. Mirrors v1.41 Project.toView.
     plannedBudget: row.plannedBudget === null ? null : row.plannedBudget.toFixed(2),
     actualSpent: row.actualSpent === null ? null : row.actualSpent.toFixed(2),
@@ -312,6 +323,12 @@ export class TasksService {
       dueDate?: string | null;
       plannedDate?: string | null;
       completedAt?: string | null;
+      // v1.93 (PMIS R1): baseline/actual dates + percent-complete.
+      baselineStart?: string | null;
+      baselineEnd?: string | null;
+      actualStart?: string | null;
+      actualEnd?: string | null;
+      percentComplete?: number;
       // v1.42: optional budget pair. number | string | null.
       plannedBudget?: number | string | null;
       actualSpent?: number | string | null;
@@ -436,6 +453,19 @@ export class TasksService {
           dueDate: dueResolvedForCreate.dueDate,
           plannedDate: input.plannedDate ? new Date(input.plannedDate) : null,
           completedAt,
+          ...(input.baselineStart !== undefined && {
+            baselineStart: input.baselineStart === null ? null : new Date(input.baselineStart),
+          }),
+          ...(input.baselineEnd !== undefined && {
+            baselineEnd: input.baselineEnd === null ? null : new Date(input.baselineEnd),
+          }),
+          ...(input.actualStart !== undefined && {
+            actualStart: input.actualStart === null ? null : new Date(input.actualStart),
+          }),
+          ...(input.actualEnd !== undefined && {
+            actualEnd: input.actualEnd === null ? null : new Date(input.actualEnd),
+          }),
+          ...(input.percentComplete !== undefined && { percentComplete: input.percentComplete }),
           position,
           // v1.42: Decimal? — Prisma accepts undefined ("don't write") so
           // the conditional spread keeps the default NULL when caller omits.
@@ -599,6 +629,12 @@ export class TasksService {
       dueDate?: string | null;
       plannedDate?: string | null;
       completedAt?: string | null;
+      // v1.93 (PMIS R1): baseline/actual dates + percent-complete.
+      baselineStart?: string | null;
+      baselineEnd?: string | null;
+      actualStart?: string | null;
+      actualEnd?: string | null;
+      percentComplete?: number;
       // v1.42: budget patch — undefined leaves, null clears.
       plannedBudget?: number | string | null;
       actualSpent?: number | string | null;
@@ -664,7 +700,12 @@ export class TasksService {
       input.startDate !== undefined ||
       input.dueDate !== undefined ||
       input.plannedDate !== undefined ||
-      input.completedAt !== undefined;
+      input.completedAt !== undefined ||
+      // v1.93: baseline/actual dates are manager-gated like the rest.
+      input.baselineStart !== undefined ||
+      input.baselineEnd !== undefined ||
+      input.actualStart !== undefined ||
+      input.actualEnd !== undefined;
     const touchesResponsible =
       input.responsibleId !== undefined && input.responsibleId !== existing.responsibleId;
     const touchesDetails =
@@ -676,7 +717,9 @@ export class TasksService {
       input.requiresApproval !== undefined ||
       input.approverId !== undefined ||
       input.plannedBudget !== undefined ||
-      input.actualSpent !== undefined;
+      input.actualSpent !== undefined ||
+      // v1.93: percent-complete is a progress detail (EDIT_DETAILS).
+      input.percentComplete !== undefined;
     if (input.title !== undefined && !can('EDIT_TITLES')) {
       throw Errors.forbidden('Missing capability to edit the task title');
     }
@@ -890,6 +933,19 @@ export class TasksService {
               plannedDate: input.plannedDate === null ? null : new Date(input.plannedDate),
             }),
             ...(resolvedCompletedAt !== undefined && { completedAt: resolvedCompletedAt }),
+            ...(input.baselineStart !== undefined && {
+              baselineStart: input.baselineStart === null ? null : new Date(input.baselineStart),
+            }),
+            ...(input.baselineEnd !== undefined && {
+              baselineEnd: input.baselineEnd === null ? null : new Date(input.baselineEnd),
+            }),
+            ...(input.actualStart !== undefined && {
+              actualStart: input.actualStart === null ? null : new Date(input.actualStart),
+            }),
+            ...(input.actualEnd !== undefined && {
+              actualEnd: input.actualEnd === null ? null : new Date(input.actualEnd),
+            }),
+            ...(input.percentComplete !== undefined && { percentComplete: input.percentComplete }),
             // v1.42: budget patch.
             ...(normaliseBudget(input.plannedBudget) !== undefined && {
               plannedBudget: normaliseBudget(input.plannedBudget),

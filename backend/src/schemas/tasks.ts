@@ -63,6 +63,13 @@ export const createTaskBody = z.object({
   dueDate: z.string().datetime().nullable().optional(),
   plannedDate: z.string().datetime().nullable().optional(),
   completedAt: z.string().datetime().nullable().optional(),
+  // v1.93 (PMIS R1): schedule baseline + actual execution dates (manager-gated
+  // like the other dates) and a stored 0–100 percent-complete.
+  baselineStart: z.string().datetime().nullable().optional(),
+  baselineEnd: z.string().datetime().nullable().optional(),
+  actualStart: z.string().datetime().nullable().optional(),
+  actualEnd: z.string().datetime().nullable().optional(),
+  percentComplete: z.number().int().min(0).max(100).optional(),
   // v1.42: optional task-level budget fields, mirrors Project budget rules.
   plannedBudget: budgetSchema,
   actualSpent: budgetSchema,
@@ -93,6 +100,12 @@ export const updateTaskBody = z
     dueDate: z.string().datetime().nullable().optional(),
     plannedDate: z.string().datetime().nullable().optional(),
     completedAt: z.string().datetime().nullable().optional(),
+    // v1.93 (PMIS R1): baseline/actual dates (manager-gated) + percent-complete.
+    baselineStart: z.string().datetime().nullable().optional(),
+    baselineEnd: z.string().datetime().nullable().optional(),
+    actualStart: z.string().datetime().nullable().optional(),
+    actualEnd: z.string().datetime().nullable().optional(),
+    percentComplete: z.number().int().min(0).max(100).optional(),
     // v1.42: optional budget patch — undefined leaves, null clears.
     plannedBudget: budgetSchema,
     actualSpent: budgetSchema,
@@ -192,6 +205,13 @@ export const taskResponse = z.object({
   dueDate: z.string().nullable(),
   plannedDate: z.string().nullable(),
   completedAt: z.string().nullable(),
+  // v1.93 (PMIS R1): schedule baseline + actual dates (ISO, null when unset) and
+  // the stored percent-complete (0–100).
+  baselineStart: z.string().nullable(),
+  baselineEnd: z.string().nullable(),
+  actualStart: z.string().nullable(),
+  actualEnd: z.string().nullable(),
+  percentComplete: z.number().int(),
   // v1.42: optional task budget fields (fixed-2 strings, null when unset).
   plannedBudget: z.string().nullable(),
   actualSpent: z.string().nullable(),
