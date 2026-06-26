@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import type {
@@ -234,7 +235,7 @@ export class ResourceService {
 
   async workloadReport(teamId: string, query: WorkloadQuery) {
     await this.assertTeam(teamId);
-    const where: Parameters<typeof prisma.resourceAssignment.findMany>[0]['where'] = { teamId };
+    const where: Prisma.ResourceAssignmentWhereInput = { teamId };
 
     const rows = await prisma.resourceAssignment.findMany({
       where,

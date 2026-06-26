@@ -2,7 +2,7 @@ import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import { reportingCurrencyFor } from './costService.js';
 import type { EvmQuery, EvmSeriesQuery } from '../schemas/evm.js';
-import type { EacMethod } from '@prisma/client';
+import type { Currency, EacMethod } from '@prisma/client';
 
 // v2.3 (PMIS R7): Earned Value Management computations.
 //
@@ -145,7 +145,7 @@ export class EvmService {
 
   private deriveMetrics(p: {
     bac: number; pv: number; ev: number; ac: number;
-    method: EacMethod; currency: string; asOf: Date; projectId: string;
+    method: EacMethod; currency: Currency; asOf: Date; projectId: string;
   }) {
     const { bac, pv, ev, ac, method, currency, asOf, projectId } = p;
     const cv = ev - ac;

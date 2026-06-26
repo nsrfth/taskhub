@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import type {
@@ -82,7 +83,7 @@ export class RecordService {
 
   async listRecords(teamId: string, projectId: string, query: ListRecordsQuery) {
     await this.assertProject(teamId, projectId);
-    const where: Parameters<typeof prisma.pmisRecord.findMany>[0]['where'] = { projectId, teamId };
+    const where: Prisma.PmisRecordWhereInput = { projectId, teamId };
     if (query.status) where.status = query.status;
     if (query.typeKey) {
       const rt = await prisma.pmisRecordType.findFirst({
