@@ -55,6 +55,22 @@ import { contactsRoutes } from './routes/contacts.js';
 import { correspondenceRoutes } from './routes/correspondence.js';
 import { correspondenceAdminRoutes } from './routes/correspondenceAdmin.js';
 import { backupsRoutes } from './routes/backups.js';
+import {
+  resourceAssignmentRoutes,
+  resourceCatalogRoutes,
+  skillCatalogRoutes,
+  taskAssignmentRoutes,
+} from './routes/resources.js';
+import { evmRoutes } from './routes/evm.js';
+import { recordTypesRoutes, recordsRoutes } from './routes/records.js';
+import {
+  changeRequestRoutes,
+  contractRoutes,
+  ncrRoutes,
+  purchaseOrderRoutes,
+  riskRoutes,
+  vendorRoutes,
+} from './routes/lifecycle.js';
 import { taskhubRoutes } from './routes/taskhub.js';
 import { securitySettingsRoutes } from './routes/securitySettings.js';
 import { meTasksRoutes } from './routes/meTasks.js';
@@ -290,6 +306,46 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
       env,
     });
     await api.register(correspondenceAdminRoutes, { prefix: '/admin/correspondence' });
+
+    // v2.2 (PMIS R6 — resource management): team resource + skill catalogs,
+    // task-scoped assignments, and team-scoped assignment mutations.
+    await api.register(resourceCatalogRoutes, { prefix: '/teams/:teamId/resources' });
+    await api.register(skillCatalogRoutes, { prefix: '/teams/:teamId/skills' });
+    await api.register(taskAssignmentRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/tasks/:taskId/assignments',
+    });
+    await api.register(resourceAssignmentRoutes, { prefix: '/teams/:teamId/resource-assignments' });
+
+    // v2.3 (PMIS R7 — EVM): earned-value metrics + S-curve snapshots.
+    await api.register(evmRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/evm',
+    });
+
+    // v2.4 (PMIS R8 — record framework): configurable project registers
+    // (Issues, RFIs, Documents, Stakeholders, MoM, and custom types).
+    await api.register(recordTypesRoutes, { prefix: '/teams/:teamId/record-types' });
+    await api.register(recordsRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/records',
+    });
+
+    // v2.5 (PMIS R9 — specialized lifecycle): Risk, Change Control,
+    // Procurement (Vendor / Contract / PO), and Quality NCR.
+    await api.register(riskRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/risks',
+    });
+    await api.register(changeRequestRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/change-requests',
+    });
+    await api.register(vendorRoutes, { prefix: '/teams/:teamId/vendors' });
+    await api.register(contractRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/contracts',
+    });
+    await api.register(purchaseOrderRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/purchase-orders',
+    });
+    await api.register(ncrRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/ncrs',
+    });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

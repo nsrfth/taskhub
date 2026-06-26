@@ -474,6 +474,20 @@ model User {
   correspondenceDeleted   Correspondence[]         @relation("CorrespondenceDeletedBy")
   correspondenceReferralsReceived CorrespondenceReferral[] @relation("ReferralRecipient")
   correspondenceReferralsSent     CorrespondenceReferral[] @relation("ReferralReferredBy")
+  // v2.2 (PMIS R6): linked team-member resources.
+  managedResources    Resource[]
+  // v2.4 (PMIS R8): record framework back-relations.
+  pmisRecordsAssigned PmisRecord[]        @relation("PmisRecordAssignee")
+  pmisRecordsCreated  PmisRecord[]        @relation("PmisRecordCreatedBy")
+  pmisRecordComments  PmisRecordComment[] @relation("PmisRecordCommentAuthor")
+  // v2.5 (PMIS R9): specialized lifecycle back-relations.
+  risksOwned          RiskRecord[]   @relation("RiskOwner")
+  risksCreated        RiskRecord[]   @relation("RiskCreatedBy")
+  crsSubmitted        ChangeRequest[] @relation("CrSubmittedBy")
+  crsDecided          ChangeRequest[] @relation("CrDecidedBy")
+  contractsCreated    Contract[]     @relation("ContractCreatedBy")
+  posCreated          PurchaseOrder[] @relation("PoCreatedBy")
+  ncrsCreated         QualityNcr[]   @relation("NcrCreatedBy")
 
   @@index([email])
 }
@@ -628,6 +642,22 @@ model Team {
   actualCostEntries  ActualCostEntry[]
   expenses           Expense[]
   capacityCalendars  CapacityCalendar[]
+  // v2.2 (PMIS R6 — resource management).
+  resources           Resource[]
+  skills              Skill[]
+  resourceAssignments ResourceAssignment[]
+  // v2.3 (PMIS R7 — EVM).
+  evmSnapshots        EvmSnapshot[]
+  // v2.4 (PMIS R8 — record framework).
+  recordTypes         PmisRecordType[]
+  pmisRecords         PmisRecord[]
+  // v2.5 (PMIS R9 — specialized lifecycle).
+  risks               RiskRecord[]
+  changeRequests      ChangeRequest[]
+  vendors             Vendor[]
+  contracts           Contract[]
+  purchaseOrders      PurchaseOrder[]
+  qualityNcrs         QualityNcr[]
   directory     Directory?       @relation("TeamDirectory", fields: [directoryId], references: [id], onDelete: SetNull)
 
   @@index([directoryId])
@@ -770,6 +800,18 @@ model Project {
   commitments        Commitment[]
   actualCostEntries  ActualCostEntry[]
   expenses           Expense[]
+  // v2.2 (PMIS R6 — resource management).
+  resourceAssignments ResourceAssignment[]
+  // v2.3 (PMIS R7 — EVM).
+  evmSnapshots        EvmSnapshot[]
+  // v2.4 (PMIS R8 — record framework).
+  pmisRecords         PmisRecord[]
+  // v2.5 (PMIS R9 — specialized lifecycle).
+  risks               RiskRecord[]
+  changeRequests      ChangeRequest[]
+  contracts           Contract[]
+  purchaseOrders      PurchaseOrder[]
+  qualityNcrs         QualityNcr[]
 
   // v1.30: tsvector for full-text search. See Task.searchVector for
   // rationale + lifecycle (managed by raw SQL, never read via Prisma).
@@ -855,6 +897,8 @@ model CapacityCalendar {
   team       Team?                @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project    Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   exceptions CalendarException[]
+  // v2.2 (PMIS R6): resources using this calendar.
+  resources  Resource[]
 
   @@index([teamId])
   @@index([projectId])
@@ -1271,6 +1315,10 @@ model Task {
   budgetLines       BudgetLine[]
   actualCostEntries ActualCostEntry[]
   baselineEntries   BaselineEntry[]
+  // v2.2 (PMIS R6): resource assignments.
+  resourceAssignments ResourceAssignment[]
+  // v2.5 (PMIS R9): NCR corrective task back-link.
+  qualityNcrs         QualityNcr[] @relation("NcrCorrectiveTask")
 
   // v1.30: tsvector for full-text search. Managed by raw SQL — the column
   // is GENERATED ALWAYS AS STORED with a GIN index. Prisma never reads it
@@ -2222,4 +2270,421 @@ model ActualCostEntry {
   @@index([teamId, incurredOn])
   @@index([source])
   @@index([taskId])
+}
+
+// ─── R6: Resource Management ────────────────────────────────────────────────
+
+enum ResourceType {
+  HUMAN
+  EQUIPMENT
+  MATERIAL
+}
+
+// v2.2 (PMIS R6): catalog of team resources (people, equipment, materials).
+// HUMAN resources optionally link to a TaskHub User via userId.
+model Resource {
+  id            String       @id @default(cuid())
+  teamId        String
+  name          String
+  type          ResourceType @default(HUMAN)
+  userId        String?
+  email         String?
+  // Capacity fraction: 1.0 = full-time, 0.5 = half-time.
+  maxUnits      Float        @default(1.0)
+  costRateMinor BigInt?
+  currency      Currency?
+  calendarId    String?
+  notes         String?
+  deletedAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  team     Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  calendar CapacityCalendar? @relation(fields: [calendarId], references: [id], onDelete: SetNull)
+
+  skills      ResourceSkill[]
+  assignments ResourceAssignment[]
+
+  @@unique([teamId, name])
+  @@index([teamId, deletedAt])
+  @@index([userId])
+  @@index([calendarId])
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  teamId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  team      Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  resources ResourceSkill[]
+
+  @@unique([teamId, name])
+  @@index([teamId])
+}
+
+model ResourceSkill {
+  resourceId String
+  skillId    String
+  level      Int    @default(1)
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  skill    Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, skillId])
+}
+
+// Assignment of a resource to a WBS task. `units` = fraction of maxUnits.
+model ResourceAssignment {
+  id           String   @id @default(cuid())
+  teamId       String
+  projectId    String
+  taskId       String
+  resourceId   String
+  units        Float    @default(1.0)
+  plannedHours Float?
+  actualHours  Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, resourceId])
+  @@index([teamId])
+  @@index([resourceId])
+  @@index([projectId])
+  @@index([taskId])
+}
+
+// ─── R7: EVM ────────────────────────────────────────────────────────────────
+
+enum EacMethod {
+  CPI_BASED
+  SPI_BASED
+  TCPI_BASED
+}
+
+// v2.3 (PMIS R7): earned-value metrics snapshot. On-demand computation is in
+// EvmService; snapshots are saved here for S-curve trending.
+model EvmSnapshot {
+  id           String    @id @default(cuid())
+  teamId       String
+  projectId    String
+  snapshotDate DateTime  @db.Date
+  bac          BigInt
+  pv           BigInt
+  ev           BigInt
+  ac           BigInt
+  cv           BigInt
+  sv           BigInt
+  cpi          Decimal   @db.Decimal(6, 4)
+  spi          Decimal   @db.Decimal(6, 4)
+  eac          BigInt
+  eacMethod    EacMethod @default(CPI_BASED)
+  vac          BigInt
+  tcpi         Decimal   @db.Decimal(6, 4)
+  currency     Currency
+  createdAt    DateTime  @default(now())
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, snapshotDate])
+  @@index([teamId])
+}
+
+// ─── R8: PMIS Record Framework ──────────────────────────────────────────────
+
+enum RecordTypeKind {
+  BUILTIN
+  CUSTOM
+}
+
+// v2.4 (PMIS R8): configurable record type (Issue, RFI, Document, Stakeholder, MoM, …).
+// Built-in types are seeded at migration; teams can add CUSTOM types.
+model PmisRecordType {
+  id          String         @id @default(cuid())
+  teamId      String?
+  key         String
+  name        String
+  kind        RecordTypeKind @default(CUSTOM)
+  statusSet   Json           @default("[]")
+  transitions Json           @default("[]")
+  position    Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  team    Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  records PmisRecord[]
+
+  @@unique([teamId, key])
+  @@index([teamId])
+}
+
+// v2.4 (PMIS R8): a record instance (e.g. a single issue, RFI, document).
+model PmisRecord {
+  id           String   @id @default(cuid())
+  teamId       String
+  projectId    String
+  recordTypeId String
+  reference    String
+  title        String
+  description  String?
+  status       String   @default("OPEN")
+  fieldValues  Json     @default("{}")
+  assigneeId   String?
+  dueDate      DateTime?
+  closedAt     DateTime?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  team       Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recordType PmisRecordType @relation(fields: [recordTypeId], references: [id], onDelete: Restrict)
+  assignee   User?          @relation("PmisRecordAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy  User?          @relation("PmisRecordCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  comments   PmisRecordComment[]
+
+  @@unique([projectId, reference])
+  @@index([teamId])
+  @@index([projectId, recordTypeId])
+  @@index([projectId, status])
+  @@index([assigneeId])
+}
+
+model PmisRecordComment {
+  id        String   @id @default(cuid())
+  recordId  String
+  authorId  String?
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  record PmisRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  author User?      @relation("PmisRecordCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([recordId, createdAt])
+}
+
+// ─── R9: Specialized Lifecycle ──────────────────────────────────────────────
+
+enum RiskResponse {
+  ACCEPT
+  AVOID
+  MITIGATE
+  TRANSFER
+}
+
+enum ChangeRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  CANCELLED
+}
+
+enum PoStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum NcrSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum NcrDisposition {
+  USE_AS_IS
+  REWORK
+  REJECT
+  CONCESSION
+}
+
+// v2.5 (PMIS R9): project risk register item.
+model RiskRecord {
+  id             String       @id @default(cuid())
+  teamId         String
+  projectId      String
+  reference      String
+  title          String
+  description    String?
+  probability    Int
+  impact         Int
+  score          Int
+  response       RiskResponse @default(ACCEPT)
+  mitigationPlan String?
+  ownerId        String?
+  dueDate        DateTime?
+  closedAt       DateTime?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner     User?    @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy User?    @relation("RiskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, reference])
+  @@index([teamId])
+  @@index([projectId, score])
+}
+
+// v2.5 (PMIS R9): change request. When APPROVED + applied, captures a new
+// baseline (source=CHANGE_REQUEST) and posts a cost-ledger delta entry.
+model ChangeRequest {
+  id                String              @id @default(cuid())
+  teamId            String
+  projectId         String
+  reference         String
+  title             String
+  description       String?
+  status            ChangeRequestStatus @default(DRAFT)
+  scheduleDeltaDays Int?
+  costImpactMinor   BigInt?
+  costCurrency      Currency?
+  submittedById     String?
+  submittedAt       DateTime?
+  decidedById       String?
+  decidedAt         DateTime?
+  rejectionReason   String?
+  appliedBaselineId String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submittedBy User?    @relation("CrSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  decidedBy   User?    @relation("CrDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, reference])
+  @@index([teamId])
+  @@index([projectId, status])
+}
+
+// v2.5 (PMIS R9): team-level vendor master for procurement.
+model Vendor {
+  id           String    @id @default(cuid())
+  teamId       String
+  name         String
+  contactEmail String?
+  contactPhone String?
+  address      String?
+  notes        String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contracts Contract[]
+
+  @@unique([teamId, name])
+  @@index([teamId, deletedAt])
+}
+
+// v2.5 (PMIS R9): project-level contract with a vendor.
+model Contract {
+  id          String         @id @default(cuid())
+  teamId      String
+  projectId   String
+  vendorId    String?
+  reference   String
+  title       String
+  status      ContractStatus @default(DRAFT)
+  valueMinor  BigInt?
+  currency    Currency?
+  startDate   DateTime?
+  endDate     DateTime?
+  notes       String?
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor    Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  createdBy User?            @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  pos       PurchaseOrder[]
+
+  @@unique([projectId, reference])
+  @@index([teamId])
+  @@index([projectId, status])
+  @@index([vendorId])
+}
+
+// v2.5 (PMIS R9): purchase order. On ISSUED, a Commitment is auto-posted in
+// the cost module and commitmentId records the link.
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  teamId       String
+  projectId    String
+  contractId   String?
+  reference    String
+  title        String
+  status       PoStatus  @default(DRAFT)
+  amountMinor  BigInt?
+  currency     Currency?
+  issuedDate   DateTime?
+  expectedDate DateTime?
+  receivedDate DateTime?
+  commitmentId String?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contract  Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("PoCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, reference])
+  @@index([teamId])
+  @@index([projectId, status])
+  @@index([contractId])
+}
+
+// v2.5 (PMIS R9): quality non-conformance report.
+// When disposition=REWORK a corrective-action task can be linked.
+model QualityNcr {
+  id               String          @id @default(cuid())
+  teamId           String
+  projectId        String
+  reference        String
+  title            String
+  description      String?
+  severity         NcrSeverity     @default(MINOR)
+  disposition      NcrDisposition?
+  correctiveTaskId String?
+  closedAt         DateTime?
+  createdById      String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  correctiveTask Task?    @relation("NcrCorrectiveTask", fields: [correctiveTaskId], references: [id], onDelete: SetNull)
+  createdBy      User?    @relation("NcrCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, reference])
+  @@index([teamId])
+  @@index([projectId, severity])
+  @@index([correctiveTaskId])
 }

@@ -121,6 +121,16 @@ export const PERMISSIONS = [
   'cost.manage',
   'timesheet.approve',
   'timesheet.manage_rates',
+  // v2.2 (PMIS R6): resource catalog + assignment management.
+  'resource.manage',
+  // v2.4 (PMIS R8): generic record framework (Issues, RFIs, Documents, etc.).
+  'record.manage',
+  // v2.5 (PMIS R9): specialized lifecycle modules.
+  'risk.manage',
+  'change.manage',
+  'change.approve',
+  'procurement.manage',
+  'quality.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -170,6 +180,15 @@ export const PERMISSION_GROUPS: Record<string, readonly Permission[]> = {
   // v2.0 (PMIS R4): cost + time control.
   Cost: ['cost.manage'],
   Timesheets: ['timesheet.approve', 'timesheet.manage_rates'],
+  // v2.2 (PMIS R6): resource management.
+  Resources: ['resource.manage'],
+  // v2.4 (PMIS R8): record framework.
+  Records: ['record.manage'],
+  // v2.5 (PMIS R9): specialized lifecycle.
+  Risk: ['risk.manage'],
+  ChangeControl: ['change.manage', 'change.approve'],
+  Procurement: ['procurement.manage'],
+  Quality: ['quality.manage'],
 };
 
 // Validate a string against the known constants. Used by the role-update
