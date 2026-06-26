@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.92.0** (2026-06-26)
+Version **v1.93.0** (2026-06-26)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -220,7 +220,8 @@ profile enables **Timesheets** and/or **Cost Control** (Project edit → Profile
   project's cost ledger; **Reject** returns it; **Reopen** unlocks an approved
   period and reverses the cost it posted.
 
-**Cost control** (the **Cost control** panel in Project settings):
+**Cost control** (the **Cost** link in the project row opens the full page; a
+quick summary also shows in the project edit dialog):
 
 - A per-project **summary** shows **Planned / Committed / Actual / Remaining** per
   currency, plus a single total in the team's reporting currency.
@@ -228,6 +229,11 @@ profile enables **Timesheets** and/or **Cost Control** (Project edit → Profile
   migrated into one automatically); **Committed** from commitments; **Actual**
   from the **append-only ledger** fed by approved timesheets, approved expenses,
   and manual entries. Corrections are made by **reversing** an entry, never editing.
+- The Cost page is **tabbed**: **Accounts** (a cost-breakdown / CBS tree you can
+  add to, rename, and prune), **Budget** lines, **Commitments** (open then
+  close/cancel), **Expenses** (submit → approve/reject; approving posts an
+  actual), the **Actuals** ledger (post a manual entry or reverse one), and team
+  **FX rates** used to roll multiple currencies into the reporting currency.
 - Managing budgets, commitments, expenses, actuals, and rate cards needs the new
   **cost.manage** / **timesheet.manage_rates** / **timesheet.approve** permissions
   (granted to Managers by default). Logging your own time needs no special right.
@@ -244,10 +250,13 @@ link in the project row.
   `1` = full-time), an optional **hourly cost rate** + currency, and an optional
   **working calendar**. Deleting a resource is a soft-delete, so its history on
   past assignments is kept.
-- **Skills** — a simple team skill catalogue; tag a resource with skills and a
-  proficiency **level** to answer "who can do X".
-- **Assignments** — attach a resource to any WBS task with a **units** share and
-  optional **planned / actual hours**; a resource appears on a given task once.
+- **Skills** — a simple team skill catalogue (the **Manage skills** button on the
+  Resources page); tag a resource with skills and a proficiency **level** (the
+  **Skills** action on each resource row) to answer "who can do X".
+- **Assignments** — on a **task's detail page**, the *Assigned resources* panel
+  attaches a resource with a **units** share and optional **planned / actual
+  hours**; a resource appears on a given task once. These rows feed the workload
+  report.
 - **Workload report** — per project, totals each resource's planned vs actual
   hours across its assignments, so you can spot over- and under-loading.
 

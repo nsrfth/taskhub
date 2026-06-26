@@ -19,6 +19,7 @@ import { AttachmentsSection } from '@/features/attachments/AttachmentsSection';
 import RecurrenceSection from '@/features/recurrence/RecurrenceSection';
 import DependenciesSection from '@/features/dependencies/DependenciesSection';
 import { TaskCustomFieldsSection } from '@/features/customFields/TaskCustomFieldsSection';
+import { TaskResourceAssignments } from '@/features/resources/TaskResourceAssignments';
 import {
   formatRelativeTime,
   formatShamsiCalendarLong,
@@ -562,6 +563,15 @@ export default function TaskDetailPage(): JSX.Element {
               projectId={projectId!}
               taskId={taskId!}
             />
+
+            <div className="mt-5 pt-4 border-t">
+              <TaskResourceAssignments
+                teamId={teamId!}
+                projectId={projectId!}
+                taskId={taskId!}
+                canManage={canEditTask}
+              />
+            </div>
 
             <div className="mt-5 pt-4 border-t">
               <h3 className="text-xs font-medium text-slate-600 mb-2">Dates</h3>

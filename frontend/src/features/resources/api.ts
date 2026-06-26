@@ -56,14 +56,46 @@ export interface CreateResourceInput {
   notes?: string | null;
 }
 
+export type UpdateResourceInput = Partial<CreateResourceInput>;
+
+export interface Assignment {
+  id: string;
+  teamId: string;
+  projectId: string;
+  taskId: string;
+  resourceId: string;
+  resourceName: string;
+  resourceType: ResourceType;
+  units: number;
+  plannedHours: number | null;
+  actualHours: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function listResources(teamId: string): Promise<Resource[]> {
   return (await api.get<{ items: Resource[] }>(`/teams/${teamId}/resources`)).data.items;
 }
 export async function createResource(teamId: string, input: CreateResourceInput): Promise<Resource> {
   return (await api.post<Resource>(`/teams/${teamId}/resources`, input)).data;
 }
+export async function updateResource(
+  teamId: string,
+  id: string,
+  input: UpdateResourceInput,
+): Promise<Resource> {
+  return (await api.patch<Resource>(`/teams/${teamId}/resources/${id}`, input)).data;
+}
 export async function deleteResource(teamId: string, id: string): Promise<void> {
   await api.delete(`/teams/${teamId}/resources/${id}`);
+}
+
+export async function setResourceSkills(
+  teamId: string,
+  resourceId: string,
+  skills: { skillId: string; level?: number }[],
+): Promise<void> {
+  await api.put(`/teams/${teamId}/resources/${resourceId}/skills`, { skills });
 }
 
 export async function listSkills(teamId: string): Promise<Skill[]> {
@@ -78,4 +110,43 @@ export async function deleteSkill(teamId: string, id: string): Promise<void> {
 
 export async function getWorkload(teamId: string): Promise<WorkloadItem[]> {
   return (await api.get<{ items: WorkloadItem[] }>(`/teams/${teamId}/resources/workload`)).data.items;
+}
+
+// Task-scoped resource assignments (R6). Create/list hang off a task; update and
+// remove are addressed by assignmentId at the team scope.
+export async function listAssignments(
+  teamId: string,
+  projectId: string,
+  taskId: string,
+): Promise<Assignment[]> {
+  return (
+    await api.get<{ items: Assignment[] }>(
+      `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/assignments`,
+    )
+  ).data.items;
+}
+export async function createAssignment(
+  teamId: string,
+  projectId: string,
+  taskId: string,
+  input: { resourceId: string; units?: number; plannedHours?: number | null },
+): Promise<Assignment> {
+  return (
+    await api.post<Assignment>(
+      `/teams/${teamId}/projects/${projectId}/tasks/${taskId}/assignments`,
+      input,
+    )
+  ).data;
+}
+export async function updateAssignment(
+  teamId: string,
+  assignmentId: string,
+  input: { units?: number; plannedHours?: number | null; actualHours?: number | null },
+): Promise<Assignment> {
+  return (
+    await api.patch<Assignment>(`/teams/${teamId}/resource-assignments/${assignmentId}`, input)
+  ).data;
+}
+export async function deleteAssignment(teamId: string, assignmentId: string): Promise<void> {
+  await api.delete(`/teams/${teamId}/resource-assignments/${assignmentId}`);
 }

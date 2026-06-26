@@ -204,6 +204,13 @@ export default function ProjectListRow({
             >
               {t('evm.navShort')}
             </Link>
+            <Link
+              to={`/projects/${project.id}/cost`}
+              className="text-xs text-primary hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {t('cost.navShort')}
+            </Link>
             {project.correspondenceEnabled && (
               <Link
                 to={`/projects/${project.id}/correspondence`}

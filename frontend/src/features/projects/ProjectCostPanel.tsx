@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { useT } from '@/lib/i18n';
 import * as costApi from '@/features/cost/api';
 
@@ -15,9 +14,6 @@ function toMinor(amount: string, currency: string): string {
   const dec = DECIMALS[currency] ?? 2;
   const n = parseFloat(amount || '0');
   return String(Math.round(n * 10 ** dec));
-}
-function isModuleDisabled(err: unknown): boolean {
-  return axios.isAxiosError(err) && err.response?.data?.error?.code === 'module_disabled';
 }
 
 // v2.0 (PMIS R4): per-project cost summary + budget lines + actual ledger.
@@ -59,7 +55,7 @@ export default function ProjectCostPanel({ teamId, projectId, canManage }: Proje
 
   if (summaryQ.isError) {
     // Module disabled (or no access) → render nothing to keep the modal clean.
-    return isModuleDisabled(summaryQ.error) ? null : null;
+    return null;
   }
   const summary = summaryQ.data;
 

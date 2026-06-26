@@ -7,6 +7,30 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.90.0] — 2026-06-26
+
+**PMIS GUI completion — Cost Control, Resources, and Records.** A QA audit found
+three modules were backend-complete but only partially surfaced. This release
+closes those gaps; no backend changes.
+
+- **Cost Control** — new per-project page (`/projects/:id/cost`) with a tabbed
+  panel covering every R4 endpoint: **Accounts** (CBS create/rename/delete),
+  **Budget** lines (add/delete), **Commitments** (add + close/cancel),
+  **Expenses** (submit + approve/reject — approval posts an actual),
+  **Actuals** ledger (manual post + reversing correction), and team **FX
+  rates** (list/upsert). The summary tab keeps the planned/committed/actual/
+  remaining roll-up. Money is entered as decimals and converted to minor units.
+- **Resources** — resource **edit** (was create/delete only); a **skill
+  catalog** modal (create/delete skills); per-resource **skill assignment**
+  with proficiency level; and a **task-assignment** panel on the task detail
+  page (assign resources with units + planned/actual hours) that feeds the
+  existing workload report.
+- **Records** — clickable rows open a **detail modal** with field editing
+  (title, description, status, assignee, due date) and a **comment thread**
+  (read + post); a **Manage types** modal for custom record-type CRUD.
+- **Cleanup** — removed a dead-code branch in `ProjectCostPanel`
+  (`isModuleDisabled(...) ? null : null`).
+
 ## [1.89.0] — 2026-06-26
 
 **PMIS frontend — full UI for R6–R9 modules.**

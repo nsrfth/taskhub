@@ -54,6 +54,59 @@ export interface ActualCostEntry {
   createdAt: string;
 }
 
+export interface CostAccount {
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  code: string;
+  name: string;
+  path: string;
+  isDefault: boolean;
+  childCount: number;
+  budgetLineCount: number;
+  createdAt: string;
+}
+
+export type CommitmentStatus = 'OPEN' | 'CLOSED' | 'CANCELLED';
+export interface Commitment {
+  id: string;
+  projectId: string;
+  costAccountId: string | null;
+  vendorName: string | null;
+  reference: string | null;
+  amountMinor: string;
+  amount: string;
+  currency: string;
+  status: CommitmentStatus;
+  incurredOn: string | null;
+  createdAt: string;
+}
+
+export type ExpenseStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+export interface Expense {
+  id: string;
+  projectId: string;
+  costAccountId: string | null;
+  taskId: string | null;
+  amountMinor: string;
+  amount: string;
+  currency: string;
+  status: ExpenseStatus;
+  description: string | null;
+  incurredOn: string;
+  createdAt: string;
+}
+
+export interface FxRate {
+  id: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rate: string;
+  asOf: string;
+  source: string | null;
+  createdAt: string;
+}
+
 const base = (teamId: string, projectId: string) => `/teams/${teamId}/projects/${projectId}/cost`;
 
 export async function getCostSummary(teamId: string, projectId: string): Promise<ProjectCostSummary> {
@@ -84,4 +137,91 @@ export async function createActual(
 }
 export async function reverseActual(teamId: string, projectId: string, id: string): Promise<ActualCostEntry> {
   return (await api.post<ActualCostEntry>(`${base(teamId, projectId)}/actuals/${id}/reverse`, {})).data;
+}
+
+// Cost accounts (CBS).
+export async function listCostAccounts(teamId: string, projectId: string): Promise<CostAccount[]> {
+  return (await api.get<{ items: CostAccount[] }>(`${base(teamId, projectId)}/accounts`)).data.items;
+}
+export async function createCostAccount(
+  teamId: string,
+  projectId: string,
+  input: { code: string; name: string; parentId?: string | null },
+): Promise<CostAccount> {
+  return (await api.post<CostAccount>(`${base(teamId, projectId)}/accounts`, input)).data;
+}
+export async function renameCostAccount(
+  teamId: string,
+  projectId: string,
+  id: string,
+  name: string,
+): Promise<CostAccount> {
+  return (await api.put<CostAccount>(`${base(teamId, projectId)}/accounts/${id}`, { name })).data;
+}
+export async function deleteCostAccount(teamId: string, projectId: string, id: string): Promise<void> {
+  await api.delete(`${base(teamId, projectId)}/accounts/${id}`);
+}
+
+// Commitments.
+export async function listCommitments(teamId: string, projectId: string): Promise<Commitment[]> {
+  return (await api.get<{ items: Commitment[] }>(`${base(teamId, projectId)}/commitments`)).data.items;
+}
+export async function createCommitment(
+  teamId: string,
+  projectId: string,
+  input: {
+    amountMinor: string;
+    currency: string;
+    vendorName?: string;
+    reference?: string;
+    incurredOn?: string;
+    costAccountId?: string | null;
+  },
+): Promise<Commitment> {
+  return (await api.post<Commitment>(`${base(teamId, projectId)}/commitments`, input)).data;
+}
+export async function setCommitmentStatus(
+  teamId: string,
+  projectId: string,
+  id: string,
+  status: CommitmentStatus,
+): Promise<Commitment> {
+  return (await api.put<Commitment>(`${base(teamId, projectId)}/commitments/${id}/status`, { status }))
+    .data;
+}
+
+// Expenses (approve posts an actual).
+export async function listExpenses(teamId: string, projectId: string): Promise<Expense[]> {
+  return (await api.get<{ items: Expense[] }>(`${base(teamId, projectId)}/expenses`)).data.items;
+}
+export async function createExpense(
+  teamId: string,
+  projectId: string,
+  input: {
+    amountMinor: string;
+    currency: string;
+    incurredOn: string;
+    description?: string;
+    costAccountId?: string | null;
+    taskId?: string | null;
+  },
+): Promise<Expense> {
+  return (await api.post<Expense>(`${base(teamId, projectId)}/expenses`, input)).data;
+}
+export async function approveExpense(teamId: string, projectId: string, id: string): Promise<Expense> {
+  return (await api.post<Expense>(`${base(teamId, projectId)}/expenses/${id}/approve`, {})).data;
+}
+export async function rejectExpense(teamId: string, projectId: string, id: string): Promise<Expense> {
+  return (await api.post<Expense>(`${base(teamId, projectId)}/expenses/${id}/reject`, {})).data;
+}
+
+// FX reference rates (team-scoped).
+export async function listFxRates(teamId: string): Promise<FxRate[]> {
+  return (await api.get<{ items: FxRate[] }>(`/teams/${teamId}/fx-rates`)).data.items;
+}
+export async function createFxRate(
+  teamId: string,
+  input: { baseCurrency: string; quoteCurrency: string; rate: string; asOf: string; source?: string },
+): Promise<FxRate> {
+  return (await api.post<FxRate>(`/teams/${teamId}/fx-rates`, input)).data;
 }

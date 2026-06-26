@@ -2,6 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as recApi from './api';
 import Modal from '@/features/ui/Modal';
+import { RecordDetailModal } from './RecordDetailModal';
+import { RecordTypesModal } from './RecordTypesModal';
 import { useT } from '@/lib/i18n';
 
 interface RecordsRegisterProps {
@@ -19,6 +21,8 @@ export function RecordsRegister({
   const qc = useQueryClient();
   const [typeKey, setTypeKey] = useState('');
   const [creating, setCreating] = useState(false);
+  const [managingTypes, setManagingTypes] = useState(false);
+  const [openRecord, setOpenRecord] = useState<recApi.PmisRecord | null>(null);
 
   const { data: types = [] } = useQuery({
     queryKey: ['record-types', teamId],
@@ -69,14 +73,25 @@ export function RecordsRegister({
             </option>
           ))}
         </select>
-        {canManage && types.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="ms-auto rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
-            {t('records.new')}
-          </button>
+        {canManage && (
+          <div className="ms-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setManagingTypes(true)}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-bg-elevated"
+            >
+              {t('records.types.manage')}
+            </button>
+            {types.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                {t('records.new')}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -103,11 +118,23 @@ export function RecordsRegister({
                 return (
                   <tr key={rec.id} className="hover:bg-bg-elevated">
                     <td className="px-3 py-2 font-mono" dir="ltr">
-                      {rec.reference}
+                      <button
+                        type="button"
+                        onClick={() => setOpenRecord(rec)}
+                        className="text-primary hover:underline"
+                      >
+                        {rec.reference}
+                      </button>
                     </td>
                     <td className="px-3 py-2">{rec.recordTypeName}</td>
                     <td className="px-3 py-2 max-w-[20rem] truncate" title={rec.title}>
-                      {rec.title}
+                      <button
+                        type="button"
+                        onClick={() => setOpenRecord(rec)}
+                        className="hover:underline text-start"
+                      >
+                        {rec.title}
+                      </button>
                     </td>
                     <td className="px-3 py-2">
                       {canManage ? (
@@ -166,6 +193,25 @@ export function RecordsRegister({
             invalidate();
           }}
         />
+      )}
+
+      {openRecord && (
+        <RecordDetailModal
+          teamId={teamId}
+          projectId={projectId}
+          record={openRecord}
+          statuses={statusByTypeId.get(openRecord.recordTypeId) ?? [openRecord.status]}
+          canManage={canManage}
+          onClose={() => setOpenRecord(null)}
+          onSaved={() => {
+            setOpenRecord(null);
+            invalidate();
+          }}
+        />
+      )}
+
+      {managingTypes && (
+        <RecordTypesModal teamId={teamId} onClose={() => setManagingTypes(false)} />
       )}
     </div>
   );
