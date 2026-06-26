@@ -29,4 +29,24 @@ export const baselineListResponse = z.object({
   items: z.array(baselineResponse),
 });
 
+export const baselineIdParams = baselineParams.extend({ baselineId: z.string() });
+
+export const baselineCompareResponse = z.object({
+  baselineId: z.string(),
+  baselineName: z.string(),
+  isCurrent: z.boolean(),
+  rows: z.array(
+    z.object({
+      taskId: z.string(),
+      title: z.string(),
+      baselineStart: z.string().nullable(),
+      baselineEnd: z.string().nullable(),
+      currentStart: z.string().nullable(),
+      currentEnd: z.string().nullable(),
+      slipStartDays: z.number().nullable(),
+      slipEndDays: z.number().nullable(),
+    }),
+  ),
+});
+
 export type CaptureBaselineBody = z.infer<typeof captureBaselineBody>;

@@ -1,11 +1,12 @@
-import type { BaselineSource, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
+import { bumpScheduleVersion } from '../lib/scheduleVersion.js';
 
 export interface BaselineView {
   id: string;
   name: string;
-  source: BaselineSource;
+  source: 'MANUAL' | 'CHANGE_REQUEST';
   isCurrent: boolean;
   taskCount: number;
   capturedById: string | null;
@@ -13,7 +14,6 @@ export interface BaselineView {
   capturedAt: string;
 }
 
-// One captured task's frozen plan/progress. ISO strings keep the JSON portable.
 interface SnapshotTask {
   taskId: string;
   title: string;
@@ -36,20 +36,22 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 function toView(row: {
   id: string;
   name: string;
-  source: BaselineSource;
+  source: 'MANUAL' | 'CHANGE_REQUEST';
   isCurrent: boolean;
   snapshot: unknown;
   capturedById: string | null;
   capturedAt: Date;
   capturedBy: { name: string | null } | null;
+  _count?: { entries: number };
 }): BaselineView {
   const snap = row.snapshot as { taskCount?: unknown; tasks?: unknown } | null;
   const taskCount =
-    typeof snap?.taskCount === 'number'
+    row._count?.entries ??
+    (typeof snap?.taskCount === 'number'
       ? snap.taskCount
       : Array.isArray(snap?.tasks)
         ? snap!.tasks!.length
-        : 0;
+        : 0);
   return {
     id: row.id,
     name: row.name,
@@ -62,10 +64,6 @@ function toView(row: {
   };
 }
 
-// v1.96 (PMIS R1 — neutral core): capture + list project schedule baselines.
-// The route layer already enforced project access; this service additionally
-// re-asserts the project↔team chain so a cross-tenant id can never read or
-// write another team's baselines (404, no leak — mirrors the RACI service).
 export class ProjectBaselinesService {
   private async assertProjectInTeam(teamId: string, projectId: string): Promise<void> {
     const p = await prisma.project.findUnique({
@@ -80,7 +78,7 @@ export class ProjectBaselinesService {
     const rows = await prisma.projectBaseline.findMany({
       where: { projectId },
       orderBy: { capturedAt: 'desc' },
-      include: { capturedBy: { select: { name: true } } },
+      include: { capturedBy: { select: { name: true } }, _count: { select: { entries: true } } },
     });
     return rows.map(toView);
   }
@@ -93,7 +91,6 @@ export class ProjectBaselinesService {
   ): Promise<BaselineView> {
     await this.assertProjectInTeam(teamId, projectId);
 
-    // Snapshot every live task's planned/baseline dates + progress at this moment.
     const tasks = await prisma.task.findMany({
       where: { projectId, deletedAt: null },
       select: {
@@ -124,14 +121,12 @@ export class ProjectBaselinesService {
       })),
     };
 
-    // Exactly one current baseline per project: demote the rest, then create the
-    // new current one — atomically so a reader never sees zero or two currents.
     const created = await prisma.$transaction(async (tx) => {
       await tx.projectBaseline.updateMany({
         where: { projectId, isCurrent: true },
         data: { isCurrent: false },
       });
-      return tx.projectBaseline.create({
+      const bl = await tx.projectBaseline.create({
         data: {
           projectId,
           teamId,
@@ -141,10 +136,110 @@ export class ProjectBaselinesService {
           snapshot: snapshot as unknown as Prisma.InputJsonValue,
           capturedById,
         },
-        include: { capturedBy: { select: { name: true } } },
+        include: { capturedBy: { select: { name: true } }, _count: { select: { entries: true } } },
       });
+      if (tasks.length) {
+        await tx.baselineEntry.createMany({
+          data: tasks.map((t) => ({
+            baselineId: bl.id,
+            taskId: t.id,
+            start: t.baselineStart ?? t.startDate,
+            end: t.baselineEnd ?? t.dueDate,
+          })),
+        });
+      }
+      await bumpScheduleVersion(tx, projectId);
+      return bl;
     });
 
     return toView(created);
+  }
+
+  async activate(teamId: string, projectId: string, baselineId: string): Promise<BaselineView> {
+    await this.assertProjectInTeam(teamId, projectId);
+    const row = await prisma.projectBaseline.findFirst({ where: { id: baselineId, projectId } });
+    if (!row) throw Errors.notFound('Baseline not found');
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.projectBaseline.updateMany({ where: { projectId, isCurrent: true }, data: { isCurrent: false } });
+      return tx.projectBaseline.update({
+        where: { id: baselineId },
+        data: { isCurrent: true },
+        include: { capturedBy: { select: { name: true } }, _count: { select: { entries: true } } },
+      });
+    });
+    return toView(updated);
+  }
+
+  async compare(teamId: string, projectId: string, baselineId?: string) {
+    await this.assertProjectInTeam(teamId, projectId);
+    const baseline = baselineId
+      ? await prisma.projectBaseline.findFirst({ where: { id: baselineId, projectId } })
+      : await prisma.projectBaseline.findFirst({ where: { projectId, isCurrent: true } });
+    if (!baseline) throw Errors.notFound('Baseline not found');
+
+    const [entries, live] = await Promise.all([
+      prisma.baselineEntry.findMany({
+        where: { baselineId: baseline.id },
+        include: { task: { select: { id: true, title: true, startDate: true, dueDate: true, deletedAt: true } } },
+      }),
+      prisma.task.findMany({
+        where: { projectId, deletedAt: null },
+        select: { id: true, title: true, startDate: true, dueDate: true },
+      }),
+    ]);
+    const liveById = new Map(live.map((t) => [t.id, t]));
+    const rows = entries
+      .filter((e) => e.task.deletedAt === null)
+      .map((e) => {
+        const cur = liveById.get(e.taskId);
+        const slipStart =
+          e.start && cur?.startDate
+            ? Math.round((cur.startDate.getTime() - e.start.getTime()) / 86_400_000)
+            : null;
+        const slipEnd =
+          e.end && cur?.dueDate
+            ? Math.round((cur.dueDate.getTime() - e.end.getTime()) / 86_400_000)
+            : null;
+        return {
+          taskId: e.taskId,
+          title: e.task.title,
+          baselineStart: iso(e.start),
+          baselineEnd: iso(e.end),
+          currentStart: iso(cur?.startDate ?? null),
+          currentEnd: iso(cur?.dueDate ?? null),
+          slipStartDays: slipStart,
+          slipEndDays: slipEnd,
+        };
+      });
+    return {
+      baselineId: baseline.id,
+      baselineName: baseline.name,
+      isCurrent: baseline.isCurrent,
+      rows,
+    };
+  }
+
+  /** Schedule variance against the current baseline (or a named one). */
+  async variance(teamId: string, projectId: string, baselineId?: string) {
+    const cmp = await this.compare(teamId, projectId, baselineId);
+    const slipped = cmp.rows.filter((r) => (r.slipEndDays ?? 0) > 0 || (r.slipStartDays ?? 0) > 0);
+    return {
+      ...cmp,
+      slippedCount: slipped.length,
+      onTrackCount: cmp.rows.length - slipped.length,
+    };
+  }
+
+  /** Baseline bars keyed by taskId for Gantt overlay. */
+  async baselineBarsForProject(projectId: string): Promise<Map<string, { start: string | null; end: string | null }>> {
+    const current = await prisma.projectBaseline.findFirst({
+      where: { projectId, isCurrent: true },
+      select: { id: true },
+    });
+    if (!current) return new Map();
+    const entries = await prisma.baselineEntry.findMany({ where: { baselineId: current.id } });
+    return new Map(
+      entries.map((e) => [e.taskId, { start: iso(e.start), end: iso(e.end) }]),
+    );
   }
 }

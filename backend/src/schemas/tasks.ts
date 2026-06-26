@@ -110,6 +110,9 @@ export const updateTaskBody = z
     actualStart: z.string().datetime().nullable().optional(),
     actualEnd: z.string().datetime().nullable().optional(),
     percentComplete: z.number().int().min(0).max(100).optional(),
+    // v2.1 (PMIS R5): zero-duration milestone marker for the Gantt.
+    isMilestone: z.boolean().optional(),
+    milestoneKind: z.string().max(50).nullable().optional(),
     // v1.42: optional budget patch — undefined leaves, null clears.
     plannedBudget: budgetSchema,
     actualSpent: budgetSchema,

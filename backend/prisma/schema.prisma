@@ -176,6 +176,29 @@ enum DependencyType {
   FINISH_TO_FINISH
 }
 
+// v2.1 (PMIS R5 — scheduling engine): lag/lead on dependency edges.
+enum LagUnit {
+  DAY
+  HOUR
+}
+
+enum CalendarMode {
+  WORKING
+  CALENDAR
+}
+
+// v2.1 (PMIS R5): per-resource calendars (R6 consumes RESOURCE scope).
+enum CapacityCalendarScope {
+  TEAM
+  RESOURCE
+  PROJECT
+}
+
+enum CalendarExceptionKind {
+  HOLIDAY
+  WORKDAY
+}
+
 enum DirectoryKind {
   LDAP
   // SCIM placeholder for Phase 2B — kept in the same enum so a SCIM directory
@@ -595,6 +618,7 @@ model Team {
   commitments        Commitment[]
   actualCostEntries  ActualCostEntry[]
   expenses           Expense[]
+  capacityCalendars  CapacityCalendar[]
   directory     Directory?       @relation("TeamDirectory", fields: [directoryId], references: [id], onDelete: SetNull)
 
   @@index([directoryId])
@@ -708,9 +732,13 @@ model Project {
   profileId        String?
   profileVersion   Int?
   profileOverrides Json?
+  // v2.1 (PMIS R5): bumped when schedule-shaping data changes (task dates,
+  // dependencies, milestones) so on-demand CPM cache keys stay fresh.
+  scheduleVersion Int           @default(0)
   createdAt      DateTime  @default(now())
   updatedAt     DateTime      @updatedAt
   team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  capacityCalendars CapacityCalendar[]
   orgUnit       OrgUnit?      @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
   profile       ProjectProfile? @relation("ProjectAssignedProfile", fields: [profileId], references: [id], onDelete: SetNull)
   // ownerId is nullable + SetNull so admins can delete a user without
@@ -779,9 +807,61 @@ model ProjectBaseline {
 
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   capturedBy User?   @relation("BaselineCapturedBy", fields: [capturedById], references: [id], onDelete: SetNull)
+  // v2.1 (PMIS R5): formal per-task baseline bars (replaces JSON-only snapshot
+  // for Gantt compare/variance; snapshot JSON kept for back-compat).
+  entries    BaselineEntry[]
 
   @@index([projectId, isCurrent])
   @@index([teamId])
+}
+
+// v2.1 (PMIS R5): one task's frozen schedule window inside a ProjectBaseline.
+model BaselineEntry {
+  id         String   @id @default(cuid())
+  baselineId String
+  taskId     String
+  start      DateTime?
+  end        DateTime?
+
+  baseline ProjectBaseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  task     Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([baselineId, taskId])
+  @@index([baselineId])
+  @@index([taskId])
+}
+
+// v2.1 (PMIS R5): generalized capacity calendar (TEAM scope mirrors the
+// existing weekend + Holiday rows via WorkingDayCalendar today; RESOURCE/PROJECT
+// scopes land with R6). Scaffold table — CPM still reads WorkingDayCalendar.
+model CapacityCalendar {
+  id           String                @id @default(cuid())
+  scope        CapacityCalendarScope
+  teamId       String?
+  projectId    String?
+  workdayHours Decimal?              @default(8) @db.Decimal(4, 2)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  team       Team?                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project    Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  exceptions CalendarException[]
+
+  @@index([teamId])
+  @@index([projectId])
+}
+
+model CalendarException {
+  id         String                @id @default(cuid())
+  calendarId String
+  date       DateTime              @db.Date
+  kind       CalendarExceptionKind
+  hours      Decimal?              @db.Decimal(4, 2)
+  createdAt  DateTime              @default(now())
+
+  calendar CapacityCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+
+  @@unique([calendarId, date])
 }
 
 // v1.98 (PMIS R2 — project profiles): a profile is BUILTIN (system-seeded,
@@ -1128,6 +1208,9 @@ model Task {
   // the leaf checklist; WBS nests Tasks.
   parentId    String?
   wbsOrder    Int          @default(0)
+  // v2.1 (PMIS R5 — scheduling): zero-duration milestone marker on the Gantt.
+  isMilestone   Boolean      @default(false)
+  milestoneKind String?
   position    Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -1169,6 +1252,7 @@ model Task {
   timeEntries       TimeEntry[]
   budgetLines       BudgetLine[]
   actualCostEntries ActualCostEntry[]
+  baselineEntries   BaselineEntry[]
 
   // v1.30: tsvector for full-text search. Managed by raw SQL — the column
   // is GENERATED ALWAYS AS STORED with a GIN index. Prisma never reads it
@@ -1273,6 +1357,10 @@ model TaskDependency {
   taskId      String
   dependsOnId String
   type        DependencyType @default(FINISH_TO_START)
+  // v2.1 (PMIS R5): signed lag/lead on the edge (+2d FS, -1d lead, etc.).
+  lag          Int           @default(0)
+  lagUnit      LagUnit       @default(DAY)
+  calendarMode CalendarMode  @default(WORKING)
   createdAt   DateTime       @default(now())
 
   task      Task @relation("TaskDependencyFrom", fields: [taskId], references: [id], onDelete: Cascade)

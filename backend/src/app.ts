@@ -6,7 +6,7 @@ import { registerErrorHandler } from './middleware/errorHandler.js';
 import { authRoutes } from './routes/auth.js';
 import { teamsRoutes } from './routes/teams.js';
 import { projectsCrossTeamRoutes, projectsRoutes } from './routes/projects.js';
-import { ganttRoutes } from './routes/gantt.js';
+import { ganttRoutes, scheduleVarianceRoutes } from './routes/gantt.js';
 import { projectStatusRoutes } from './routes/projectStatus.js';
 import { projectBaselinesRoutes } from './routes/projectBaselines.js';
 import {
@@ -204,6 +204,9 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // every subtask grouped by parent task with summary counters.
     await api.register(ganttRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/reports/gantt',
+    });
+    await api.register(scheduleVarianceRoutes, {
+      prefix: '/teams/:teamId/projects/:projectId/reports/variance',
     });
     // v1.81: per-project one-page status report. Same per-project nesting +
     // requireProjectAccess cascade as the Gantt report.

@@ -75,6 +75,13 @@
   "gantt.next": "Next period",
   "gantt.today": "Today",
   "gantt.period": "Period",
+  "gantt.schedule.title": "Task schedule (WBS)",
+  "gantt.schedule.criticalPath": "Critical path",
+  "gantt.schedule.baseline": "Baseline overlay",
+  "gantt.schedule.milestones": "Milestones",
+  "gantt.schedule.empty": "No task-level schedule rows match the selected overlays. Set task start/due dates, enable PMIS modules, or capture a baseline.",
+  "gantt.schedule.baselineBar": "Baseline",
+  "gantt.schedule.criticalBar": "Critical",
 
   "groups.title": "User groups",
   "groups.description": "Grant project access to sets of team members without changing project ownership.",

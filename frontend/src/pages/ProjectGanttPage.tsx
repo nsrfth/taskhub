@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchGantt, type GanttSubtaskRow } from '@/features/reports/ganttApi';
+import { fetchGantt, type GanttLinkRow, type GanttSubtaskRow, type GanttTaskScheduleRow } from '@/features/reports/ganttApi';
+import { getEffectiveConfig } from '@/features/profiles/api';
 import { formatGanttPeriodLabel } from '@/features/reports/ganttPeriodLabel';
 import {
   barGeometry,
@@ -60,12 +61,6 @@ export default function ProjectGanttPage(): JSX.Element {
   const project = allProjects?.find((p) => p.id === projectId) ?? null;
   const teamId = project?.teamId ?? null;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['gantt', teamId, projectId],
-    queryFn: () => fetchGantt(teamId!, projectId!),
-    enabled: !!teamId && !!projectId,
-  });
-
   const [filterTaskId, setFilterTaskId] = useState<string>('');
   const [filterAssigneeId, setFilterAssigneeId] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -75,6 +70,32 @@ export default function ProjectGanttPage(): JSX.Element {
   const [scaleMode, setScaleMode] = useState<GanttScaleMode>('day');
   const [anchorMs, setAnchorMs] = useState(() => todayUtcMs());
   const [dayFitProject, setDayFitProject] = useState(true);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [showMilestones, setShowMilestones] = useState(false);
+
+  const { data: effectiveConfig } = useQuery({
+    queryKey: ['effective-config', teamId, projectId],
+    queryFn: () => getEffectiveConfig(teamId!, projectId!),
+    enabled: !!teamId && !!projectId,
+  });
+
+  const cpmEnabled = effectiveConfig?.modules.cpm_schedule?.enabled ?? false;
+  const baselinesEnabled = effectiveConfig?.modules.baselines?.enabled ?? false;
+
+  const includeParts = useMemo(() => {
+    const parts: string[] = [];
+    if (showCriticalPath && cpmEnabled) parts.push('criticalPath');
+    if (showBaseline && baselinesEnabled) parts.push('baseline');
+    if (showMilestones) parts.push('milestones');
+    return parts.length > 0 ? parts.join(',') : undefined;
+  }, [showCriticalPath, showBaseline, showMilestones, cpmEnabled, baselinesEnabled]);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['gantt', teamId, projectId, includeParts],
+    queryFn: () => fetchGantt(teamId!, projectId!, includeParts),
+    enabled: !!teamId && !!projectId,
+  });
 
   const distinctTasks = useMemo(() => {
     if (!data) return [];
@@ -118,6 +139,32 @@ export default function ProjectGanttPage(): JSX.Element {
     return Array.from(m, ([taskId, g]) => ({ taskId, ...g }));
   }, [scheduledRows]);
 
+  const scheduleTasks = useMemo(() => {
+    if (!data?.tasks?.length) return [];
+    return data.tasks.filter((task) => {
+      if (task.isMilestone && showMilestones) return !!(task.startDate ?? task.dueDate);
+      return !!(task.startDate && task.dueDate);
+    });
+  }, [data?.tasks, showMilestones]);
+
+  const scheduleBounds = useMemo(() => {
+    const rows: Array<{ startDate: string; endDate: string }> = [];
+    for (const task of scheduleTasks) {
+      if (task.isMilestone) {
+        const d = task.startDate ?? task.dueDate;
+        if (d) rows.push({ startDate: d, endDate: d });
+        continue;
+      }
+      if (task.startDate && task.dueDate) {
+        rows.push({ startDate: task.startDate, endDate: task.dueDate });
+      }
+      if (task.baseline?.start && task.baseline.end) {
+        rows.push({ startDate: task.baseline.start, endDate: task.baseline.end });
+      }
+    }
+    return projectBoundsFromRows(rows);
+  }, [scheduleTasks]);
+
   const projectBounds = useMemo(
     () =>
       projectBoundsFromRows(
@@ -136,6 +183,18 @@ export default function ProjectGanttPage(): JSX.Element {
   const axis = useMemo(
     () => buildGanttAxis(scaleMode, anchorMs, weekStartDay, todayMs, fitBounds),
     [scaleMode, anchorMs, weekStartDay, todayMs, fitBounds],
+  );
+
+  const scheduleAxis = useMemo(
+    () =>
+      buildGanttAxis(
+        scaleMode,
+        anchorMs,
+        weekStartDay,
+        todayMs,
+        scaleMode === 'day' && dayFitProject ? scheduleBounds : null,
+      ),
+    [scaleMode, anchorMs, weekStartDay, todayMs, dayFitProject, scheduleBounds],
   );
 
   const periodLabel = useMemo(
@@ -311,6 +370,57 @@ export default function ProjectGanttPage(): JSX.Element {
               <span className="text-sm font-medium text-text" dir="auto">
                 {t('gantt.period')}: {periodLabel}
               </span>
+              {(cpmEnabled || baselinesEnabled || showMilestones) && (
+                <div className="flex flex-wrap items-center gap-3 ms-auto">
+                  {cpmEnabled && (
+                    <label className="inline-flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={showCriticalPath}
+                        onChange={(e) => setShowCriticalPath(e.target.checked)}
+                      />
+                      {t('gantt.schedule.criticalPath')}
+                    </label>
+                  )}
+                  {baselinesEnabled && (
+                    <label className="inline-flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={showBaseline}
+                        onChange={(e) => setShowBaseline(e.target.checked)}
+                      />
+                      {t('gantt.schedule.baseline')}
+                    </label>
+                  )}
+                  <label className="inline-flex items-center gap-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={showMilestones}
+                      onChange={(e) => setShowMilestones(e.target.checked)}
+                    />
+                    {t('gantt.schedule.milestones')}
+                  </label>
+                </div>
+              )}
+            </section>
+          )}
+
+          {includeParts && (
+            <section className="bg-white rounded shadow p-2 overflow-x-auto mb-4">
+              <h2 className="text-sm font-semibold px-2 pt-2 pb-1 text-slate-700">
+                {t('gantt.schedule.title')}
+              </h2>
+              {scheduleTasks.length === 0 ? (
+                <p className="text-sm text-slate-500 p-4 italic">{t('gantt.schedule.empty')}</p>
+              ) : (
+                <TaskScheduleChart
+                  axis={scheduleAxis}
+                  tasks={scheduleTasks}
+                  links={showCriticalPath && cpmEnabled ? (data.links ?? []) : []}
+                  todayMs={todayMs}
+                  todayLabel={t('gantt.today')}
+                />
+              )}
             </section>
           )}
 
@@ -396,6 +506,193 @@ function statusFill(status: string, done: boolean): string {
     default:
       return '#94a3b8';
   }
+}
+
+function depTypeAbbrev(type: string): string {
+  switch (type) {
+    case 'START_TO_START':
+      return 'SS';
+    case 'FINISH_TO_FINISH':
+      return 'FF';
+    case 'FINISH_TO_START':
+    default:
+      return 'FS';
+  }
+}
+
+function formatLagLabel(type: string, lag: number, lagUnit: string): string {
+  const abbr = depTypeAbbrev(type);
+  if (lag === 0) return abbr;
+  const unit = lagUnit === 'HOUR' ? 'h' : lagUnit === 'WEEK' ? 'w' : 'd';
+  return `${abbr}${lag > 0 ? '+' : ''}${lag}${unit}`;
+}
+
+function TaskScheduleChart({
+  axis,
+  tasks,
+  links,
+  todayMs,
+  todayLabel,
+}: {
+  axis: GanttAxis;
+  tasks: GanttTaskScheduleRow[];
+  links: GanttLinkRow[];
+  todayMs: number;
+  todayLabel: string;
+}): JSX.Element {
+  const t = useT();
+  const todayX = todayLineX(axis, todayMs);
+  const chartHeight = HEADER_HEIGHT + tasks.length * ROW_HEIGHT;
+  const rowCenterY = new Map<string, number>();
+  let y = HEADER_HEIGHT;
+  for (const task of tasks) {
+    rowCenterY.set(task.id, y + ROW_HEIGHT / 2);
+    y += ROW_HEIGHT;
+  }
+
+  return (
+    <div dir="ltr" className="min-w-full">
+      <svg
+        width={axis.chartWidth}
+        height={chartHeight}
+        style={{ display: 'block', minWidth: '100%' }}
+        role="img"
+        aria-label={t('gantt.schedule.title')}
+      >
+        <defs>
+          <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#64748b" />
+          </marker>
+        </defs>
+
+        <HeaderColumns axis={axis} chartHeight={chartHeight} />
+
+        {todayX !== null && (
+          <g>
+            <line
+              x1={todayX}
+              y1={0}
+              x2={todayX}
+              y2={chartHeight}
+              stroke="#ef4444"
+              strokeWidth={1}
+            />
+            <text x={todayX + 2} y={28} fontSize="10" fill="#ef4444">
+              {todayLabel}
+            </text>
+          </g>
+        )}
+
+        {tasks.map((task, index) => {
+          const rowY = HEADER_HEIGHT + index * ROW_HEIGHT;
+          const centerY = rowCenterY.get(task.id)!;
+          const startIso = task.startDate ?? task.dueDate;
+          const endIso = task.dueDate ?? task.startDate;
+          const isCritical = task.cpm?.isCritical ?? false;
+          const barFill = isCritical ? '#dc2626' : '#6366f1';
+
+          const baselineGeom =
+            task.baseline?.start && task.baseline.end
+              ? barGeometry(utcDayMs(task.baseline.start), utcDayMs(task.baseline.end), axis)
+              : null;
+
+          const geom =
+            startIso && endIso && !task.isMilestone
+              ? barGeometry(utcDayMs(startIso), utcDayMs(endIso), axis)
+              : null;
+
+          const milestoneX =
+            task.isMilestone && startIso
+              ? barGeometry(utcDayMs(startIso), utcDayMs(startIso), axis)?.x
+              : null;
+
+          return (
+            <g key={task.id}>
+              <rect x={0} y={rowY} width={axis.chartWidth} height={ROW_HEIGHT} fill="#ffffff" />
+              <text x={6} y={rowY + 18} fontSize="11" fill="#334155">
+                {task.title}
+                {task.isMilestone ? ' ◆' : ''}
+              </text>
+              {baselineGeom && (
+                <rect
+                  x={baselineGeom.x + 2}
+                  y={rowY + 10}
+                  width={baselineGeom.width}
+                  height={ROW_HEIGHT - 12}
+                  rx={2}
+                  fill="#cbd5e1"
+                  opacity={0.55}
+                >
+                  <title>{t('gantt.schedule.baselineBar')}</title>
+                </rect>
+              )}
+              {geom && (
+                <rect
+                  x={geom.x + 2}
+                  y={rowY + 6}
+                  width={geom.width}
+                  height={ROW_HEIGHT - 10}
+                  rx={3}
+                  fill={barFill}
+                  stroke={isCritical ? '#991b1b' : 'transparent'}
+                  strokeWidth={isCritical ? 2 : 0}
+                >
+                  <title>
+                    {task.title}
+                    {isCritical ? ` (${t('gantt.schedule.criticalBar')})` : ''}
+                  </title>
+                </rect>
+              )}
+              {milestoneX !== null && milestoneX !== undefined && (
+                <polygon
+                  points={`${milestoneX},${rowY + 8} ${milestoneX + 6},${centerY} ${milestoneX},${rowY + ROW_HEIGHT - 8} ${milestoneX - 6},${centerY}`}
+                  fill="#8b5cf6"
+                  stroke="#5b21b6"
+                  strokeWidth={1}
+                >
+                  <title>{task.milestoneKind ?? task.title}</title>
+                </polygon>
+              )}
+            </g>
+          );
+        })}
+
+        {links.map((link) => {
+          const fromY = rowCenterY.get(link.dependsOnId);
+          const toY = rowCenterY.get(link.taskId);
+          if (fromY === undefined || toY === undefined) return null;
+          const pred = tasks.find((x) => x.id === link.dependsOnId);
+          const succ = tasks.find((x) => x.id === link.taskId);
+          if (!pred || !succ) return null;
+          const predEnd = pred.dueDate ?? pred.startDate;
+          const succStart = succ.startDate ?? succ.dueDate;
+          if (!predEnd || !succStart) return null;
+          const predGeom = barGeometry(utcDayMs(predEnd), utcDayMs(predEnd), axis);
+          const succGeom = barGeometry(utcDayMs(succStart), utcDayMs(succStart), axis);
+          const x1 = (predGeom?.x ?? 0) + (predGeom?.width ?? 0);
+          const x2 = succGeom?.x ?? 0;
+          const midX = (x1 + x2) / 2;
+          const stroke = link.isCritical ? '#dc2626' : '#64748b';
+          return (
+            <g key={link.id}>
+              <line
+                x1={x1}
+                y1={fromY}
+                x2={x2}
+                y2={toY}
+                stroke={stroke}
+                strokeWidth={link.isCritical ? 2 : 1}
+                markerEnd="url(#arrow)"
+              />
+              <text x={midX} y={(fromY + toY) / 2 - 4} fontSize="9" fill={stroke} textAnchor="middle">
+                {formatLagLabel(link.type, link.lag, link.lagUnit)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }
 
 function GanttChart({

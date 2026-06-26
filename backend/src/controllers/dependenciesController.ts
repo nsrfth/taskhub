@@ -46,6 +46,9 @@ export class DependenciesController {
       taskId: req.params.taskId,
       dependsOnId: req.body.dependsOnId,
       type: req.body.type,
+      lag: req.body.lag,
+      lagUnit: req.body.lagUnit,
+      calendarMode: req.body.calendarMode,
       actorId: req.user.sub,
     });
     return reply.status(201).send(serializeEdge(edge));

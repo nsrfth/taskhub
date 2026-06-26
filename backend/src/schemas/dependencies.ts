@@ -17,6 +17,10 @@ export const createDependencyBody = z.object({
   // the same team + project; cycle prevention is server-side.
   dependsOnId: z.string().min(1),
   type: dependencyTypeEnum.default('FINISH_TO_START'),
+  // v2.1 (PMIS R5): lag/lead on the edge (+2d FS, etc.).
+  lag: z.number().int().optional(),
+  lagUnit: z.enum(['DAY', 'HOUR']).optional(),
+  calendarMode: z.enum(['WORKING', 'CALENDAR']).optional(),
 });
 
 // One side of the GET response. `task` is always the OTHER task on the
@@ -25,6 +29,9 @@ export const createDependencyBody = z.object({
 export const dependencyEdgeResponse = z.object({
   id: z.string(),
   type: dependencyTypeEnum,
+  lag: z.number().int(),
+  lagUnit: z.enum(['DAY', 'HOUR']),
+  calendarMode: z.enum(['WORKING', 'CALENDAR']),
   createdAt: z.string(),
   task: z.object({
     id: z.string(),

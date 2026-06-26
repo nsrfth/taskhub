@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 
-// v1.42: project Gantt report client. Mirrors GanttReport in
-// backend/src/services/ganttService.ts.
+// v1.42: project Gantt report client. v2.1 (PMIS R5): optional schedule overlay
+// (?include=criticalPath,baseline,milestones).
 
 export interface GanttSubtaskRow {
   id: string;
@@ -19,8 +19,41 @@ export interface GanttSubtaskRow {
   workingDayCount: number | null;
 }
 
+export interface GanttCpmBlock {
+  taskId: string;
+  earlyStart: string | null;
+  earlyFinish: string | null;
+  lateStart: string | null;
+  lateFinish: string | null;
+  totalFloatDays: number;
+  isCritical: boolean;
+}
+
+export interface GanttTaskScheduleRow {
+  id: string;
+  title: string;
+  startDate: string | null;
+  dueDate: string | null;
+  isMilestone: boolean;
+  milestoneKind: string | null;
+  cpm?: GanttCpmBlock;
+  baseline?: { start: string | null; end: string | null };
+}
+
+export interface GanttLinkRow {
+  id: string;
+  taskId: string;
+  dependsOnId: string;
+  type: string;
+  lag: number;
+  lagUnit: string;
+  calendarMode: string;
+  isCritical: boolean;
+}
+
 export interface GanttReport {
   projectId: string;
+  scheduleVersion?: number;
   workingDaysOnly: boolean;
   summary: {
     totalTasks: number;
@@ -31,12 +64,19 @@ export interface GanttReport {
     latestEnd: string | null;
   };
   rows: GanttSubtaskRow[];
+  tasks?: GanttTaskScheduleRow[];
+  links?: GanttLinkRow[];
+  criticalChain?: string[];
 }
 
-export async function fetchGantt(teamId: string, projectId: string): Promise<GanttReport> {
+export async function fetchGantt(
+  teamId: string,
+  projectId: string,
+  include?: string,
+): Promise<GanttReport> {
   return (
-    await api.get<GanttReport>(
-      `/teams/${teamId}/projects/${projectId}/reports/gantt`,
-    )
+    await api.get<GanttReport>(`/teams/${teamId}/projects/${projectId}/reports/gantt`, {
+      params: include ? { include } : undefined,
+    })
   ).data;
 }

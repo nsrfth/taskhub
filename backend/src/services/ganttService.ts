@@ -2,18 +2,16 @@ import { prisma } from '../data/prisma.js';
 import { Errors } from '../lib/errors.js';
 import { readSchedulingSettings } from '../lib/schedulingSettings.js';
 import { WorkingDayCalendar } from '../lib/workingDays.js';
+import {
+  computeCpm,
+  getCachedCpm,
+  setCachedCpm,
+  type CpmTaskResult,
+} from '../lib/cpm.js';
+import { ProjectBaselinesService } from './projectBaselinesService.js';
 
-// v1.42: project Gantt aggregator. Returns every subtask in a project
-// grouped by its parent task, along with cross-row summary counters.
-//
-// Visibility rule is enforced by the v1.39 requireProjectAccess
-// middleware on the route — non-owners 404 before this service runs.
-// We re-fetch the project to confirm it exists in the team (defence in
-// depth) but otherwise trust the upstream gate.
-//
-// Wire shape is flat (not nested under tasks) so the SPA can drive
-// virtualisation by row index. Each row carries parentTaskId/parentTaskTitle
-// so the client groups visually without a second query.
+// v1.42 + v2.1 (PMIS R5): project Gantt — legacy subtask rows unchanged; optional
+// task-level schedule overlay (milestones, CPM, baseline bars) via ?include=.
 
 export interface GanttSubtaskRow {
   id: string;
@@ -28,41 +26,66 @@ export interface GanttSubtaskRow {
   responsibleId: string | null;
   responsibleName: string | null;
   done: boolean;
-  /** Present when scheduling.workingDaysOnly is enabled — inclusive working-day count. */
   workingDayCount: number | null;
+}
+
+export interface GanttTaskScheduleRow {
+  id: string;
+  title: string;
+  startDate: string | null;
+  dueDate: string | null;
+  isMilestone: boolean;
+  milestoneKind: string | null;
+  cpm?: CpmTaskResult;
+  baseline?: { start: string | null; end: string | null };
+}
+
+export interface GanttLinkRow {
+  id: string;
+  taskId: string;
+  dependsOnId: string;
+  type: string;
+  lag: number;
+  lagUnit: string;
+  calendarMode: string;
+  isCritical: boolean;
 }
 
 export interface GanttReport {
   projectId: string;
-  // Top-level summary block the SPA renders above the chart. All counts
-  // are derived in one query so the client doesn't compute over the row
-  // array (cheap, but the wire promise is the authority).
+  scheduleVersion?: number;
   summary: {
     totalTasks: number;
     totalSubtasks: number;
     scheduledSubtasks: number;
     unscheduledSubtasks: number;
-    // Earliest start across all scheduled subtasks (ISO) and latest end.
-    // Both null when the project has no scheduled subtasks at all.
     earliestStart: string | null;
     latestEnd: string | null;
   };
-  /** True when instance setting scheduling.workingDaysOnly is on. */
   workingDaysOnly: boolean;
-  // Every subtask in the project — scheduled and unscheduled. The SPA
-  // typically filters to the scheduled set for the chart but renders
-  // unscheduled separately as "needs scheduling".
   rows: GanttSubtaskRow[];
+  tasks?: GanttTaskScheduleRow[];
+  links?: GanttLinkRow[];
+  criticalChain?: string[];
+}
+
+export interface GanttInclude {
+  criticalPath?: boolean;
+  baseline?: boolean;
+  milestones?: boolean;
 }
 
 export class GanttService {
-  async forProject(teamId: string, projectId: string): Promise<GanttReport> {
-    // Defence-in-depth: confirm project exists in team. requireProjectAccess
-    // upstream already enforced visibility; this catches direct service
-    // invocations (tests, future scripts).
+  private readonly baselines = new ProjectBaselinesService();
+
+  async forProject(
+    teamId: string,
+    projectId: string,
+    include: GanttInclude = {},
+  ): Promise<GanttReport> {
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { teamId: true },
+      select: { teamId: true, scheduleVersion: true },
     });
     if (!project || project.teamId !== teamId) {
       throw Errors.notFound('Project not found');
@@ -71,10 +94,6 @@ export class GanttService {
     const scheduling = await readSchedulingSettings();
     const cal = scheduling.workingDaysOnly ? await WorkingDayCalendar.load() : null;
 
-    // One query for the task → subtask graph. Soft-deleted tasks excluded
-    // (trash). Subtasks are kept regardless of done — closed work still
-    // belongs on a historical Gantt. Ordering by (task.position, subtask.position)
-    // matches the rest of TaskHub's read paths.
     const tasks = await prisma.task.findMany({
       where: { projectId, deletedAt: null },
       orderBy: { position: 'asc' },
@@ -82,6 +101,11 @@ export class GanttService {
         id: true,
         title: true,
         status: true,
+        startDate: true,
+        dueDate: true,
+        isMilestone: true,
+        milestoneKind: true,
+        _count: { select: { children: { where: { deletedAt: null } } } },
         subtasks: {
           orderBy: { position: 'asc' },
           select: {
@@ -109,12 +133,8 @@ export class GanttService {
       for (const s of t.subtasks) {
         const isScheduled = s.startDate !== null && s.endDate !== null;
         if (isScheduled) scheduledCount++;
-        if (s.startDate && (earliest === null || s.startDate < earliest)) {
-          earliest = s.startDate;
-        }
-        if (s.endDate && (latest === null || s.endDate > latest)) {
-          latest = s.endDate;
-        }
+        if (s.startDate && (earliest === null || s.startDate < earliest)) earliest = s.startDate;
+        if (s.endDate && (latest === null || s.endDate > latest)) latest = s.endDate;
         rows.push({
           id: s.id,
           taskId: s.taskId,
@@ -136,8 +156,9 @@ export class GanttService {
       }
     }
 
-    return {
+    const base: GanttReport = {
       projectId,
+      scheduleVersion: project.scheduleVersion,
       workingDaysOnly: scheduling.workingDaysOnly,
       summary: {
         totalTasks: tasks.length,
@@ -149,5 +170,95 @@ export class GanttService {
       },
       rows,
     };
+
+    const wantsSchedule = include.criticalPath || include.baseline || include.milestones;
+    if (!wantsSchedule) return base;
+
+    const baselineMap = include.baseline
+      ? await this.baselines.baselineBarsForProject(projectId)
+      : new Map<string, { start: string | null; end: string | null }>();
+
+    let cpmByTask = new Map<string, CpmTaskResult>();
+    let criticalEdgeIds = new Set<string>();
+    if (include.criticalPath) {
+      let cpm = getCachedCpm(projectId, project.scheduleVersion);
+      if (!cpm) {
+        const edges = await prisma.taskDependency.findMany({
+          where: { teamId, task: { projectId, deletedAt: null } },
+          select: {
+            id: true,
+            taskId: true,
+            dependsOnId: true,
+            type: true,
+            lag: true,
+            lagUnit: true,
+            calendarMode: true,
+          },
+        });
+        cpm = computeCpm(
+          tasks.map((t) => ({
+            id: t.id,
+            startDate: t.startDate,
+            dueDate: t.dueDate,
+            isMilestone: t.isMilestone,
+            isSummary: t._count.children > 0,
+          })),
+          edges,
+          cal,
+          project.scheduleVersion,
+        );
+        setCachedCpm(projectId, cpm);
+      }
+      cpmByTask = new Map(cpm.tasks.map((x) => [x.taskId, x]));
+      criticalEdgeIds = new Set(cpm.criticalEdgeIds);
+      base.criticalChain = cpm.criticalChain;
+    }
+
+    const scheduleTasks = tasks.filter((t) => {
+      if (include.milestones && t.isMilestone) return true;
+      if (include.criticalPath && cpmByTask.has(t.id)) return true;
+      if (include.baseline && baselineMap.has(t.id)) return true;
+      return include.criticalPath && (t.startDate || t.dueDate);
+    });
+
+    base.tasks = scheduleTasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      startDate: t.startDate ? t.startDate.toISOString() : null,
+      dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+      isMilestone: t.isMilestone,
+      milestoneKind: t.milestoneKind,
+      ...(cpmByTask.has(t.id) ? { cpm: cpmByTask.get(t.id) } : {}),
+      ...(baselineMap.has(t.id) ? { baseline: baselineMap.get(t.id) } : {}),
+    }));
+
+    if (include.criticalPath) {
+      const edges = await prisma.taskDependency.findMany({
+        where: { teamId, task: { projectId, deletedAt: null } },
+        select: {
+          id: true,
+          taskId: true,
+          dependsOnId: true,
+          type: true,
+          lag: true,
+          lagUnit: true,
+          calendarMode: true,
+        },
+      });
+      base.links = edges
+        .filter((e) => e.type !== 'RELATES_TO')
+        .map((e) => ({
+          id: e.id,
+          taskId: e.taskId,
+          dependsOnId: e.dependsOnId,
+          type: e.type,
+          lag: e.lag,
+          lagUnit: e.lagUnit,
+          calendarMode: e.calendarMode,
+          isCritical: criticalEdgeIds.has(e.id),
+        }));
+    }
+
+    return base;
   }
 }

@@ -12,6 +12,8 @@ import {
 import { getDelegateCapabilities, type DelegateCapability } from '../lib/delegateCaps.js';
 import { assertEndOnOrAfterStart, normalizeOptionalCalendarDate } from '../lib/calendarDate.js';
 import { logActivity } from './activityLogger.js';
+import { bumpScheduleVersion } from '../lib/scheduleVersion.js';
+import { invalidateCpmCache } from '../lib/cpm.js';
 import { notifications } from './notificationsService.js';
 import { WebhookService } from './webhookService.js';
 import { DependenciesService } from './dependenciesService.js';
@@ -690,6 +692,8 @@ export class TasksService {
       actualStart?: string | null;
       actualEnd?: string | null;
       percentComplete?: number;
+      isMilestone?: boolean;
+      milestoneKind?: string | null;
       // v1.42: budget patch — undefined leaves, null clears.
       plannedBudget?: number | string | null;
       actualSpent?: number | string | null;
@@ -1001,6 +1005,8 @@ export class TasksService {
               actualEnd: input.actualEnd === null ? null : new Date(input.actualEnd),
             }),
             ...(input.percentComplete !== undefined && { percentComplete: input.percentComplete }),
+            ...(input.isMilestone !== undefined && { isMilestone: input.isMilestone }),
+            ...(input.milestoneKind !== undefined && { milestoneKind: input.milestoneKind }),
             // v1.42: budget patch.
             ...(normaliseBudget(input.plannedBudget) !== undefined && {
               plannedBudget: normaliseBudget(input.plannedBudget),
@@ -1012,7 +1018,15 @@ export class TasksService {
           include: TASK_INCLUDE,
         });
 
-        // v1.78.2: replace-set semantics. Delete-then-insert inside the
+        const touchesSchedule =
+          touchesDates ||
+          input.isMilestone !== undefined ||
+          input.milestoneKind !== undefined;
+        if (touchesSchedule) {
+          await bumpScheduleVersion(tx, projectId);
+        }
+
+        // v1.78.2: replace-set semantics.
         // transaction (no diff/merge — simpler, and createMany with
         // skipDuplicates would not remove labels the user un-checked).
         // Re-fetch the row so `labels[]` in the returned view reflects
@@ -1126,7 +1140,10 @@ export class TasksService {
           fromStatus: existing.status,
         };
       });
-      // Post-commit webhook fan-out. status_changed is emitted as a separate
+      if (touchesDates || input.isMilestone !== undefined || input.milestoneKind !== undefined) {
+        invalidateCpmCache(projectId);
+      }
+      // Post-commit webhook fan-out.
       // event from updated so subscribers can subscribe to only the signal
       // they care about. Awaited so the delivery row exists by the time
       // the response returns to the client (and by the time tests inspect).

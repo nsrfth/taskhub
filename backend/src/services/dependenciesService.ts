@@ -1,6 +1,8 @@
 import { Prisma, type DependencyType, type TaskStatus } from '@prisma/client';
 import { prisma } from '../data/prisma.js';
 import { AppError, Errors } from '../lib/errors.js';
+import { bumpScheduleVersion } from '../lib/scheduleVersion.js';
+import { invalidateCpmCache } from '../lib/cpm.js';
 import { logActivity } from './activityLogger.js';
 import { notifications } from './notificationsService.js';
 import { WebhookService } from './webhookService.js';
@@ -44,6 +46,9 @@ export async function readDependencyEnforcement(): Promise<DependencyEnforcement
 export interface DependencyEdgeView {
   id: string;
   type: DependencyType;
+  lag: number;
+  lagUnit: 'DAY' | 'HOUR';
+  calendarMode: 'WORKING' | 'CALENDAR';
   createdAt: Date;
   // The OTHER task on the edge — for `blockedBy` it's the blocker; for
   // `blocking` it's the dependent. Always the task the UI wants to render
@@ -60,16 +65,34 @@ export interface DependencyListView {
 const EDGE_SELECT = {
   id: true,
   type: true,
+  lag: true,
+  lagUnit: true,
+  calendarMode: true,
   createdAt: true,
   taskId: true,
   dependsOnId: true,
 } as const;
 
 function edgeView(
-  row: { id: string; type: DependencyType; createdAt: Date },
+  row: {
+    id: string;
+    type: DependencyType;
+    lag: number;
+    lagUnit: 'DAY' | 'HOUR';
+    calendarMode: 'WORKING' | 'CALENDAR';
+    createdAt: Date;
+  },
   task: { id: string; title: string; status: TaskStatus; projectId: string },
 ): DependencyEdgeView {
-  return { id: row.id, type: row.type, createdAt: row.createdAt, task };
+  return {
+    id: row.id,
+    type: row.type,
+    lag: row.lag,
+    lagUnit: row.lagUnit,
+    calendarMode: row.calendarMode,
+    createdAt: row.createdAt,
+    task,
+  };
 }
 
 export class DependenciesService {
@@ -116,6 +139,9 @@ export class DependenciesService {
     taskId: string;
     dependsOnId: string;
     type: DependencyType;
+    lag?: number;
+    lagUnit?: 'DAY' | 'HOUR';
+    calendarMode?: 'WORKING' | 'CALENDAR';
     actorId: string;
   }): Promise<DependencyEdgeView> {
     if (args.taskId === args.dependsOnId) {
@@ -162,12 +188,16 @@ export class DependenciesService {
             taskId: args.taskId,
             dependsOnId: args.dependsOnId,
             type: args.type,
+            lag: args.lag ?? 0,
+            lagUnit: args.lagUnit ?? 'DAY',
+            calendarMode: args.calendarMode ?? 'WORKING',
           },
           select: {
             ...EDGE_SELECT,
             dependsOn: { select: { id: true, title: true, status: true, projectId: true } },
           },
         });
+        await bumpScheduleVersion(tx, args.projectId);
         await logActivity(tx, {
           taskId: args.taskId,
           teamId: args.teamId,
@@ -177,6 +207,7 @@ export class DependenciesService {
         });
         return created;
       });
+      invalidateCpmCache(args.projectId);
 
       const view = edgeView(result, result.dependsOn);
       // Post-commit emit so a webhook subscriber reading the same row
@@ -207,12 +238,13 @@ export class DependenciesService {
   }): Promise<void> {
     const existing = await prisma.taskDependency.findFirst({
       where: { id: args.dependencyId, teamId: args.teamId },
-      select: { id: true, taskId: true, dependsOnId: true, type: true },
+      select: { id: true, taskId: true, dependsOnId: true, type: true, task: { select: { projectId: true } } },
     });
     if (!existing) throw Errors.notFound('Dependency not found');
 
     await prisma.$transaction(async (tx) => {
       await tx.taskDependency.delete({ where: { id: existing.id } });
+      await bumpScheduleVersion(tx, existing.task.projectId);
       await logActivity(tx, {
         taskId: existing.taskId,
         teamId: args.teamId,
@@ -221,6 +253,8 @@ export class DependenciesService {
         meta: { dependsOnId: existing.dependsOnId, type: existing.type },
       });
     });
+
+    invalidateCpmCache(existing.task.projectId);
 
     await _webhooks.emit(args.teamId, EVENT_REMOVED, {
       teamId: args.teamId,

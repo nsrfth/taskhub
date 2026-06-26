@@ -7,6 +7,37 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [2.1.0] — 2026-06-26
+
+**PMIS R5 — Scheduling engine + baselines on the Gantt.** Wave B continues: TaskHub
+now runs on-demand **Critical Path Method (CPM)** over WBS-leaf tasks and
+dependency edges, with signed **lag/lead** on links, **milestones**, formal
+**BaselineEntry** rows, and schedule overlay on the project Gantt. Legacy
+subtask-based `rows` are unchanged; the new schedule view is additive via
+`?include=criticalPath,baseline,milestones`.
+
+- **Schema:** `TaskDependency += lag, lagUnit, calendarMode`; `Task +=
+  isMilestone, milestoneKind`; `Project.scheduleVersion` (CPM cache bust);
+  **`BaselineEntry`** (per-task frozen bars inside a `ProjectBaseline`);
+  **`CapacityCalendar` / `CalendarException`** scaffold (runtime still uses
+  `WorkingDayCalendar` until R6). Migration `20260710120000_pmis_r5_schedule`
+  backfills `BaselineEntry` from existing baseline snapshot JSON.
+- **CPM:** pure `lib/cpm.ts` forward/backward pass over leaf tasks; in-memory
+  cache keyed by `(projectId, scheduleVersion)`; dependency cycles →
+  `DEPENDENCY_CYCLE` 409. Schedule-shaping writes bump `scheduleVersion` and
+  invalidate the cache.
+- **API — Gantt overlay** (module-gated): `GET …/reports/gantt?include=…`
+  (`cpm_schedule` for critical path + links; `baselines` for baseline bars).
+  Returns optional `tasks`, `links`, `criticalChain`, `scheduleVersion`.
+  **Baselines:** capture now writes `BaselineEntry` rows; `POST …/baselines/:id/activate`,
+  `GET …/baselines/compare`, `GET …/reports/variance` (slip days vs current
+  baseline). Dependencies accept `lag` / `lagUnit` / `calendarMode` on create.
+- **UI:** project Gantt gains a **Task schedule (WBS)** section with toggles
+  for critical path (red bars + link labels like `FS+2d`), baseline ghost bars,
+  and milestone diamonds. EN + FA.
+- **Tests:** integration coverage for lag persistence, module gate, baseline
+  compare, and cyclic dependency rejection.
+
 ## [2.0.0] — 2026-06-26
 
 **PMIS R4 — Cost Control + Time Tracking.** Wave B opens: TaskHub now tracks

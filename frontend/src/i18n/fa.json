@@ -75,6 +75,13 @@
   "gantt.next": "دوره بعد",
   "gantt.today": "امروز",
   "gantt.period": "دوره",
+  "gantt.schedule.title": "زمان‌بندی وظایف (WBS)",
+  "gantt.schedule.criticalPath": "مسیر بحرانی",
+  "gantt.schedule.baseline": "روکش خط مبنا",
+  "gantt.schedule.milestones": "نقطه عطف",
+  "gantt.schedule.empty": "ردیف زمان‌بندی سطح وظیفه‌ای با روکش‌های انتخاب‌شده وجود ندارد. تاریخ شروع/پایان وظیفه را تنظیم کنید، ماژول‌های PMIS را فعال کنید، یا یک خط مبنا ثبت کنید.",
+  "gantt.schedule.baselineBar": "خط مبنا",
+  "gantt.schedule.criticalBar": "بحرانی",
 
   "groups.title": "گروه‌های کاربری",
   "groups.description": "دسترسی به پروژه‌ها را به اعضای تیم بدهید بدون تغییر مالک پروژه.",
