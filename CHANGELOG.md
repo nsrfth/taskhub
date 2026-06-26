@@ -7,6 +7,38 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.89.0] — 2026-06-26
+
+**PMIS frontend — full UI for R6–R9 modules.**
+All seven PMIS registers and dashboards land in the React SPA:
+
+- **Risk Register** (`/projects/:id/risk`) — 5×5 probability/impact matrix,
+  response strategy, mitigation plan, close and delete actions.
+- **Records Register** (`/projects/:id/records`) — generic register covering
+  Issue, RFI, Document, Stakeholder, and MoM record types with a tabbed view
+  and inline comment thread.
+- **Change Control** (`/projects/:id/change-control`) — CR lifecycle
+  DRAFT→SUBMITTED→APPROVED→APPLIED with cost/schedule impact fields, decide
+  modal (approve/reject + reason), and apply action.
+- **Procurement** (`/projects/:id/procurement`) — tabbed panel: team-scoped
+  Vendor master, project Contracts, and Purchase Orders with status badges.
+- **Resource Catalog** (`/projects/:id/resources`) — HUMAN/EQUIPMENT/MATERIAL
+  resources merged with workload data (planned/actual hours).
+- **NCR Register** (`/projects/:id/quality`) — severity badges
+  (MINOR/MAJOR/CRITICAL), inline disposition select, close/delete.
+- **EVM Dashboard** (`/projects/:id/evm`) — 11 metric cards (BAC/PV/EV/AC,
+  CV/SV, CPI/SPI, EAC/VAC/TCPI) with index colour-coding, EAC method
+  selector, snapshot button, and an S-curve recharts line chart.
+
+**Module gating** — backend routes for risk, change_control, procurement,
+quality, and evm are now guarded by `requireModule()` preHandler hooks. The
+frontend handles `module_disabled` (403) errors with a `ModuleDisabledBanner`
+and `retry:false` to avoid hammering disabled endpoints.
+
+**Bug fix** — duplicate Currency + Planned Budget fields in Project Edit
+modal (they were rendered twice: once by `ProjectFormFields` and once by
+`ProjectCostPanel`). `ProjectFormFields` now accepts a `hideBudget` prop.
+
 ## [2.5.0] — 2026-06-26
 
 **PMIS R9 — Specialized Lifecycle.** Four project-control domains land as

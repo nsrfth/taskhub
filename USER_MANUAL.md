@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.91.0** (2026-06-26)
+Version **v1.92.0** (2026-06-26)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -236,8 +236,8 @@ profile enables **Timesheets** and/or **Cost Control** (Project edit → Profile
 
 A team-level **resource catalogue** so a project can plan *who and what* delivers
 the work, not just the dates. These are **Manager capabilities** (permission
-`resource.manage`, granted to Managers by default); the on-screen pages follow in
-a later release — the same staged rollout used for WBS.
+`resource.manage`, granted to Managers by default). Access via the **Resources**
+link in the project row.
 
 - **Resources** — each has a **type** (Human, Equipment, or Material), an optional
   link to a TaskHub **user**, a **max units** value (how much is available, e.g.
@@ -286,8 +286,7 @@ types and records needs **record.manage** (Managers by default).
 
 Four project-control registers round out the governance layer. All are
 project-scoped, numbered automatically, and each gated by its own Manager
-permission. As with the modules above, these are available now through the API;
-the on-screen pages follow in later releases.
+permission. Navigate to the register from the project row in the project list.
 
 - **Risk register** (`risk.manage`) — log a risk with **probability** and
   **impact** (1–5); TaskHub stores the **score** (probability × impact) so you can
