@@ -16,6 +16,7 @@ import ProjectResourcesPage from '@/pages/ProjectResourcesPage';
 import ProjectQualityPage from '@/pages/ProjectQualityPage';
 import ProjectEvmPage from '@/pages/ProjectEvmPage';
 import ProjectCostPage from '@/pages/ProjectCostPage';
+import ProjectWbsPage from '@/pages/ProjectWbsPage';
 import AdminPage from '@/pages/AdminPage';
 import ReportsPage from '@/pages/ReportsPage';
 import WorkloadPage from '@/pages/WorkloadPage';
@@ -88,6 +89,7 @@ export const router = createBrowserRouter([
       { path: '/projects/:projectId/quality', element: <ProjectQualityPage /> },
       { path: '/projects/:projectId/evm', element: <ProjectEvmPage /> },
       { path: '/projects/:projectId/cost', element: <ProjectCostPage /> },
+      { path: '/projects/:projectId/wbs', element: <ProjectWbsPage /> },
       { path: '/admin', element: <Navigate to="/settings/admin" replace /> },
       { path: '/reports', element: <ReportsPage /> },
       { path: '/workload', element: <WorkloadPage /> },

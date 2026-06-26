@@ -1,6 +1,6 @@
 # TaskHub — User Manual
 
-Version **v1.93.0** (2026-06-26)
+Version **v1.94.0** (2026-06-26)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -497,7 +497,7 @@ There's a **Print** button for a clean single-page printout, and the page render
 
 **Project baselines — v1.96, formal bars v2.1.** A project can **capture a baseline** — a named, frozen snapshot of every task's planned dates and progress at that moment — so later reports can compare where things stand against the original plan. Capturing a new baseline makes it the **current** one and retires the previous. From **v2.1**, each captured baseline also stores formal **per-task bars** (`BaselineEntry`) used for Gantt overlay and variance reports. API: `…/projects/:id/baselines` (capture), `…/baselines/:id/activate`, `…/baselines/compare`, and `…/reports/variance` (slip days). Requires project write access **and** the *capture baseline* permission (Managers by default) plus the **`baselines`** profile module when comparing or overlaying on the Gantt.
 
-**Work Breakdown Structure (WBS) — v1.97.** Tasks can now **nest under other tasks**, giving a project an n-level work-breakdown tree (subtasks remain the simple leaf checklist). Create a task with a parent, or **move** a task elsewhere in the tree, via the API; the **`…/projects/:id/wbs`** endpoint returns the whole tree with auto-numbered outline codes (1, 1.1, 1.1.2 …) and a rolled-up percent-complete for summary tasks. A task can't be moved under itself or one of its own descendants. On-screen editing follows in later releases; **v2.1** wires WBS leaf tasks into the project Gantt schedule overlay.
+**Work Breakdown Structure (WBS) — v1.97.** Tasks can now **nest under other tasks**, giving a project an n-level work-breakdown tree (subtasks remain the simple leaf checklist). Create a task with a parent, or **move** a task elsewhere in the tree, via the API; the **`…/projects/:id/wbs`** endpoint returns the whole tree with auto-numbered outline codes (1, 1.1, 1.1.2 …) and a rolled-up percent-complete for summary tasks. A task can't be moved under itself or one of its own descendants. The **WBS** link in the project row opens an on-screen outline view: indented rows with their outline codes and a progress bar (roll-up for summary tasks, own percent for leaves); managers can **add a root task**, **add a child** under any node, and **Move** a node to a new parent/position. **v2.1** also wires WBS leaf tasks into the project Gantt schedule overlay.
 
 **Scheduling & CPM — v2.1.** When the project's profile enables **`cpm_schedule`**, dependencies can carry **lag or lead** (`+2` days after finish-to-start, etc.). TaskHub runs **Critical Path Method (CPM)** on demand over leaf tasks (summary/WBS parents are excluded). Cyclic dependencies are rejected. Enable overlays on the project Gantt with the toolbar checkboxes: **Critical path** (red bars + labelled links), **Baseline overlay** (ghost bars vs the current baseline — needs **`baselines`** module), and **Milestones** (zero-duration diamond markers; set `isMilestone` on a task via the API).
 

@@ -156,6 +156,13 @@ export default function ProjectListRow({
               Gantt
             </Link>
             <Link
+              to={`/projects/${project.id}/wbs`}
+              className="text-xs text-primary hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {t('wbs.navShort')}
+            </Link>
+            <Link
               to={`/projects/${project.id}/records`}
               className="text-xs text-primary hover:underline"
               onClick={(e) => e.stopPropagation()}

@@ -7,6 +7,23 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 When shipping a release, also update `ARCHITECTURE.md`, `USER_MANUAL.md`,
 `USER_MANUAL.fa.md`, and set `TASKHUB_VERSION` in the deployment `.env`.
 
+## [1.91.0] — 2026-06-26
+
+**WBS gets a GUI (PMIS R1).** The Work Breakdown Structure was backend-only —
+`GET /wbs` (outline tree + % rollups) was unconsumed and task nesting/reparenting
+had no UI. New per-project page (`/projects/:id/wbs`, **WBS** link in the project
+row):
+
+- **Outline tree** — the flat DFS `/wbs` response rendered indented by depth, with
+  derived outline codes (1, 1.1, 1.1.2…), a summary marker, and a progress bar
+  showing each row's roll-up (summary) or own (leaf) percent-complete.
+- **Build the tree** — managers can add a **root task** or a **child** under any
+  node (`createTask` now accepts `parentId`), and **reparent** any node via a Move
+  dialog (`POST /tasks/:id/move`) that excludes the node's own descendants as
+  targets and takes a sibling position.
+
+No backend changes. Frontend bumped 1.90.0 → 1.91.0.
+
 ## [1.90.0] — 2026-06-26
 
 **PMIS GUI completion — Cost Control, Resources, and Records.** A QA audit found

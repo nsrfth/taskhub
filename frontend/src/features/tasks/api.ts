@@ -133,6 +133,8 @@ export async function createTask(
     // omitted = no labels. Server validates each id belongs to the
     // task's team and rejects cross-team ids with 400.
     labelIds?: string[];
+    // v1.97 (PMIS R1): optional WBS parent. Omitted/null = a root task.
+    parentId?: string | null;
   },
 ): Promise<Task> {
   return (await api.post<Task>(`/teams/${teamId}/projects/${projectId}/tasks`, input)).data;
