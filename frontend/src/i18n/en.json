@@ -1,5 +1,5 @@
 {
-  "app.name": "TaskHub",
+  "app.name": "ProjectHub",
 
   "nav.dashboard": "Dashboard",
   "nav.teams": "Teams",
@@ -508,7 +508,7 @@
   "team.addMember.noResults": "No matching users.",
   "team.addMember.searching": "Searching…",
   "team.addMember.alreadyMember": "Already a member",
-  "team.addMember.existingOnly": "The user must already have a TaskHub account.",
+  "team.addMember.existingOnly": "The user must already have a ProjectHub account.",
 
   "settings.nav.security": "Security",
   "settings.nav.securityDesc": "2FA + sessions",
@@ -518,7 +518,7 @@
   "settings.nav.apiDesc": "Personal tokens + team webhooks",
   "settings.nav.backups": "Backups",
   "settings.nav.backupsDesc": "Scheduled database dumps",
-  "settings.nav.taskhub": "TaskHub",
+  "settings.nav.taskhub": "ProjectHub",
   "settings.nav.taskhubDesc": "Server port and SSL certificates",
   "settings.nav.labels": "Labels",
   "settings.nav.labelsDesc": "Team tags for tasks",
@@ -648,7 +648,7 @@
   "scheduling.workingDaysOnly": "Count working days only",
   "scheduling.workingDaysOnlyHint": "Recurrence offsets and Gantt duration counts skip weekends and holidays. Bar positions still use calendar dates.",
   "reminders.leadHours": "Due reminder lead time",
-  "reminders.leadHoursSubtitle": "How many hours before a task's due date TaskHub sends you a TASK_DUE notification (in-app bell and email when SMTP is on).",
+  "reminders.leadHoursSubtitle": "How many hours before a task's due date ProjectHub sends you a TASK_DUE notification (in-app bell and email when SMTP is on).",
   "reminders.leadHoursHint": "1–168 hours (1 week max). Default 24 h matches the previous fixed window. Changing this does not re-send reminders for tasks already notified.",
   "reminders.leadHoursUnit": "hours",
   "reminders.title": "Due reminders (admin · instance-wide)",
@@ -687,7 +687,7 @@
   "calendar.offday": "Off day",
   "calendar.holiday": "Holiday",
 
-  "about.title": "About TaskHub",
+  "about.title": "About ProjectHub",
   "about.application": "Application",
   "about.version": "Version",
   "about.built": "Built",
@@ -699,9 +699,9 @@
   "about.tech": "Tech",
   "about.userManual": "User manual",
   "about.changelog": "CHANGELOG",
-  "about.helpHint": "Need help? Open the user manual via the 📖 button (top-right), or contact your TaskHub administrator.",
+  "about.helpHint": "Need help? Open the user manual via the 📖 button (top-right), or contact your ProjectHub administrator.",
   "about.https.warningTitle": "PWA install unavailable (HTTP)",
-  "about.https.warningBody": "This instance is served over an insecure connection (HTTP). Browsers require HTTPS before users can install TaskHub as an app. Enable HTTPS on your reverse proxy (for example Caddy with a valid certificate) to make the PWA installable.",
+  "about.https.warningBody": "This instance is served over an insecure connection (HTTP). Browsers require HTTPS before users can install ProjectHub as an app. Enable HTTPS on your reverse proxy (for example Caddy with a valid certificate) to make the PWA installable.",
 
   "budget.currency": "Currency",
   "budget.currency.irr": "IRR (Iranian Rial)",

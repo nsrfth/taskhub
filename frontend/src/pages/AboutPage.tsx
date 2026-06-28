@@ -44,7 +44,7 @@ export default function AboutPage(): JSX.Element {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">About TaskHub</h1>
+      <h1 className="text-2xl font-semibold mb-6">About ProjectHub</h1>
 
       <section className="bg-white shadow rounded p-6 space-y-4">
         {showHttpsPwaWarning && (
@@ -123,7 +123,7 @@ export default function AboutPage(): JSX.Element {
         <hr className="my-2" />
 
         <Field label="License">
-          MIT — Copyright © 2026 TaskHub contributors. See{' '}
+          MIT — Copyright © 2026 ProjectHub contributors. See{' '}
           <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline">
             LICENSE
           </a>{' '}
@@ -157,7 +157,7 @@ export default function AboutPage(): JSX.Element {
 
         <p className="text-xs text-slate-400 mt-4">
           Need help? Open the user manual via the 📖 button (top-right),
-          or contact your TaskHub administrator.
+          or contact your ProjectHub administrator.
         </p>
       </section>
     </div>

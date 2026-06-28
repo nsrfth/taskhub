@@ -27,7 +27,7 @@ describe('AboutPage author credit', () => {
   it('existing About fields remain unchanged', () => {
     expect(src).toContain('<Field label="Application">');
     expect(src).toContain('<Field label="Version">');
-    expect(src).toContain('MIT — Copyright © 2026 TaskHub contributors');
+    expect(src).toContain('MIT — Copyright © 2026 ProjectHub contributors');
     expect(src).toContain('<Field label="Documentation">');
     expect(src).toContain('<Field label="Tech">');
   });

@@ -13,6 +13,13 @@ When shipping a change, bump the single version in `frontend/package.json`,
 `backend/package.json`, `ARCHITECTURE.md`, `USER_MANUAL.md`, `USER_MANUAL.fa.md`,
 and `TASKHUB_VERSION` in the deployment `.env` — keep them all in lockstep.
 
+## [2.5.8] — 2026-06-28
+
+**Rename: application rebranded from TaskHub to ProjectHub.**
+All user-facing display strings, PWA manifest, browser title, email subjects, API name field,
+i18n keys (EN + FA), brand wordmark syllable split, About page, LICENSE, and README now use
+"ProjectHub" / "پروجکت‌هاب". Internal IDs, storage keys, and route names are unchanged.
+
 ## [2.5.7] — 2026-06-27
 
 **Fix: EVM metrics returned in minor units (cents) instead of major units.**

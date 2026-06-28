@@ -107,7 +107,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
       ]);
 
       return reply.send({
-        name: 'TaskHub',
+        name: 'ProjectHub',
         // Read TASKHUB_VERSION from env; the deploy pipeline can set it
         // from the git tag. Falls back to 'dev' so a local docker compose
         // run reads cleanly. Use || (not ??) so the empty string that

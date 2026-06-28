@@ -1,4 +1,4 @@
-# TaskHub
+# ProjectHub
 
 Self-hostable team task management. React + Fastify + Postgres + Prisma + Redis,
 fronted by Caddy with automatic HTTPS.

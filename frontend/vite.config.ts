@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
-        name: 'TaskHub',
-        short_name: 'TaskHub',
+        name: 'ProjectHub',
+        short_name: 'ProjectHub',
         description: 'Team task management — projects, kanban, and collaboration.',
         start_url: '/',
         scope: '/',

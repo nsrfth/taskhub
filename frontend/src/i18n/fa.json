@@ -1,5 +1,5 @@
 {
-  "app.name": "تسک‌هاب",
+  "app.name": "پروجکت‌هاب",
 
   "nav.dashboard": "داشبورد",
   "nav.teams": "تیم‌ها",
@@ -508,7 +508,7 @@
   "team.addMember.noResults": "کاربری یافت نشد.",
   "team.addMember.searching": "در حال جستجو…",
   "team.addMember.alreadyMember": "از قبل عضو است",
-  "team.addMember.existingOnly": "کاربر باید از قبل حساب TaskHub داشته باشد.",
+  "team.addMember.existingOnly": "کاربر باید از قبل حساب ProjectHub داشته باشد.",
 
   "settings.nav.security": "امنیت",
   "settings.nav.securityDesc": "احراز هویت دومرحله‌ای + نشست‌ها",
@@ -518,7 +518,7 @@
   "settings.nav.apiDesc": "توکن‌های شخصی + وب‌هوک تیم",
   "settings.nav.backups": "پشتیبان‌گیری",
   "settings.nav.backupsDesc": "پشتیبان‌گیری زمان‌بندی‌شده از پایگاه داده",
-  "settings.nav.taskhub": "تسک‌هاب",
+  "settings.nav.taskhub": "پروجکت‌هاب",
   "settings.nav.taskhubDesc": "پورت سرور و گواهی SSL",
   "settings.nav.labels": "برچسب‌ها",
   "settings.nav.labelsDesc": "برچسب‌های تیمی برای تسک‌ها",
@@ -648,7 +648,7 @@
   "scheduling.workingDaysOnly": "فقط روزهای کاری شمرده شوند",
   "scheduling.workingDaysOnlyHint": "افست تکرار و مدت Gantt آخر هفته و تعطیل را رد می‌کنند. موقعیت میله‌ها همچنان بر اساس تاریخ تقویمی است.",
   "reminders.leadHours": "زمان پیش از مهلت برای یادآور",
-  "reminders.leadHoursSubtitle": "چند ساعت قبل از مهلت وظیفه، TaskHub اعلان TASK_DUE (زنگ درون‌برنامه و ایمیل در صورت SMTP) می‌فرستد.",
+  "reminders.leadHoursSubtitle": "چند ساعت قبل از مهلت وظیفه، ProjectHub اعلان TASK_DUE (زنگ درون‌برنامه و ایمیل در صورت SMTP) می‌فرستد.",
   "reminders.leadHoursHint": "۱ تا ۱۶۸ ساعت (حداکثر یک هفته). پیش‌فرض ۲۴ ساعت همان پنجره قبلی است. تغییر این مقدار یادآورهای قبلاً ارسال‌شده را دوباره نمی‌فرستد.",
   "reminders.leadHoursUnit": "ساعت",
   "reminders.title": "یادآور مهلت (مدیر · سراسری)",
@@ -687,7 +687,7 @@
   "calendar.offday": "روز تعطیل",
   "calendar.holiday": "تعطیل",
 
-  "about.title": "درباره‌ی تسک‌هاب",
+  "about.title": "درباره‌ی پروجکت‌هاب",
   "about.application": "برنامه",
   "about.version": "نسخه",
   "about.built": "ساخته‌شده در",
@@ -699,9 +699,9 @@
   "about.tech": "فناوری",
   "about.userManual": "راهنمای کاربر",
   "about.changelog": "تغییرات",
-  "about.helpHint": "نیاز به کمک دارید؟ راهنمای کاربر را از دکمه‌ی 📖 (گوشه‌ی بالای صفحه) باز کنید یا با مدیر سامانه‌ی تسک‌هاب تماس بگیرید.",
+  "about.helpHint": "نیاز به کمک دارید؟ راهنمای کاربر را از دکمه‌ی 📖 (گوشه‌ی بالای صفحه) باز کنید یا با مدیر سامانه‌ی پروجکت‌هاب تماس بگیرید.",
   "about.https.warningTitle": "نصب PWA در دسترس نیست (HTTP)",
-  "about.https.warningBody": "این نمونه روی اتصال ناامن (HTTP) سرو می‌شود. مرورگرها برای نصب تسک‌هاب به‌صورت اپ به HTTPS نیاز دارند. HTTPS را روی پروکسی معکوس (مثلاً Caddy با گواهی معتبر) فعال کنید تا PWA قابل نصب شود.",
+  "about.https.warningBody": "این نمونه روی اتصال ناامن (HTTP) سرو می‌شود. مرورگرها برای نصب پروجکت‌هاب به‌صورت اپ به HTTPS نیاز دارند. HTTPS را روی پروکسی معکوس (مثلاً Caddy با گواهی معتبر) فعال کنید تا PWA قابل نصب شود.",
 
   "budget.currency": "واحد پول",
   "budget.currency.irr": "ریال (IRR)",

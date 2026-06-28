@@ -1,4 +1,4 @@
-// v1.38: TaskHub brand mark — the "Quad" lockup (four rounded squares in
+// v1.38: ProjectHub brand mark — the "Quad" lockup (four rounded squares in
 // a 2×2 grid; top-right square carries an indigo checkmark). Replaces the
 // old single-checkmark glyph everywhere it was used.
 //
@@ -88,17 +88,17 @@ export function BrandMark({
   );
 }
 
-// v1.38: Wordmark for the sidebar / login header. Renders "Task" in the
+// v1.38: Wordmark for the sidebar / login header. Renders "Project" in the
 // surrounding text color and "Hub" in the indigo accent — matches the
 // dribbble lockup. For Persian (`fa`) we render the localised app name
 // unstyled because the two-syllable split doesn't transfer.
 export function BrandWordmark({ name }: { name: string }): JSX.Element {
-  // If the localised name is exactly "TaskHub" we can split the syllables
+  // If the localised name is exactly "ProjectHub" we can split the syllables
   // visually. Any other value (Persian, future locales) renders flat.
-  if (name === 'TaskHub') {
+  if (name === 'ProjectHub') {
     return (
       <span>
-        Task<span className="text-indigo-500 dark:text-indigo-400">Hub</span>
+        Project<span className="text-indigo-500 dark:text-indigo-400">Hub</span>
       </span>
     );
   }

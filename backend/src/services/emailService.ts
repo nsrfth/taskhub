@@ -27,7 +27,7 @@ export const emailService = {
     const safeName = escapeHtml(opts.name);
     await mailer.sendMail({
       to: opts.to,
-      subject: 'Verify your TaskHub email',
+      subject: 'Verify your ProjectHub email',
       text: [
         `Hi ${opts.name},`,
         '',
@@ -50,7 +50,7 @@ export const emailService = {
     const safeName = escapeHtml(opts.name);
     await mailer.sendMail({
       to: opts.to,
-      subject: 'Reset your TaskHub password',
+      subject: 'Reset your ProjectHub password',
       text: [
         `Hi ${opts.name},`,
         '',
