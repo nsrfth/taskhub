@@ -143,7 +143,10 @@ export default function PlannerChartsPage(): JSX.Element {
 
   const memberBars = useMemo(() => {
     if (useTaskAggregation) {
-      return memberBarFromTasks(scopedTasks, assigneeNames);
+      const openTasks = scopedTasks.filter(
+        (t) => t.status === 'TODO' || t.status === 'IN_PROGRESS' || t.status === 'REVIEW' || t.status === 'PENDING_APPROVAL',
+      );
+      return memberBarFromTasks(openTasks, assigneeNames);
     }
     const rows = workloadQueries.flatMap((q) => q.data?.items ?? []);
     const filtered = scopeFilters.assigneeId
