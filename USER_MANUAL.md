@@ -1,6 +1,6 @@
 # ProjectHub — User Manual
 
-Version **v2.5.8** (2026-06-29)
+Version **v2.5.9** (2026-06-30)
 
 This manual covers everything a member, manager, or admin needs to do day-to-day. For operator / deployment topics (env vars, backups, scaling), see `README.md`, `BACKUP.md`, and `ARCHITECTURE.md`.
 
@@ -66,16 +66,16 @@ If your account is owned by an LDAP directory, you log in with your LDAP passwor
 
 ---
 
-## Dashboard (v1.46)
+## Dashboard (v1.88)
 
-The **Dashboard** (`/dashboard`) is your cross-team home screen:
+The **Dashboard** (`/dashboard`) is your cross-team home screen, aggregating data from every team you belong to:
 
-- **KPI cards** — open tasks, overdue, in progress, and completed (last 7 days), summed across all your teams.
-- **Completion trend** — bar chart scoped by the period tabs (week / month / quarter).
-- **Task status** — pie-style breakdown of TODO / In progress / Review / Done.
-- **Team workload** — open tasks per assignee (assignees merged across teams).
-- **Upcoming deadlines** — your nearest due tasks across teams.
-- **Recent activity** — latest events from all teams you belong to.
+- **KPI cards** — four snapshot metrics: Open tasks, Overdue, In progress, and Completed (last 7 days). Each card shows a mini sparkline trend and is **clickable**: clicking opens a drill-down modal listing the matching tasks with their project name and due/completion date, each linking directly to the task detail page.
+- **Completion trend** — bar chart of tasks completed per day over the selected period, overlaid with a 7-day moving-average line. The **period tabs** (Week / Month / Quarter) in the top-right set the window (7 / 30 / 90 days). A week-over-week delta is shown above the chart.
+- **Task status breakdown** — color-coded list with task counts and percentages for each status: To Do, In Progress, Review, Pending Approval, and Done.
+- **Team workload** — the top 5 assignees by open-task count, each with a stacked bar showing their In Progress / Review / To Do split.
+- **Upcoming deadlines** — up to 10 tasks due within the next 7 days, sorted by due date, labeled Today / Tomorrow / in N days, with a priority badge (Urgent / High / Medium / Low). Each item links to the task.
+- **Recent activity** — the 8 most recent events across all your teams: task created, updated, status changed, assigned, deleted, and comment added — with actor avatar and relative timestamp.
 
 The subtitle under the greeting shows how many teams are included (e.g. “Across 4 teams · all projects you can access”). Join at least one team to see data; otherwise a prompt links to **Teams**.
 
