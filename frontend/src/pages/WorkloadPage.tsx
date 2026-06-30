@@ -40,8 +40,9 @@ export function isOverAllocated(
 }
 
 export default function WorkloadPage(): JSX.Element {
-  const { currentTeam } = useTeams();
+  const { teams, currentTeam } = useTeams();
   const t = useT();
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [window, setWindow] = useState<WorkloadWindow>('all');
   const [weighted, setWeighted] = useState(false);
@@ -49,7 +50,7 @@ export default function WorkloadPage(): JSX.Element {
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortAsc, setSortAsc] = useState(false);
 
-  const teamId = currentTeam?.id;
+  const teamId = selectedTeamId || currentTeam?.id;
 
   const { data: projects } = useQuery({
     queryKey: ['projects', teamId],
@@ -123,6 +124,21 @@ export default function WorkloadPage(): JSX.Element {
       </header>
 
       <div className="flex flex-wrap gap-4 items-end bg-surface rounded-lg shadow p-4">
+        <label className="text-xs block">
+          {t('workload.filter.team')}
+          <select
+            className="mt-1 block rounded border px-2 py-1.5 text-sm dark:bg-slate-900 min-w-[160px]"
+            value={selectedTeamId || currentTeam?.id || ''}
+            onChange={(e) => { setSelectedTeamId(e.target.value); setProjectId(''); }}
+          >
+            {teams.map((tm) => (
+              <option key={tm.id} value={tm.id}>
+                {tm.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <label className="text-xs block">
           {t('workload.filter.project')}
           <select

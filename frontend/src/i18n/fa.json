@@ -904,6 +904,7 @@
   "workload.threshold": "آستانه ظرفیت",
   "workload.overAllocated": "بیش از ظرفیت",
   "workload.chartTitle": "بار بر اساس بازه سررسید",
+  "workload.filter.team": "تیم",
   "workload.filter.project": "پروژه",
   "workload.filter.allProjects": "همه پروژه‌ها",
   "workload.filter.window": "بازه سررسید",

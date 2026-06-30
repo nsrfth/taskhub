@@ -904,6 +904,7 @@
   "workload.threshold": "Capacity threshold",
   "workload.overAllocated": "Over capacity",
   "workload.chartTitle": "Load by due-date bucket",
+  "workload.filter.team": "Team",
   "workload.filter.project": "Project",
   "workload.filter.allProjects": "All projects",
   "workload.filter.window": "Due window",
