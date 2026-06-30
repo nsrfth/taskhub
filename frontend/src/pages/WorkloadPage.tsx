@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import {
   Bar,
   BarChart,
@@ -35,12 +35,30 @@ const BUCKET_COLORS: Record<(typeof BUCKET_KEYS)[number], string> = {
 const STATUS_KEYS = ['TODO', 'IN_PROGRESS', 'REVIEW', 'PENDING_APPROVAL'] as const;
 type OpenStatus = (typeof STATUS_KEYS)[number];
 
+const STATUS_COLORS: Record<OpenStatus, string> = {
+  TODO: '#94a3b8',
+  IN_PROGRESS: '#3b82f6',
+  REVIEW: '#f59e0b',
+  PENDING_APPROVAL: '#a855f7',
+};
+
+type LoadBy = 'bucket' | 'status';
 type SortKey = 'name' | 'total' | 'overdue';
 
-type DrillTarget =
-  | { kind: 'status'; userId: string | null; memberName: string | null; status: OpenStatus }
-  | { kind: 'bucket'; userId: string | null; memberName: string | null; bucket: (typeof BUCKET_KEYS)[number] }
-  | { kind: 'all'; userId: string | null; memberName: string | null };
+// WorkloadDetailRow extended to track which teams contributed to this row
+// (needed for drill-through in "all teams" mode).
+interface MergedRow extends WorkloadDetailRow {
+  _teamIds: string[];
+}
+
+type DrillTarget = {
+  kind: 'all' | 'status' | 'bucket';
+  userId: string | null;
+  memberName: string | null;
+  teamIds: string[];
+  status?: OpenStatus;
+  bucket?: (typeof BUCKET_KEYS)[number];
+};
 
 export function isOverAllocated(
   row: WorkloadDetailRow,
@@ -63,45 +81,71 @@ export default function WorkloadPage(): JSX.Element {
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortAsc, setSortAsc] = useState(false);
   const [drill, setDrill] = useState<DrillTarget | null>(null);
+  const [loadBy, setLoadBy] = useState<LoadBy>('bucket');
 
-  const teamId = selectedTeamId || currentTeam?.id;
+  const isAllTeams = selectedTeamId === '__all__';
+  const effectiveTeamId = isAllTeams ? '' : (selectedTeamId || currentTeam?.id || '');
+
+  // Which team IDs to fetch workload for
+  const teamIdsToFetch = useMemo(
+    () => (isAllTeams ? teams.map((tm) => tm.id) : effectiveTeamId ? [effectiveTeamId] : []),
+    [isAllTeams, teams, effectiveTeamId],
+  );
 
   const { data: projects } = useQuery({
-    queryKey: ['projects', teamId],
-    queryFn: () => listProjects(teamId!),
-    enabled: !!teamId,
+    queryKey: ['projects', effectiveTeamId],
+    queryFn: () => listProjects(effectiveTeamId),
+    enabled: !!effectiveTeamId && !isAllTeams,
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['workload-detail', teamId, projectId, window, weighted],
-    queryFn: () =>
-      fetchWorkloadDetail(teamId!, {
-        projectId: projectId || undefined,
-        window,
-        weighted,
-      }),
-    enabled: !!teamId,
+  const workloadQueries = useQueries({
+    queries: teamIdsToFetch.map((tid) => ({
+      queryKey: ['workload-detail', tid, isAllTeams ? '' : projectId, window, weighted],
+      queryFn: () =>
+        fetchWorkloadDetail(tid, {
+          projectId: isAllTeams ? undefined : (projectId || undefined),
+          window,
+          weighted,
+        }),
+    })),
   });
 
-  const drillParams = useMemo((): WorkloadDrillParams | null => {
-    if (!drill) return null;
-    const base: WorkloadDrillParams = {
-      assigneeId: drill.userId ?? '__unassigned__',
-      projectId: projectId || undefined,
-    };
-    if (drill.kind === 'status') return { ...base, status: drill.status };
-    if (drill.kind === 'bucket') return { ...base, dueBucket: drill.bucket as WorkloadDueBucket };
-    return base;
-  }, [drill, projectId]);
+  const isLoading = workloadQueries.some((q) => q.isLoading);
 
-  const { data: drillData, isLoading: drillLoading } = useQuery({
-    queryKey: ['workload-drill', teamId, drillParams],
-    queryFn: () => fetchWorkloadDrill(teamId!, drillParams!),
-    enabled: drill !== null && !!teamId && drillParams !== null,
-  });
+  // Merge results from all team queries by userId
+  const rows: MergedRow[] = useMemo(() => {
+    const merged = new Map<string, MergedRow>();
 
-  const rows = useMemo(() => {
-    const items = [...(data?.items ?? [])];
+    teamIdsToFetch.forEach((tid, i) => {
+      const items = workloadQueries[i]?.data?.items ?? [];
+      for (const item of items) {
+        const key = item.userId ?? '__unassigned__';
+        if (!merged.has(key)) {
+          merged.set(key, {
+            ...item,
+            openByStatus: { ...item.openByStatus },
+            byDueBucket: { ...item.byDueBucket },
+            _teamIds: [tid],
+          });
+        } else {
+          const m = merged.get(key)!;
+          m.total += item.total;
+          m.weightedTotal += item.weightedTotal;
+          m.openByStatus.TODO += item.openByStatus.TODO;
+          m.openByStatus.IN_PROGRESS += item.openByStatus.IN_PROGRESS;
+          m.openByStatus.REVIEW += item.openByStatus.REVIEW;
+          m.openByStatus.PENDING_APPROVAL += item.openByStatus.PENDING_APPROVAL;
+          m.byDueBucket.overdue += item.byDueBucket.overdue;
+          m.byDueBucket.this_week += item.byDueBucket.this_week;
+          m.byDueBucket.next_week += item.byDueBucket.next_week;
+          m.byDueBucket.later += item.byDueBucket.later;
+          m.byDueBucket.no_due += item.byDueBucket.no_due;
+          m._teamIds.push(tid);
+        }
+      }
+    });
+
+    const items = [...merged.values()];
     items.sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'name') {
@@ -116,44 +160,66 @@ export default function WorkloadPage(): JSX.Element {
       return sortAsc ? cmp : -cmp;
     });
     return items;
-  }, [data, sortKey, sortAsc, weighted]);
+  }, [workloadQueries, teamIdsToFetch, sortKey, sortAsc, weighted]);
 
-  const chartData = useMemo(
-    () =>
-      rows.map((r) => ({
+  const chartData = useMemo(() => {
+    if (loadBy === 'status') {
+      return rows.map((r) => ({
         name: r.name ?? t('workload.unassigned'),
-        overdue: r.byDueBucket.overdue,
-        this_week: r.byDueBucket.this_week,
-        next_week: r.byDueBucket.next_week,
-        later: r.byDueBucket.later,
-        no_due: r.byDueBucket.no_due,
-      })),
-    [rows, t],
-  );
+        TODO: r.openByStatus.TODO,
+        IN_PROGRESS: r.openByStatus.IN_PROGRESS,
+        REVIEW: r.openByStatus.REVIEW,
+        PENDING_APPROVAL: r.openByStatus.PENDING_APPROVAL,
+      }));
+    }
+    return rows.map((r) => ({
+      name: r.name ?? t('workload.unassigned'),
+      overdue: r.byDueBucket.overdue,
+      this_week: r.byDueBucket.this_week,
+      next_week: r.byDueBucket.next_week,
+      later: r.byDueBucket.later,
+      no_due: r.byDueBucket.no_due,
+    }));
+  }, [rows, t, loadBy]);
+
+  const drillParams = useMemo((): WorkloadDrillParams | null => {
+    if (!drill) return null;
+    const base: WorkloadDrillParams = {
+      assigneeId: drill.userId ?? '__unassigned__',
+      projectId: isAllTeams ? undefined : (projectId || undefined),
+    };
+    if (drill.kind === 'status') return { ...base, status: drill.status };
+    if (drill.kind === 'bucket') return { ...base, dueBucket: drill.bucket as WorkloadDueBucket };
+    return base;
+  }, [drill, projectId, isAllTeams]);
+
+  // Drill across all relevant team IDs in parallel
+  const drillQueries = useQueries({
+    queries: drill && drillParams
+      ? drill.teamIds.map((tid) => ({
+          queryKey: ['workload-drill', tid, drillParams],
+          queryFn: () => fetchWorkloadDrill(tid, drillParams!),
+        }))
+      : [],
+  });
+
+  const drillItems = drillQueries.flatMap((q) => q.data?.items ?? []);
+  const drillLoading = drill !== null && drillQueries.some((q) => q.isLoading);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc((v) => !v);
-    else {
-      setSortKey(key);
-      setSortAsc(false);
-    }
-  }
-
-  function openDrill(target: DrillTarget) {
-    setDrill(target);
+    else { setSortKey(key); setSortAsc(false); }
   }
 
   function drillTitle(): string {
     if (!drill) return '';
     const name = drill.memberName ?? t('workload.unassigned');
-    if (drill.kind === 'status') {
-      return `${name} — ${t(`workload.status.${drill.status.toLowerCase()}`)}`;
-    }
-    if (drill.kind === 'bucket') {
-      return `${name} — ${t(`workload.bucket.${drill.bucket}`)}`;
-    }
+    if (drill.kind === 'status') return `${name} — ${t(`workload.status.${drill.status!.toLowerCase()}`)}`;
+    if (drill.kind === 'bucket') return `${name} — ${t(`workload.bucket.${drill.bucket}`)}`;
     return `${name} — ${t('workload.table.total')}`;
   }
+
+  const hasData = !isLoading && rows.length > 0;
 
   if (!currentTeam) {
     return (
@@ -170,14 +236,20 @@ export default function WorkloadPage(): JSX.Element {
         <p className="text-sm text-slate-500 mt-1">{t('workload.subtitle')}</p>
       </header>
 
+      {/* Filter bar */}
       <div className="flex flex-wrap gap-4 items-end bg-surface rounded-lg shadow p-4">
+        {/* Team selector */}
         <label className="text-xs block">
           {t('workload.filter.team')}
           <select
             className="mt-1 block rounded border px-2 py-1.5 text-sm dark:bg-slate-900 min-w-[160px]"
             value={selectedTeamId || currentTeam?.id || ''}
-            onChange={(e) => { setSelectedTeamId(e.target.value); setProjectId(''); }}
+            onChange={(e) => {
+              setSelectedTeamId(e.target.value);
+              setProjectId('');
+            }}
           >
+            <option value="__all__">{t('workload.filter.allTeams')}</option>
             {teams.map((tm) => (
               <option key={tm.id} value={tm.id}>
                 {tm.name}
@@ -186,21 +258,24 @@ export default function WorkloadPage(): JSX.Element {
           </select>
         </label>
 
-        <label className="text-xs block">
-          {t('workload.filter.project')}
-          <select
-            className="mt-1 block rounded border px-2 py-1.5 text-sm dark:bg-slate-900 min-w-[160px]"
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-          >
-            <option value="">{t('workload.filter.allProjects')}</option>
-            {(projects ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Project selector — hidden in all-teams mode */}
+        {!isAllTeams && (
+          <label className="text-xs block">
+            {t('workload.filter.project')}
+            <select
+              className="mt-1 block rounded border px-2 py-1.5 text-sm dark:bg-slate-900 min-w-[160px]"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+            >
+              <option value="">{t('workload.filter.allProjects')}</option>
+              {(projects ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="text-xs block">
           {t('workload.filter.window')}
@@ -213,6 +288,19 @@ export default function WorkloadPage(): JSX.Element {
             <option value="overdue">{t('workload.window.overdue')}</option>
             <option value="this_week">{t('workload.window.this_week')}</option>
             <option value="next_week">{t('workload.window.next_week')}</option>
+          </select>
+        </label>
+
+        {/* Load by */}
+        <label className="text-xs block">
+          {t('workload.loadBy')}
+          <select
+            className="mt-1 block rounded border px-2 py-1.5 text-sm dark:bg-slate-900 min-w-[130px]"
+            value={loadBy}
+            onChange={(e) => setLoadBy(e.target.value as LoadBy)}
+          >
+            <option value="bucket">{t('workload.loadBy.bucket')}</option>
+            <option value="status">{t('workload.loadBy.status')}</option>
           </select>
         </label>
 
@@ -239,10 +327,12 @@ export default function WorkloadPage(): JSX.Element {
         <p className="text-sm text-slate-500 italic">{t('workload.empty')}</p>
       )}
 
-      {!isLoading && rows.length > 0 && (
+      {hasData && (
         <>
           <section className="bg-surface rounded-lg shadow p-4">
-            <h2 className="text-sm font-semibold mb-4">{t('workload.chartTitle')}</h2>
+            <h2 className="text-sm font-semibold mb-4">
+              {loadBy === 'status' ? t('workload.chartTitle.status') : t('workload.chartTitle')}
+            </h2>
             <div dir="ltr">
               <ResponsiveContainer width="100%" height={Math.max(280, rows.length * 36)}>
                 <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -250,15 +340,25 @@ export default function WorkloadPage(): JSX.Element {
                   <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} />
                   <Tooltip />
                   <Legend />
-                  {BUCKET_KEYS.map((key) => (
-                    <Bar
-                      key={key}
-                      dataKey={key}
-                      stackId="due"
-                      fill={BUCKET_COLORS[key]}
-                      name={t(`workload.bucket.${key}`)}
-                    />
-                  ))}
+                  {loadBy === 'status'
+                    ? STATUS_KEYS.map((key) => (
+                        <Bar
+                          key={key}
+                          dataKey={key}
+                          stackId="load"
+                          fill={STATUS_COLORS[key]}
+                          name={t(`workload.status.${key.toLowerCase()}`)}
+                        />
+                      ))
+                    : BUCKET_KEYS.map((key) => (
+                        <Bar
+                          key={key}
+                          dataKey={key}
+                          stackId="due"
+                          fill={BUCKET_COLORS[key]}
+                          name={t(`workload.bucket.${key}`)}
+                        />
+                      ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -296,10 +396,7 @@ export default function WorkloadPage(): JSX.Element {
                   return (
                     <tr
                       key={r.userId ?? '__unassigned__'}
-                      className={[
-                        'border-b border-border',
-                        over ? 'bg-danger/10' : '',
-                      ].join(' ')}
+                      className={['border-b border-border', over ? 'bg-danger/10' : ''].join(' ')}
                     >
                       <td className="p-3">
                         {r.name ?? t('workload.unassigned')}
@@ -312,7 +409,7 @@ export default function WorkloadPage(): JSX.Element {
                       <td className="p-3 text-end tabular-nums font-medium">
                         <button
                           className="hover:underline hover:text-primary"
-                          onClick={() => openDrill({ kind: 'all', userId: r.userId, memberName: r.name })}
+                          onClick={() => setDrill({ kind: 'all', userId: r.userId, memberName: r.name, teamIds: r._teamIds })}
                         >
                           {displayTotal}
                         </button>
@@ -320,7 +417,7 @@ export default function WorkloadPage(): JSX.Element {
                       <td className="p-3 text-end tabular-nums">
                         <button
                           className="hover:underline hover:text-primary"
-                          onClick={() => openDrill({ kind: 'bucket', userId: r.userId, memberName: r.name, bucket: 'overdue' })}
+                          onClick={() => setDrill({ kind: 'bucket', userId: r.userId, memberName: r.name, teamIds: r._teamIds, bucket: 'overdue' })}
                         >
                           {r.byDueBucket.overdue}
                         </button>
@@ -329,7 +426,7 @@ export default function WorkloadPage(): JSX.Element {
                         <td key={key} className="p-3 text-end tabular-nums hidden md:table-cell">
                           <button
                             className="hover:underline hover:text-primary"
-                            onClick={() => openDrill({ kind: 'bucket', userId: r.userId, memberName: r.name, bucket: key })}
+                            onClick={() => setDrill({ kind: 'bucket', userId: r.userId, memberName: r.name, teamIds: r._teamIds, bucket: key })}
                           >
                             {r.byDueBucket[key]}
                           </button>
@@ -339,7 +436,7 @@ export default function WorkloadPage(): JSX.Element {
                         <td key={s} className="p-3 text-end tabular-nums hidden lg:table-cell">
                           <button
                             className="hover:underline hover:text-primary"
-                            onClick={() => openDrill({ kind: 'status', userId: r.userId, memberName: r.name, status: s })}
+                            onClick={() => setDrill({ kind: 'status', userId: r.userId, memberName: r.name, teamIds: r._teamIds, status: s })}
                           >
                             {r.openByStatus[s]}
                           </button>
@@ -356,7 +453,7 @@ export default function WorkloadPage(): JSX.Element {
 
       {drill && (
         <SlideOver title={drillTitle()} onClose={() => setDrill(null)}>
-          <WorkloadTaskList tasks={drillData?.items ?? []} isLoading={drillLoading} />
+          <WorkloadTaskList tasks={drillItems} isLoading={drillLoading} />
         </SlideOver>
       )}
     </div>
