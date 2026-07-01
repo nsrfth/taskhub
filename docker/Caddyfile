@@ -1,12 +1,17 @@
 # SITE_HOST examples:
-#   "taskhub.example.com"   -> automatic HTTPS via Let's Encrypt (requires ACME_EMAIL + public DNS + ports 80/443 open)
+#   "taskhub.example.com"   -> custom cert (see tls directive below)
 #   ":80"                   -> local HTTP only (dev / LAN)
-{
-    email {$ACME_EMAIL}
-}
+#
+# This server uses a wildcard cert provisioned externally (*.modalalco.com).
+# The cert files are bind-mounted from the host into caddy_custom_certs at
+# /etc/caddy/custom/. ACME/Let's Encrypt is NOT used here.
 
 {$SITE_HOST} {
     encode zstd gzip
+
+    # Custom wildcard cert. Remove this line and add a global email block
+    # to switch back to automatic ACME.
+    tls /etc/caddy/custom/fullchain.pem /etc/caddy/custom/private.key
 
     # Security headers. HSTS is only meaningful on HTTPS but harmless on :80.
     header {
@@ -25,6 +30,16 @@
     # cause every /api request to 404.
     handle /api/* {
         reverse_proxy backend:4000
+    }
+
+    # index.html must never be served stale. It references hashed JS/CSS
+    # filenames that change on every deploy; a stale copy served by the PWA
+    # service worker loads the old JS bundle, which can silently fail against
+    # a newer server version (empty teams list, empty dashboard, etc.).
+    handle /index.html {
+        root * /srv/www
+        header Cache-Control "no-cache, must-revalidate"
+        file_server
     }
 
     # Static SPA. Try file then fall back to index.html for client-side routing.
