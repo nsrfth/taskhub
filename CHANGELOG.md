@@ -13,6 +13,17 @@ When shipping a change, bump the single version in `frontend/package.json`,
 `backend/package.json`, `ARCHITECTURE.md`, `USER_MANUAL.md`, `USER_MANUAL.fa.md`,
 and `TASKHUB_VERSION` in the deployment `.env` — keep them all in lockstep.
 
+## [2.5.17] — 2026-07-01
+
+**Feat: Export to Excel for Projects page.**
+Added a bulk Excel export on the Projects page (toolbar "Export to Excel" button). POSTs the
+current filtered list of `projectIds` to `POST /api/teams/:teamId/projects/export.xlsx`, which
+builds a 17-sheet ExcelJS workbook covering projects, tasks, subtasks, cost accounts, budget
+lines, commitments, expenses, actual costs, time entries, resource assignments, EVM metrics,
+risks, change requests, contracts, purchase orders, quality NCRs, and project baselines.
+Module-gated sheets are emitted empty if the module is disabled for a project. The cap is 200
+projects per export; the button disables with a tooltip when filtered count exceeds that.
+
 ## [2.5.16] — 2026-07-01
 
 **Fix: subtask workload grouped by assignee instead of responsible.**

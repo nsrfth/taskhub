@@ -71,6 +71,7 @@ import {
   riskRoutes,
   vendorRoutes,
 } from './routes/lifecycle.js';
+import { projectsExportRoutes } from './routes/projectsExport.js';
 import { taskhubRoutes } from './routes/taskhub.js';
 import { securitySettingsRoutes } from './routes/securitySettings.js';
 import { meTasksRoutes } from './routes/meTasks.js';
@@ -346,6 +347,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     await api.register(ncrRoutes, {
       prefix: '/teams/:teamId/projects/:projectId/ncrs',
     });
+    // v2.5.17: bulk Excel export for the Projects page.
+    await api.register(projectsExportRoutes, { prefix: '/teams/:teamId/projects' });
   }, { prefix: '/api' });
 
   app.addHook('onClose', async () => {

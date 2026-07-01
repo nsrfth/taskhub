@@ -1095,6 +1095,9 @@
 
   "projects.placeholder.search": "Project or bucket name…",
   "projects.filter.searchLabel": "Search",
+  "projects.export.button": "Export to Excel",
+  "projects.export.generating": "Generating…",
+  "projects.export.tooManyProjects": "Too many projects (max {cap})",
 
   "common.save": "Save",
   "common.cancel": "Cancel",

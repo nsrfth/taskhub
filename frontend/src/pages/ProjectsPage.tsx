@@ -65,6 +65,7 @@ export default function ProjectsPage(): JSX.Element {
   const [healthProjectId, setHealthProjectId] = useState<string | null>(null);
   const [healthSaveError, setHealthSaveError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedBuckets());
+  const [exportLoading, setExportLoading] = useState(false);
   const bucketMenuRef = useRef<HTMLDivElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -375,6 +376,32 @@ export default function ProjectsPage(): JSX.Element {
               className="inline-flex items-center gap-1 rounded-md bg-primary hover:bg-indigo-600 text-primary-contrast text-sm font-medium px-3 py-1.5"
             >
               + New project
+            </button>
+          )}
+          {currentTeam && (
+            <button
+              type="button"
+              disabled={exportLoading || filteredProjects.length === 0 || filteredProjects.length > 200}
+              title={
+                filteredProjects.length > 200
+                  ? t('projects.export.tooManyProjects').replace('{cap}', '200')
+                  : undefined
+              }
+              onClick={async () => {
+                if (!currentTeam) return;
+                setExportLoading(true);
+                try {
+                  await projectsApi.exportProjectsToExcel(
+                    currentTeam.id,
+                    filteredProjects.map((p) => p.id),
+                  );
+                } finally {
+                  setExportLoading(false);
+                }
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-border text-sm font-medium px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exportLoading ? t('projects.export.generating') : t('projects.export.button')}
             </button>
           )}
         </div>

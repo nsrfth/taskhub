@@ -173,6 +173,15 @@ export class ResourceService {
     return rows.map(this.assignmentToView);
   }
 
+  async listAssignmentsForProject(teamId: string, projectId: string) {
+    const rows = await prisma.resourceAssignment.findMany({
+      where: { projectId, teamId },
+      include: { resource: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(this.assignmentToView);
+  }
+
   async createAssignment(teamId: string, projectId: string, taskId: string, input: CreateAssignmentBody) {
     await this.assertProject(teamId, projectId);
     const task = await prisma.task.findFirst({

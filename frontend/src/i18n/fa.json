@@ -993,6 +993,10 @@
   "forms.notFound": "فرم یافت نشد یا دیگر در دسترس نیست.",
   "forms.honeypot": "خالی بگذارید",
 
+  "projects.export.button": "خروجی اکسل",
+  "projects.export.generating": "در حال ساخت…",
+  "projects.export.tooManyProjects": "تعداد پروژه‌ها بیش از حد مجاز است (حداکثر {cap})",
+
   "common.save": "ذخیره",
   "common.cancel": "انصراف",
   "common.edit": "ویرایش",

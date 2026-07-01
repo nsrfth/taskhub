@@ -181,6 +181,23 @@ export async function getMyDelegateStatus(
   ).data;
 }
 
+// v2.5.17: bulk Excel export — POST the list of projectIds, receive an .xlsx blob.
+export async function exportProjectsToExcel(teamId: string, projectIds: string[]): Promise<void> {
+  const response = await api.post(
+    `/teams/${teamId}/projects/export.xlsx`,
+    { projectIds },
+    { responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(response.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'projects-export.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // v1.91 (PMIS neutral core): update a project's RAG health status.
 // Gated on project WRITE (owner / project.write_all / FULL group grant).
 export async function updateProjectHealth(
