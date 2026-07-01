@@ -219,13 +219,17 @@ export class ReportsService {
       },
       select: {
         status: true,
+        // Group by assigneeId (the worker), falling back to responsibleId
+        // when no assignee is set. The project view shows assigneeId as
+        // "Responsible", so workload must match.
+        assignee: { select: { id: true, name: true } },
         responsible: { select: { id: true, name: true } },
       },
     });
     return rows.map((r) => ({
       status: r.status,
-      responsibleId: r.responsible?.id ?? null,
-      responsibleName: r.responsible?.name ?? null,
+      responsibleId: r.assignee?.id ?? r.responsible?.id ?? null,
+      responsibleName: r.assignee?.name ?? r.responsible?.name ?? null,
     }));
   }
 

@@ -13,6 +13,13 @@ When shipping a change, bump the single version in `frontend/package.json`,
 `backend/package.json`, `ARCHITECTURE.md`, `USER_MANUAL.md`, `USER_MANUAL.fa.md`,
 and `TASKHUB_VERSION` in the deployment `.env` — keep them all in lockstep.
 
+## [2.5.16] — 2026-07-01
+
+**Fix: subtask workload grouped by assignee instead of responsible.**
+The "Load by: Subtasks" workload was grouping subtasks by `responsibleId` (always the project
+owner), whereas the project task view shows `assigneeId` as the "Responsible" person. Fixed to
+group by `assigneeId`, falling back to `responsibleId` only when no assignee is set.
+
 ## [2.5.15] — 2026-07-01
 
 **Workload page: "Load by: Subtasks" mode.**
